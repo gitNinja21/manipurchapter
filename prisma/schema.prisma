@@ -1,0 +1,97 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite has no native enum support in Prisma, so roles are plain strings.
+// Valid values are "ADMIN" | "EMPLOYEE" (see src/lib/roles.ts).
+model User {
+  id            String   @id @default(cuid())
+  employeeCode  String   @unique // login ID, e.g. "MC-001"
+  name          String
+  passwordHash  String
+  role          String   @default("EMPLOYEE")
+  hourlyRateRs  Float    @default(100)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // True until the employee has completed first-login onboarding (set their
+  // own password + profile). Every new employee starts on the same shared
+  // default password (see DEFAULT_EMPLOYEE_PASSWORD), so this gates access to
+  // the rest of the app until they've replaced it with something only they know.
+  // Only ever true for the admin-driven "add employee" fallback — someone who
+  // signs up themselves (see `approved` below) sets their own password up
+  // front and skips this entirely.
+  mustChangePassword Boolean @default(true)
+
+  // Gates access for self-signups (src/app/signup/). False until an admin
+  // approves the account in the Employees tab — until then, the employee can
+  // log in (and sees a "pending approval" screen) but is blocked from
+  // clocking in or using the rest of the app. Employees added directly by an
+  // admin (the manual fallback) are approved immediately, since there's
+  // nothing to review.
+  approved Boolean @default(false)
+
+  // Profile fields, collected during onboarding.
+  phone          String?
+  alternatePhone String?
+  address        String?
+  hobbies        String?
+  profilePhoto   String? // storage key under uploads/, same convention as attendance photos
+
+  // 128-entry face-recognition descriptor (face-api.js), computed client-side
+  // from the profile photo at onboarding and JSON-stringified as a plain
+  // number array. Used to compare against clock-in/out selfies.
+  faceDescriptor String?
+
+  attendance    AttendanceRecord[]
+  announcements Announcement[]     @relation("AnnouncementAuthor")
+}
+
+model AttendanceRecord {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+
+  workDate String // YYYY-MM-DD in Asia/Kolkata, groups a shift's in/out together
+
+  clockInAt      DateTime?
+  clockInPhoto   String? // relative path under /uploads
+  clockInGesture String? // legacy: gesture that was requested & verified (no longer used)
+  clockInFaceMatch    Boolean? // did the clock-in selfie match the enrolled profile photo?
+  clockInFaceDistance Float?   // raw euclidean distance (lower = more similar), for admin review
+
+  clockOutAt      DateTime?
+  clockOutPhoto   String?
+  clockOutGesture String? // legacy: no longer used
+  clockOutFaceMatch    Boolean?
+  clockOutFaceDistance Float?
+
+  // Gates whether a completed day counts toward hours/salary in the admin
+  // Overview stats. "PENDING" | "APPROVED" | "REJECTED" (see
+  // src/lib/attendanceApproval.ts). Only APPROVED days are counted — a day
+  // isn't eligible for approval at all until it has both a clock-in and a
+  // clock-out.
+  approvalStatus String @default("PENDING")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, workDate])
+  @@index([userId])
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+
+  authorId String
+  author   User   @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+}
