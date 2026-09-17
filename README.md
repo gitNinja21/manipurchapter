@@ -83,6 +83,12 @@ employee, over that range:
   8 hours is a full bonus day, 12 is 1.5 bonus days, and so on.
 - **Total salary** = (off-day pay) + (regular working-day pay) + (overtime
   bonus-day pay).
+- **Nothing before an employee joined counts.** If you run payroll for a
+  range that starts before someone's account was created (self-signup or
+  admin add, whichever happened), the days before they joined aren't
+  treated as missed, and Mondays before they joined aren't paid — their
+  numbers only start from their actual join date, even if the rest of the
+  team's numbers cover the full range.
 
 Only clock-ins/outs an admin has **approved** in the Attendance Log count
 toward hours or salary — a completed day sits unpaid (but visible) until

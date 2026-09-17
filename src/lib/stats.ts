@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { hoursBetween, todayWorkDate } from "./time";
+import { hoursBetween, todayWorkDate, workDateFor } from "./time";
 import { APPROVAL_STATUS } from "./attendanceApproval";
 
 // --- Payroll rules ---
@@ -87,12 +87,19 @@ export async function computeStatsForRange(
     recordsByUser.set(r.userId, list);
   }
 
-  const allDays = daysInRange(fromDate, effectiveToDate);
-  // Mondays are paid off-days with no attendance expected, so they shouldn't
-  // inflate "missed clock-ins" — only non-Monday calendar days count there.
-  const workingCalendarDays = allDays.filter((d) => !isMonday(d)).length;
-
   return employees.map((emp) => {
+    // Nothing before an employee actually joined the system counts against
+    // (or in favor of) them — no missed days, no paid Mondays, no salary —
+    // regardless of what date range is being viewed. "Joined" is when their
+    // account was created, whether via self-signup or the admin's manual
+    // add, not when (or if) they've been approved yet.
+    const joinWorkDate = workDateFor(emp.createdAt);
+    const effectiveFromDate = joinWorkDate > fromDate ? joinWorkDate : fromDate;
+    const allDays = effectiveFromDate <= effectiveToDate ? daysInRange(effectiveFromDate, effectiveToDate) : [];
+    // Mondays are paid off-days with no attendance expected, so they shouldn't
+    // inflate "missed clock-ins" — only non-Monday calendar days count there.
+    const workingCalendarDays = allDays.filter((d) => !isMonday(d)).length;
+
     const empRecords = recordsByUser.get(emp.id) || [];
     const recordsByDate = new Map(empRecords.map((r) => [r.workDate, r]));
 
