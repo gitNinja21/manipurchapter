@@ -8,14 +8,22 @@ type EmployeeStats = {
   name: string;
   employeeCode: string;
   hourlyRateRs: number;
+  dailyRateRs: number;
   active: boolean;
   daysPresent: number;
   daysComplete: number;
+  fullDaysWorked: number;
   incompleteDays: number;
   missedDays: number;
   pendingApprovalDays: number;
   rejectedDays: number;
   totalHours: number;
+  offDays: number;
+  offDaysPayRs: number;
+  regularPayRs: number;
+  overtimeHours: number;
+  bonusDays: number;
+  bonusPayRs: number;
   salaryRs: number;
 };
 
@@ -45,6 +53,9 @@ export default function AdminOverviewPage() {
     totalSalaryRs: 0,
     totalMissed: 0,
     totalPendingApproval: 0,
+    totalOvertimeHours: 0,
+    totalBonusPayRs: 0,
+    totalOffDaysPayRs: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -54,7 +65,15 @@ export default function AdminOverviewPage() {
     const data = await res.json();
     setStats(data.stats ?? []);
     setTotals(
-      data.totals ?? { totalHours: 0, totalSalaryRs: 0, totalMissed: 0, totalPendingApproval: 0 }
+      data.totals ?? {
+        totalHours: 0,
+        totalSalaryRs: 0,
+        totalMissed: 0,
+        totalPendingApproval: 0,
+        totalOvertimeHours: 0,
+        totalBonusPayRs: 0,
+        totalOffDaysPayRs: 0,
+      }
     );
     setLoading(false);
   }, [from, to]);
@@ -80,6 +99,12 @@ export default function AdminOverviewPage() {
         <SummaryCard label="Missed clock-ins" value={String(totals.totalMissed)} warn />
       </div>
 
+      <div className="grid sm:grid-cols-3 gap-4">
+        <SummaryCard label="Paid off-days (Mondays)" value={rupee.format(totals.totalOffDaysPayRs)} />
+        <SummaryCard label="Overtime hours" value={totals.totalOvertimeHours.toFixed(1)} />
+        <SummaryCard label="Overtime bonus pay" value={rupee.format(totals.totalBonusPayRs)} accent />
+      </div>
+
       {totals.totalPendingApproval > 0 && (
         <div className="bg-accent/10 border border-accent/20 rounded-xl px-4 py-3 text-sm text-foreground/75">
           {totals.totalPendingApproval} completed{" "}
@@ -94,7 +119,7 @@ export default function AdminOverviewPage() {
 
       <div className="bg-surface border border-border rounded-2xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[820px]">
+          <table className="w-full text-sm min-w-[1100px]">
             <thead>
               <tr className="bg-surface-muted text-foreground/60 text-left">
                 <th className="px-4 py-2.5 font-medium">Employee</th>
@@ -104,19 +129,22 @@ export default function AdminOverviewPage() {
                 <th className="px-4 py-2.5 font-medium text-right">Forgot out</th>
                 <th className="px-4 py-2.5 font-medium text-right">Needs approval</th>
                 <th className="px-4 py-2.5 font-medium text-right">Hours</th>
+                <th className="px-4 py-2.5 font-medium text-right">Off days</th>
+                <th className="px-4 py-2.5 font-medium text-right">OT hours</th>
+                <th className="px-4 py-2.5 font-medium text-right">Bonus days</th>
                 <th className="px-4 py-2.5 font-medium text-right">Salary</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-foreground/45">
+                  <td colSpan={11} className="px-4 py-6 text-center text-foreground/45">
                     Loading…
                   </td>
                 </tr>
               ) : stats.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-foreground/45">
+                  <td colSpan={11} className="px-4 py-6 text-center text-foreground/45">
                     No employees yet. Add one from the Employees tab.
                   </td>
                 </tr>
@@ -156,6 +184,21 @@ export default function AdminOverviewPage() {
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-right">{s.totalHours.toFixed(2)}</td>
+                    <td className="px-4 py-2.5 text-right">{s.offDays}</td>
+                    <td className="px-4 py-2.5 text-right">
+                      {s.overtimeHours > 0 ? (
+                        <span className="text-brand font-medium">{s.overtimeHours.toFixed(1)}</span>
+                      ) : (
+                        "0"
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      {s.bonusDays > 0 ? (
+                        <span className="text-brand font-medium">{s.bonusDays.toFixed(2)}</span>
+                      ) : (
+                        "0"
+                      )}
+                    </td>
                     <td className="px-4 py-2.5 text-right font-semibold">
                       {rupee.format(s.salaryRs)}
                     </td>
@@ -171,7 +214,17 @@ export default function AdminOverviewPage() {
         counts calendar days in range (up to today) with no clock-in at all; &ldquo;Forgot
         out&rdquo; counts days clocked in but never clocked out. &ldquo;Needs approval&rdquo;
         counts completed days you haven&apos;t approved or rejected yet in the Attendance
-        Log — neither of those, nor rejected days, are included in Hours or Salary.
+        Log — neither of those, nor rejected days, count toward Hours or Salary.
+      </p>
+      <p className="text-xs text-foreground/40">
+        How salary is worked out: a complete day is 9 hours — working less than that pays for the
+        actual hours worked (pro-rated), not zero, and a day with no approved attendance pays
+        nothing. Every Monday in the selected range is a paid off-day regardless of attendance
+        (&ldquo;Off days&rdquo;). Hours worked beyond 9 in a day (&ldquo;OT hours&rdquo;)
+        accumulate across the whole range and convert to bonus days at 8 overtime hours per day
+        (&ldquo;Bonus days&rdquo;, fractional) — e.g. 4 accumulated OT hours is half a bonus day,
+        16 is two. Salary = off-day pay + regular day pay + bonus-day pay, all at each
+        employee&apos;s daily rate (hourly rate × 9).
       </p>
     </div>
   );

@@ -3,9 +3,10 @@
 A staff attendance app for Manipur Chapter: employees log in, clock in/out
 with a selfie that's automatically checked against their own enrolled photo
 (so a stolen or recycled photo can't be used), and see team announcements.
-Admins get a private dashboard with hours, missed days, and salary at
-₹100/hour (editable per employee), plus employee management and an
-announcement composer.
+Admins get a private dashboard with hours, missed days, and a monthly
+payroll calculation (see "How salary is calculated" below) at ₹100/hour
+(editable per employee), plus employee management and an announcement
+composer.
 
 ## What's inside
 
@@ -60,6 +61,34 @@ time they approve the account. Manually adding someone from the
 **Employees** tab is still there as a fallback and works like the old flow:
 the app hands back a shared starting password, and they set their own
 password and finish their profile the first time they sign in.
+
+## How salary is calculated
+
+The admin **Overview** page runs payroll for whatever date range you pick
+(pick a full calendar month for it to line up with pay periods). For each
+employee, over that range:
+
+- **A complete day is 9 hours.** Working a full day (9+ hours, approved)
+  pays that employee's full daily rate (hourly rate × 9). Working less than
+  9 hours pays for the actual hours worked, pro-rated — not zero. A working
+  day with no approved attendance at all pays nothing.
+- **Every Monday in the range is a paid off-day**, regardless of
+  attendance — no clock-in is expected or required on a Monday, and it's
+  paid at the full daily rate automatically. (This is why "Missed
+  clock-ins" only counts non-Monday days.)
+- **Overtime** is any hours worked beyond 9 on a working day. It's tracked
+  across the whole range (not day-by-day), and every 8 accumulated
+  overtime hours converts into one extra day's pay — fractionally, not
+  rounded down. So 4 accumulated overtime hours is worth half a bonus day,
+  8 hours is a full bonus day, 12 is 1.5 bonus days, and so on.
+- **Total salary** = (off-day pay) + (regular working-day pay) + (overtime
+  bonus-day pay).
+
+Only clock-ins/outs an admin has **approved** in the Attendance Log count
+toward hours or salary — a completed day sits unpaid (but visible) until
+reviewed. The exact math lives in `src/lib/stats.ts`
+(`computeStatsForRange`), and the Overview table breaks out off days, OT
+hours, and bonus days per employee so you can sanity-check the total.
 
 ## Running it locally
 
@@ -131,6 +160,9 @@ lock down network access somewhere unusual.
    - `DEFAULT_EMPLOYEE_PASSWORD` — the shared starting password every new
      employee login gets. Pick a real value (not the default) since anyone
      who knows it could start an employee's onboarding before they do.
+   - `RESTAURANT_LAT` / `RESTAURANT_LNG` / `RESTAURANT_RADIUS_METERS` —
+     optional, only needed if you want the GPS location gate (see "Things
+     worth knowing" above). Leave unset to skip it.
    - `NODE_ENV` = `production` (Railway usually sets this automatically).
 5. Deploy. On first boot, `npm start` runs `prisma migrate deploy` (creates
    the tables on the volume), then the seed script (creates the admin login
@@ -214,7 +246,9 @@ src/app/api/               All backend routes (auth, onboarding, attendance, adm
   possible until the record resets at midnight (Asia/Kolkata). If your team
   ever needs split shifts in a single day, that's a schema change away
   (ask, and I can add it).
-- **"Missed" days** on the admin overview count every calendar day in the
-  selected range (up to today) where an employee has no clock-in at all —
-  it doesn't know about planned days off, so treat it as a starting point
-  for a conversation, not an automatic penalty.
+- **"Missed" days** on the admin overview count every non-Monday calendar
+  day in the selected range (up to today) where an employee has no clock-in
+  at all — Mondays are excluded since they're paid off-days with no
+  attendance expected. It doesn't know about other planned days off, so
+  treat it as a starting point for a conversation, not an automatic
+  penalty.

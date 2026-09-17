@@ -25,8 +25,19 @@ export async function GET(req: NextRequest) {
       totalSalaryRs: acc.totalSalaryRs + s.salaryRs,
       totalMissed: acc.totalMissed + s.missedDays,
       totalPendingApproval: acc.totalPendingApproval + s.pendingApprovalDays,
+      totalOvertimeHours: acc.totalOvertimeHours + s.overtimeHours,
+      totalBonusPayRs: acc.totalBonusPayRs + s.bonusPayRs,
+      totalOffDaysPayRs: acc.totalOffDaysPayRs + s.offDaysPayRs,
     }),
-    { totalHours: 0, totalSalaryRs: 0, totalMissed: 0, totalPendingApproval: 0 }
+    {
+      totalHours: 0,
+      totalSalaryRs: 0,
+      totalMissed: 0,
+      totalPendingApproval: 0,
+      totalOvertimeHours: 0,
+      totalBonusPayRs: 0,
+      totalOffDaysPayRs: 0,
+    }
   );
 
   return NextResponse.json({ from, to, stats, totals });
