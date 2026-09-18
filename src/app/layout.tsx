@@ -15,6 +15,7 @@ const playfair = Playfair_Display({
 
 export const metadata: Metadata = {
   title: "Manipur Chapter Attendance System",
+  manifest: "/manifest.webmanifest",
   description: "Staff attendance, shift tracking, and announcements for Manipur Chapter.",
 };
 

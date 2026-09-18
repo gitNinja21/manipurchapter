@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import NotificationBell from "./team/NotificationBell";
 import { usePathname, useRouter } from "next/navigation";
 
 type Tab = { href: string; label: string };
@@ -18,6 +19,22 @@ export default function AppHeader({
   const router = useRouter();
 
   async function handleLogout() {
+    if ("serviceWorker" in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration("/");
+        const sub = await reg?.pushManager.getSubscription();
+        if (sub) {
+          await fetch("/api/team/push", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ endpoint: sub.endpoint }),
+          });
+          await sub.unsubscribe();
+        }
+      } catch {
+        /* Logout still succeeds if a device subscription has expired. */
+      }
+    }
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/");
     router.refresh();
@@ -32,17 +49,24 @@ export default function AppHeader({
           </p>
           <p className="text-xs text-white/70">{subtitle}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-white/85 hidden sm:inline">Hi, {name}</span>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <NotificationBell
+            root={
+              tabs.some((t) => t.href === "/admin") ? "/admin" : "/employee"
+            }
+          />
+          <span className="text-sm text-white/85 hidden sm:inline">
+            Hi, {name}
+          </span>
           <Link
             href="/account"
-            className="text-sm bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-3 py-1.5 transition-colors"
+            className="whitespace-nowrap text-sm bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-3 py-1.5 transition-colors"
           >
             Account
           </Link>
           <button
             onClick={handleLogout}
-            className="text-sm bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-3 py-1.5 transition-colors"
+            className="whitespace-nowrap text-sm bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-3 py-1.5 transition-colors"
           >
             Log out
           </button>

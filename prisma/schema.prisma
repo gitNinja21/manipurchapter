@@ -49,6 +49,19 @@ model User {
   // number array. Used to compare against clock-in/out selfies.
   faceDescriptor String?
 
+  birthdayMonth Int?
+  birthdayDay   Int?
+  shareBirthday Boolean @default(false)
+  muteChat      Boolean @default(false)
+  chatReadAt    DateTime?
+  messages      TeamMessage[]
+  reactions     MessageReaction[]
+  notifications Notification[]
+  acknowledgements AnnouncementAck[]
+  requests      StaffRequest[]
+  shifts        ScheduledShift[]
+  pushSubscriptions PushSubscription[]
+
   attendance    AttendanceRecord[]
   announcements Announcement[]     @relation("AnnouncementAuthor")
 }
@@ -87,6 +100,7 @@ model AttendanceRecord {
 }
 
 model Announcement {
+  acknowledgements AnnouncementAck[]
   id        String   @id @default(cuid())
   title     String
   body      String
@@ -114,4 +128,90 @@ model AttendanceAudit {
 
   @@index([workDate, createdAt])
   @@index([recordId])
+}
+
+model TeamMessage {
+  id String @id @default(cuid())
+  authorId String?
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  authorName String
+  body String
+  replyToId String?
+  replyTo TeamMessage? @relation("Replies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies TeamMessage[] @relation("Replies")
+  reactions MessageReaction[]
+  deletedAt DateTime?
+  deletedBy String?
+  createdAt DateTime @default(now())
+  @@index([createdAt, id])
+}
+model MessageReaction {
+  id String @id @default(cuid())
+  messageId String
+  message TeamMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji String
+  @@unique([messageId, userId, emoji])
+}
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind String
+  entityKey String
+  title String
+  href String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  @@unique([userId, kind, entityKey])
+  @@index([userId, readAt, createdAt])
+}
+model AnnouncementAck {
+  id String @id @default(cuid())
+  announcementId String
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  acknowledgedAt DateTime @default(now())
+  @@unique([announcementId, userId])
+}
+model StaffRequest {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind String
+  fromDate String
+  toDate String
+  reason String
+  proposedIn DateTime?
+  proposedOut DateTime?
+  expectedRecordId String?
+  expectedUpdatedAt DateTime?
+  status String @default("PENDING")
+  reviewNote String?
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId, status, fromDate])
+}
+model ScheduledShift {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workDate String
+  startsAt DateTime
+  endsAt DateTime
+  note String @default("")
+  updatedAt DateTime @updatedAt
+  @@unique([userId, workDate])
+}
+model PushSubscription {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint String @unique
+  p256dh String
+  auth String
+  createdAt DateTime @default(now())
 }

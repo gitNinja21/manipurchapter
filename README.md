@@ -291,3 +291,58 @@ src/app/api/               All backend routes (auth, onboarding, attendance, adm
   attendance expected. It doesn't know about other planned days off, so
   treat it as a starting point for a conversation, not an automatic
   penalty.
+
+
+## Team workspace
+
+The **Team** tab is available to approved, onboarded employees and admins.
+
+- **Birthdays:** save optional month/day in Account. Sharing with colleagues is
+  opt-in; admins can see saved birthdays. Upcoming birthdays and today's greeting
+  appear on the home page. No birth year is collected. February 29 is observed on
+  February 28 in non-leap years. Birthday greetings are in-app, not scheduled push.
+- **Chat:** one shared text channel with replies, emoji reactions, older-message
+  pagination, unread counts, and personal mute. Authors can remove their messages;
+  admins can moderate any message. Removed content becomes a tombstone. Chat
+  refreshes every five seconds while visible. Attachments and private DMs are not included.
+- **Announcements:** posting creates an in-app notification for current members.
+  Opening a notification and pressing **I've read this** are separate actions;
+  admins can track acknowledgements. The bell refreshes every 20 seconds.
+- **Requests:** employees submit leave or attendance corrections; admins approve
+  or reject with a note. Corrected attendance returns to pending attendance
+  approval and creates an audit entry. It does not immediately change payroll.
+- **Schedule:** admins assign one shift per employee per date, including overnight
+  shifts. Employees see their own schedule and approved leave. Conflicting shifts
+  must be cancelled or reassigned before leave approval. Leave and scheduled hours
+  do not automatically alter payroll or missing-day calculations.
+- **Employee home:** personal approved hours, overtime, bonus-day progress, next
+  shift and request/notification shortcuts. Salary amounts remain admin-only.
+
+Break tracking and existing payroll rules are unchanged.
+
+### Optional device push for announcements
+
+In-app notifications need no extra setup. To enable device push, generate a VAPID
+key pair with `npx web-push generate-vapid-keys --json`. Set `VAPID_PUBLIC_KEY`,
+`VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` (a contact mailto address or HTTPS URL) in
+hosting environment variables, then restart the app. Keep the private key secret
+and preserve the pair across deployments. Users enable each device from Account
+or Notifications and grant browser permission. Production requires HTTPS and a
+browser supporting Web Push; iPhone users may need to install to the Home Screen.
+Logout removes the device subscription. Push contains a generic announcement
+alert; users sign in to read content. Delivery depends on browser/device settings.
+Chat and request updates currently use in-app notifications only.
+
+### Updating an existing installation
+
+Back up the SQLite database, install dependencies, run `npm run db:deploy`, then
+`npm run build`. The team migration adds tables and optional/defaulted profile
+fields; it preserves existing attendance and employee records. Normal `npm start`
+also applies pending migrations. Do not copy a local development database over
+production data.
+
+Run `npm test`, `npm run lint`, and `npm run build` for checks. The integration
+script `scripts/test-team.mjs` requires a disposable, separately migrated database
+whose filename is `team-workspace-test.sqlite`, and a local app server pointing
+to that same database. Set `TEAM_TEST_DATABASE_URL` and `TEAM_TEST_BASE_URL` before
+running it. It creates test accounts and records; use a fresh database per run.

@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import AppHeader from "@/components/AppHeader";
+import BirthdaySettings from "@/components/team/BirthdaySettings";
+import PushSettings from "@/components/team/PushSettings";
 import ChangePasswordForm from "@/components/ChangePasswordForm";
 
 export default async function AccountPage() {
@@ -14,18 +16,23 @@ export default async function AccountPage() {
           { href: "/admin/employees", label: "Employees" },
           { href: "/admin/attendance", label: "Attendance Log" },
           { href: "/admin/announcements", label: "Announcements" },
+          { href: "/admin/payroll", label: "Payroll" },
+          { href: "/admin/team", label: "Team" },
         ]
       : [
           { href: "/employee", label: "Clock In / Out" },
           { href: "/employee/history", label: "My Attendance" },
           { href: "/employee/announcements", label: "Announcements" },
+          { href: "/employee/team", label: "Team" },
         ];
 
   return (
     <div className="flex-1 flex flex-col bg-background">
       <AppHeader
         name={user.name}
-        subtitle={user.role === "ADMIN" ? "Admin Dashboard" : "Staff Attendance"}
+        subtitle={
+          user.role === "ADMIN" ? "Admin Dashboard" : "Staff Attendance"
+        }
         tabs={tabs}
       />
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8">
@@ -44,10 +51,13 @@ export default async function AccountPage() {
                 My account
               </h1>
               <p className="text-sm text-foreground/55 mt-1">
-                Signed in as <span className="font-medium">{user.employeeCode}</span>
+                Signed in as{" "}
+                <span className="font-medium">{user.employeeCode}</span>
               </p>
             </div>
           </div>
+          <BirthdaySettings />
+          <PushSettings />
           <div className="bg-surface border border-border rounded-2xl p-6">
             <ChangePasswordForm />
           </div>

@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { computeStatsForRange } from "@/lib/stats";
 import { formatWorkDate, todayWorkDate } from "@/lib/time";
+import HomeSummary from "@/components/team/HomeSummary";
 import MetricCard from "@/components/admin/MetricCard";
 
 export const dynamic = "force-dynamic";
@@ -174,14 +175,12 @@ export default async function AdminOverviewPage() {
               title: "New employee requests",
               count: signups.length,
               href: "/admin/employees?status=pending",
-              items: signups
-                .slice(0, 4)
-                .map((e) => ({
-                  id: e.id,
-                  label: e.name,
-                  detail: "Awaiting account approval",
-                  href: `/admin/employees?status=pending&q=${encodeURIComponent(e.name)}`,
-                })),
+              items: signups.slice(0, 4).map((e) => ({
+                id: e.id,
+                label: e.name,
+                detail: "Awaiting account approval",
+                href: `/admin/employees?status=pending&q=${encodeURIComponent(e.name)}`,
+              })),
             },
           ].map((group) => (
             <div key={group.title}>
@@ -281,6 +280,7 @@ export default async function AdminOverviewPage() {
           )}
         </div>
       </section>
+      <HomeSummary admin />
       <p className="text-xs text-foreground/60">
         Salary includes approved work, paid Mondays, and earned overtime
         bonuses. Review the full breakdown in Payroll.

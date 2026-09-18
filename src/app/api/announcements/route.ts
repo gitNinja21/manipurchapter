@@ -1,41 +1,64 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser, requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-
-export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-
-  const announcements = await prisma.announcement.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 50,
-    include: { author: { select: { name: true } } },
+import {
+  teamRoute,
+  adminOnly,
+  jsonBody,
+  textField,
+  memberWhere,
+  notify,
+} from "@/lib/team";
+import { sendAnnouncementPush } from "@/lib/push";
+export const GET = teamRoute(async (u, req) => {
+  const page = Math.max(
+    1,
+    Math.min(
+      10000,
+      Math.floor(Number(req.nextUrl.searchParams.get("page")) || 1),
+    ),
+  );
+  const [announcements, total] = await prisma.$transaction([
+    prisma.announcement.findMany({
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip: (page - 1) * 20,
+      take: 20,
+      include: {
+        author: { select: { name: true } },
+        acknowledgements: {
+          where: { userId: u.id },
+          select: { acknowledgedAt: true },
+        },
+      },
+    }),
+    prisma.announcement.count(),
+  ]);
+  return { announcements, total };
+});
+export const POST = teamRoute(async (u, req) => {
+  adminOnly(u);
+  const b = await jsonBody(req),
+    title = textField(b.title, "Title", 150),
+    body = textField(b.body, "Message", 10000);
+  const announcement = await prisma.$transaction(async (tx) => {
+    const a = await tx.announcement.create({
+      data: { title, body, authorId: u.id },
+      include: { author: { select: { name: true } } },
+    });
+    const members = await tx.user.findMany({
+      where: memberWhere,
+      select: { id: true, role: true },
+    });
+    await notify(
+      tx,
+      members,
+      "ANNOUNCEMENT",
+      a.id,
+      title,
+      `announcements?announcement=${a.id}`,
+    );
+    return a;
   });
-
-  return NextResponse.json({ announcements });
-}
-
-export async function POST(req: NextRequest) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Admin only." }, { status: 403 });
-
-  let body: { title?: string; body?: string };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
-  }
-
-  const title = (body.title || "").trim();
-  const text = (body.body || "").trim();
-  if (!title || !text) {
-    return NextResponse.json({ error: "Title and message are required." }, { status: 400 });
-  }
-
-  const announcement = await prisma.announcement.create({
-    data: { title, body: text, authorId: admin.id },
-    include: { author: { select: { name: true } } },
-  });
-
-  return NextResponse.json({ announcement });
-}
+  await sendAnnouncementPush(announcement.id).catch(() =>
+    console.warn("Push delivery unavailable; in-app notifications saved."),
+  );
+  return { announcement };
+});

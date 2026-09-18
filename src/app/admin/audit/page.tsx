@@ -16,6 +16,7 @@ type Entry = {
 };
 const actions: Record<string, string> = {
   APPROVED: "Approved",
+  CORRECTED: "Attendance corrected",
   REJECTED: "Rejected",
   PENDING: "Reset to pending",
   DELETED: "Shift deleted",

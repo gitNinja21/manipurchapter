@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import HomeSummary from "@/components/team/HomeSummary";
 import FaceCapture from "@/components/FaceCapture";
 import { formatIstTime } from "@/lib/time";
 
@@ -23,7 +24,9 @@ const ANNOUNCEMENTS_PREVIEW_COUNT = 3;
 export default function EmployeeClockPage() {
   const [record, setRecord] = useState<TodayRecord>(null);
   const [loading, setLoading] = useState(true);
-  const [mode, setMode] = useState<"idle" | "locating" | "capturing" | "submitting">("idle");
+  const [mode, setMode] = useState<
+    "idle" | "locating" | "capturing" | "submitting"
+  >("idle");
   const [action, setAction] = useState<"in" | "out" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -46,7 +49,11 @@ export default function EmployeeClockPage() {
   useEffect(() => {
     fetch("/api/announcements")
       .then((r) => r.json())
-      .then((data) => setAnnouncements((data.announcements ?? []).slice(0, ANNOUNCEMENTS_PREVIEW_COUNT)))
+      .then((data) =>
+        setAnnouncements(
+          (data.announcements ?? []).slice(0, ANNOUNCEMENTS_PREVIEW_COUNT),
+        ),
+      )
       .finally(() => setAnnouncementsLoading(false));
   }, []);
 
@@ -66,20 +73,22 @@ export default function EmployeeClockPage() {
     if (typeof navigator !== "undefined" && navigator.geolocation) {
       setMode("locating");
       try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 12000,
-            maximumAge: 0,
-          });
-        });
+        const position = await new Promise<GeolocationPosition>(
+          (resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 12000,
+              maximumAge: 0,
+            });
+          },
+        );
         coordsRef.current = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         };
       } catch {
         setError(
-          "We couldn't get your location. Please allow location access in your browser and try again."
+          "We couldn't get your location. Please allow location access in your browser and try again.",
         );
         setMode("idle");
         return;
@@ -109,7 +118,11 @@ export default function EmployeeClockPage() {
         setMode("idle");
         return;
       }
-      setMessage(action === "in" ? "Clocked in! Have a great shift." : "Clocked out. See you next time!");
+      setMessage(
+        action === "in"
+          ? "Clocked in! Have a great shift."
+          : "Clocked out. See you next time!",
+      );
       setMode("idle");
       setAction(null);
       refresh();
@@ -160,15 +173,25 @@ export default function EmployeeClockPage() {
         <div className="bg-surface border border-border rounded-2xl p-6 space-y-5">
           <StatusRow
             label="Clocked in"
-            time={record?.clockInAt ? formatIstTime(new Date(record.clockInAt)) : null}
+            time={
+              record?.clockInAt
+                ? formatIstTime(new Date(record.clockInAt))
+                : null
+            }
           />
           <StatusRow
             label="Clocked out"
-            time={record?.clockOutAt ? formatIstTime(new Date(record.clockOutAt)) : null}
+            time={
+              record?.clockOutAt
+                ? formatIstTime(new Date(record.clockOutAt))
+                : null
+            }
           />
 
           {mode === "submitting" ? (
-            <div className="text-center text-sm text-foreground/55 py-2">Saving…</div>
+            <div className="text-center text-sm text-foreground/55 py-2">
+              Saving…
+            </div>
           ) : !hasClockedIn ? (
             <button
               onClick={() => startCapture("in")}
@@ -203,7 +226,13 @@ export default function EmployeeClockPage() {
       )}
 
       {mode !== "capturing" && mode !== "locating" && (
-        <AnnouncementsPreview items={announcements} loading={announcementsLoading} />
+        <>
+          <HomeSummary />
+          <AnnouncementsPreview
+            items={announcements}
+            loading={announcementsLoading}
+          />
+        </>
       )}
     </div>
   );
@@ -222,7 +251,9 @@ function AnnouncementsPreview({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-foreground/70">Announcements</h2>
+        <h2 className="text-sm font-semibold text-foreground/70">
+          Announcements
+        </h2>
         <Link
           href="/employee/announcements"
           className="text-xs text-brand underline underline-offset-2 hover:text-brand-dark"
@@ -232,7 +263,10 @@ function AnnouncementsPreview({
       </div>
       <div className="space-y-2.5">
         {items.map((a) => (
-          <div key={a.id} className="bg-surface border border-border rounded-2xl p-4">
+          <div
+            key={a.id}
+            className="bg-surface border border-border rounded-2xl p-4"
+          >
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-medium text-foreground text-sm">{a.title}</h3>
               <span className="text-xs text-foreground/40 whitespace-nowrap">

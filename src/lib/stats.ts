@@ -65,7 +65,7 @@ function isMonday(workDate: string): boolean {
 export async function computeStatsForRange(
   fromDate: string,
   toDate: string,
-  preview?: { userId: string; recordId: string; approvalStatus: string },
+  preview?: { userId: string; recordId?: string; approvalStatus?: string },
 ): Promise<EmployeeStats[]> {
   const today = todayWorkDate();
   const effectiveToDate = toDate > today ? today : toDate;
@@ -85,7 +85,7 @@ export async function computeStatsForRange(
   const recordsByUser = new Map<string, typeof records>();
   for (const original of records) {
     const r =
-      preview && preview.recordId === original.id
+      preview && preview.approvalStatus && preview.recordId === original.id
         ? { ...original, approvalStatus: preview.approvalStatus }
         : original;
     const list = recordsByUser.get(r.userId) || [];
