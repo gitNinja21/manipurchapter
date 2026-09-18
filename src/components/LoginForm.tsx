@@ -21,10 +21,22 @@ export default function LoginForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ employeeCode, password }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
+      if (res.status >= 500) {
+        setError("The attendance server is temporarily unavailable. Please try again shortly. If this continues, tell your administrator.");
+        return;
+      }
+      if (!data || typeof data !== "object") {
+        setError("The server returned an unexpected response. Refresh the page and try again.");
+        return;
+      }
       if (!res.ok) {
         setError(data.error || "Something went wrong. Please try again.");
         setLoading(false);
+        return;
+      }
+      if (!data.user || typeof data.user.role !== "string") {
+        setError("The server returned an incomplete login response. Please try again.");
         return;
       }
       if (data.user.role === "ADMIN") {
@@ -39,6 +51,8 @@ export default function LoginForm() {
       router.refresh();
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
+      setLoading(false);
+    } finally {
       setLoading(false);
     }
   }
