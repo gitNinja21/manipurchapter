@@ -1,3 +1,4 @@
+import { policyApplies, policyTimes, arrivalState } from "@/lib/workPolicy";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -31,7 +32,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Could not read a face from that photo." }, { status: 400 });
   }
 
+  const now = new Date();
   const workDate = todayWorkDate();
+  const governed = policyApplies(user, workDate);
+  let lateArrivalRequestId: string | null = null;
+  if (governed) {
+    const state = arrivalState(now, workDate);
+    if (state === "EARLY") return NextResponse.json({ error: "Your clock-in window opens at 9:30 am IST." }, { status: 403 });
+    if (state === "LATE") {
+      const approval = await prisma.staffRequest.findFirst({ where: {
+        userId: user.id, kind: "LATE_ARRIVAL", fromDate: workDate, toDate: workDate, status: "APPROVED",
+      }});
+      if (!approval) return NextResponse.json({ error: "The 10:30 am arrival window has ended. Submit a late-arrival reason in Team → Requests and wait for admin approval before clocking in.", code: "LATE_APPROVAL_REQUIRED" }, { status: 403 });
+      lateArrivalRequestId = approval.id;
+    }
+  }
+  const open = await prisma.attendanceRecord.findFirst({where: {userId: user.id, clockInAt: {not: null}, clockOutAt: null}});
+  if (open) return NextResponse.json({error: "You already have an open shift. Clock out or ask your admin to correct it before starting another."}, {status: 409});
 
   const existing = await prisma.attendanceRecord.findUnique({
     where: { userId_workDate: { userId: user.id, workDate } },
@@ -97,24 +114,38 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const now = new Date();
-  const record = await prisma.attendanceRecord.upsert({
+  const record = await prisma.$transaction(async (tx) => {
+    const duplicate = await tx.attendanceRecord.findFirst({where: {userId: user.id, OR: [{clockInAt: {not: null}, clockOutAt: null}, {workDate, clockInAt: {not: null}}]}});
+    if (duplicate) return null;
+    return tx.attendanceRecord.upsert({
     where: { userId_workDate: { userId: user.id, workDate } },
     create: {
       userId: user.id,
       workDate,
       clockInAt: now,
+      unpaidBreakMinutes: governed ? 60 : 0,
+      extraTimeCutoff: governed ? policyTimes(workDate).closesAt : null,
+      extraTimeStatus: "NOT_REQUIRED",
+      lateArrivalRequestId,
+      approvalStatus: "PENDING",
       clockInPhoto: photoKey,
       clockInFaceMatch: faceMatch,
       clockInFaceDistance: faceDistance,
     },
     update: {
       clockInAt: now,
+      unpaidBreakMinutes: governed ? 60 : 0,
+      extraTimeCutoff: governed ? policyTimes(workDate).closesAt : null,
+      extraTimeStatus: "NOT_REQUIRED",
+      lateArrivalRequestId,
+      approvalStatus: "PENDING",
       clockInPhoto: photoKey,
       clockInFaceMatch: faceMatch,
       clockInFaceDistance: faceDistance,
     },
   });
 
+  });
+  if (!record) return NextResponse.json({error: "A clock-in has already been recorded. Refresh the page."}, {status: 409});
   return NextResponse.json({ ok: true, record, faceMatch });
 }

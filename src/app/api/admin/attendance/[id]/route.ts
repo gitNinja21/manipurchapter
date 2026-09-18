@@ -69,6 +69,8 @@ export async function PATCH(
   }
   if (record.approvalStatus === body.approvalStatus)
     return NextResponse.json({ ok: true, record });
+  if (record.extraTimeStatus === "PENDING" && body.approvalStatus === "APPROVED")
+    return NextResponse.json({error: "Review the extra-time request in Team → Requests before approving attendance."}, {status: 409});
   const nextStatus = body.approvalStatus;
   const updated = await prisma.$transaction(async (tx) => {
     const changed = await tx.attendanceRecord.updateMany({

@@ -43,7 +43,11 @@ export const GET = teamRoute(async (u, req) => {
         })
       : Promise.resolve([]),
   ]);
-  return { shifts, leave, employees, admin: u.role === "ADMIN" };
+  const recurring = await prisma.user.findMany({where: {
+    role: "EMPLOYEE", active: true, attendancePolicyFrom: {not: null, lte: to},
+    ...(u.role === "ADMIN" ? {} : {id: u.id}),
+  }, select: {id: true, name: true, employeeCode: true, attendancePolicyFrom: true}, orderBy: {name: "asc"}});
+  return { shifts, leave, employees, recurring, admin: u.role === "ADMIN" };
 });
 export const POST = teamRoute(async (u, req) => {
   adminOnly(u);

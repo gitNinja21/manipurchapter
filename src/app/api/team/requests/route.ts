@@ -1,3 +1,4 @@
+import { policyApplies } from "@/lib/workPolicy";
 import { prisma } from "@/lib/prisma";
 import {
   teamRoute,
@@ -40,9 +41,9 @@ export const POST = teamRoute(async (u, req) => {
   const b = await jsonBody(req),
     kind = String(b.kind),
     fromDate = String(b.fromDate),
-    toDate = kind === "CORRECTION" ? fromDate : String(b.toDate),
+    toDate = kind !== "LEAVE" ? fromDate : String(b.toDate),
     reason = textField(b.reason, "Reason", 1000);
-  if (!["LEAVE", "CORRECTION"].includes(kind) || !validRange(fromDate, toDate))
+  if (!["LEAVE", "CORRECTION", "LATE_ARRIVAL"].includes(kind) || !validRange(fromDate, toDate))
     throw new TeamError("Choose a valid request and date range.");
   if ((Date.parse(toDate) - Date.parse(fromDate)) / 86400000 > 365)
     throw new TeamError("Choose a period of up to one year.");
@@ -55,6 +56,8 @@ export const POST = teamRoute(async (u, req) => {
     );
   if (kind === "LEAVE" && fromDate < todayWorkDate())
     throw new TeamError("Leave requests must start today or later.");
+  if (kind === "LATE_ARRIVAL" && (!policyApplies(u, fromDate) || fromDate < todayWorkDate() || Date.parse(fromDate) - Date.parse(todayWorkDate()) > 365 * 86400000))
+    throw new TeamError("Late-arrival requests must be for today or a future date covered by your attendance rules.");
   const proposedIn =
       kind === "CORRECTION" ? new Date(String(b.proposedIn)) : null,
     proposedOut =
@@ -74,13 +77,15 @@ export const POST = teamRoute(async (u, req) => {
       "Enter valid clock-in/out times in IST, up to 24 hours apart and not in the future.",
     );
   const request = await prisma.$transaction(async (tx) => {
+    if (kind === "LATE_ARRIVAL" && await tx.attendanceRecord.findFirst({where: {userId: u.id, workDate: fromDate, clockInAt: {not: null}}}))
+      throw new TeamError("You have already clocked in on this date.", 409);
     if (
       await tx.staffRequest.findFirst({
         where: {
           userId: u.id,
           kind,
           status: {
-            in: kind === "LEAVE" ? ["PENDING", "APPROVED"] : ["PENDING"],
+            in: kind !== "CORRECTION" ? ["PENDING", "APPROVED"] : ["PENDING"],
           },
           fromDate: { lte: toDate },
           toDate: { gte: fromDate },
@@ -119,7 +124,7 @@ export const POST = teamRoute(async (u, req) => {
       admins,
       "REQUEST",
       r.id,
-      `${u.name}: new ${kind === "LEAVE" ? "leave" : "attendance correction"} request`,
+      `${u.name}: new ${kind === "LEAVE" ? "leave" : kind === "LATE_ARRIVAL" ? "late-arrival" : "attendance correction"} request`,
       "team?view=requests",
     );
     return r;

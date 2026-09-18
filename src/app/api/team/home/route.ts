@@ -65,6 +65,7 @@ export const GET = teamRoute(async (u) => {
         }
       : null,
     nextShift,
+    attendancePolicyFrom: u.attendancePolicyFrom,
     requests,
     unread,
     chatUnread,

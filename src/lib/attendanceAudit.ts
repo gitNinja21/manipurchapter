@@ -11,6 +11,11 @@ export function auditData(
       approvalStatus: r.approvalStatus,
       clockInAt: r.clockInAt,
       clockOutAt: r.clockOutAt,
+      unpaidBreakMinutes: r.unpaidBreakMinutes,
+      extraTimeCutoff: r.extraTimeCutoff,
+      extraTimeStatus: r.extraTimeStatus,
+      extraTimeReason: r.extraTimeReason,
+      lateArrivalRequestId: r.lateArrivalRequestId,
     });
   return {
     recordId: record.id,

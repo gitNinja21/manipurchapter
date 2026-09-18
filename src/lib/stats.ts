@@ -1,5 +1,6 @@
+import { netWorkHours, netWorkMs } from "./workPolicy";
 import { prisma } from "./prisma";
-import { hoursBetween, todayWorkDate, workDateFor } from "./time";
+import { todayWorkDate, workDateFor } from "./time";
 import { APPROVAL_STATUS } from "./attendanceApproval";
 
 // --- Payroll rules ---
@@ -143,7 +144,7 @@ export async function computeStatsForRange(
     const totalHours = complete
       .filter((r) => r.approvalStatus === APPROVAL_STATUS.APPROVED)
       .reduce(
-        (sum, r) => sum + (hoursBetween(r.clockInAt, r.clockOutAt) ?? 0),
+        (sum, r) => sum + (netWorkHours(r) ?? 0),
         0,
       );
 
@@ -165,7 +166,7 @@ export async function computeStatsForRange(
       const record = recordsByDate.get(day);
       const approvedHours =
         record && record.approvalStatus === APPROVAL_STATUS.APPROVED
-          ? (hoursBetween(record.clockInAt, record.clockOutAt) ?? 0)
+          ? (netWorkHours(record) ?? 0)
           : 0;
 
       if (approvedHours <= 0) continue; // absent (or not yet approved) — no pay for this working day
@@ -199,8 +200,7 @@ export async function computeStatsForRange(
         continue;
       const extraMs = Math.max(
         0,
-        record.clockOutAt.getTime() -
-          record.clockInAt.getTime() -
+        (netWorkMs(record) ?? 0) -
           FULL_DAY_HOURS * hourMs,
       );
       if (record.workDate < effectiveFromDate) priorOvertimeMs += extraMs;

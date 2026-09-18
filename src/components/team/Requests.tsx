@@ -1,4 +1,5 @@
 "use client";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { api, useAction, useTeamData } from "./useTeamData";
 import { ErrorNotice, Pager } from "./TeamCommon";
@@ -17,9 +18,10 @@ type RequestItem = {
   user: { name: string; employeeCode: string };
 };
 export default function Requests({ admin }: { admin: boolean }) {
+  const params = useSearchParams();
   const [page, setPage] = useState(1),
     [filter, setFilter] = useState(admin ? "PENDING" : ""),
-    [kind, setKind] = useState("LEAVE"),
+    [kind, setKind] = useState(params.get("kind") === "LATE_ARRIVAL" ? "LATE_ARRIVAL" : "LEAVE"),
     [from, setFrom] = useState(todayWorkDate()),
     [to, setTo] = useState(todayWorkDate()),
     [reason, setReason] = useState(""),
@@ -42,7 +44,7 @@ export default function Requests({ admin }: { admin: boolean }) {
         </p>
       </div>
       {!admin && (
-        <details className="admin-panel p-5">
+        <details className="admin-panel p-5" open={params.get("kind") === "LATE_ARRIVAL" || undefined}>
           <summary className="font-medium cursor-pointer">
             Submit a request
           </summary>
@@ -77,6 +79,7 @@ export default function Requests({ admin }: { admin: boolean }) {
               >
                 <option value="LEAVE">Leave</option>
                 <option value="CORRECTION">Attendance correction</option>
+                <option value="LATE_ARRIVAL">Late arrival</option>
               </select>
             </label>
             <div className="grid sm:grid-cols-2 gap-3">
@@ -128,6 +131,7 @@ export default function Requests({ admin }: { admin: boolean }) {
                 </label>
               </div>
             )}
+            {kind === "LATE_ARRIVAL" && <p className="text-sm text-foreground/60">Explain why you will be late or are late. Approval permits a late clock-in on the selected date only. You must still clock in with your location and selfie; submitting this request does not start paid time.</p>}
             <label className="block text-sm">
               Reason
               <textarea
@@ -193,7 +197,7 @@ function RequestCard({
       <div className="flex justify-between gap-3">
         <div>
           <h3 className="font-semibold">
-            {r.kind === "LEAVE" ? "Leave" : "Attendance correction"}
+            {r.kind === "LEAVE" ? "Leave" : r.kind === "LATE_ARRIVAL" ? "Late arrival" : r.kind === "EXTRA_TIME" ? "Time after 10:30 pm" : "Attendance correction"}
             {admin ? ` · ${r.user.name}` : ""}
           </h3>
           <p className="text-xs text-foreground/60 mt-1">
@@ -216,6 +220,7 @@ function RequestCard({
           {r.reviewNote ? `: ${r.reviewNote}` : ""}
         </p>
       )}
+      {r.kind === "EXTRA_TIME" && <p className="text-sm text-foreground/60">{admin ? "Approve to count time after 10:30 pm. Reject to cap payable time at 10:30 pm while keeping the actual clock-out. The 1-hour break still applies. Review and approve attendance separately afterwards." : "Time after 10:30 pm counts only if your admin approves it. Your actual clock-out is kept. The 1-hour break still applies, and attendance needs separate approval."}</p>}
       <ErrorNotice error={action.error} />
       {r.status === "PENDING" &&
         (admin ? (
@@ -255,7 +260,7 @@ function RequestCard({
               </p>
             )}
           </div>
-        ) : (
+        ) : r.kind !== "EXTRA_TIME" ? (
           <button
             className="admin-button"
             disabled={action.busy}
@@ -269,7 +274,7 @@ function RequestCard({
           >
             Cancel request
           </button>
-        ))}
+        ) : null)}
     </article>
   );
 }

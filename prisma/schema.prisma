@@ -62,6 +62,9 @@ model User {
   shifts        ScheduledShift[]
   pushSubscriptions PushSubscription[]
 
+  // Recurring attendance rules apply from this IST date; null keeps legacy rules.
+  attendancePolicyFrom String?
+
   attendance    AttendanceRecord[]
   announcements Announcement[]     @relation("AnnouncementAuthor")
 }
@@ -91,6 +94,12 @@ model AttendanceRecord {
   // isn't eligible for approval at all until it has both a clock-in and a
   // clock-out.
   approvalStatus String @default("PENDING")
+  // Snapshots prevent future policy changes from rewriting historical payroll.
+  unpaidBreakMinutes Int @default(0)
+  extraTimeCutoff DateTime?
+  extraTimeStatus String @default("NOT_REQUIRED")
+  extraTimeReason String?
+  lateArrivalRequestId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

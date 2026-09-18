@@ -1,9 +1,9 @@
 "use client";
+import { netWorkHours } from "@/lib/workPolicy";
 import { useEffect, useState } from "react";
 import {
   formatWorkDate,
   formatIstTime,
-  hoursBetween,
   todayWorkDate,
 } from "@/lib/time";
 import { validRange, weekStart } from "@/lib/reporting";
@@ -12,6 +12,10 @@ import AttendanceReview from "@/components/admin/AttendanceReview";
 type AttendanceRecord = {
   id: string;
   workDate: string;
+  unpaidBreakMinutes: number;
+  extraTimeCutoff: string | null;
+  extraTimeStatus: string;
+  extraTimeReason: string | null;
   clockInAt: string | null;
   clockOutAt: string | null;
   clockInPhoto: string | null;
@@ -178,7 +182,7 @@ export default function AdminAttendancePage() {
                   "Date",
                   "Clock-in",
                   "Clock-out",
-                  "Hours",
+                  "Net hours",
                   "Review",
                   "Photos",
                   "",
@@ -215,7 +219,10 @@ export default function AdminAttendancePage() {
                       <FaceMatchBadge match={r.clockOutFaceMatch} />
                     </td>
                     <td className="px-4 py-4 tabular-nums">
-                      {hoursBetween(inAt, outAt)?.toFixed(2) ?? "—"}
+                      {netWorkHours(r)?.toFixed(2) ?? "—"}
+                      {!!r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">{r.unpaidBreakMinutes}m break deducted</p>}
+                      {r.extraTimeStatus !== "NOT_REQUIRED" && r.extraTimeCutoff && <a className="text-xs text-brand underline block" href="/admin/team?view=requests">Extra time: {r.extraTimeStatus}</a>}
+                      {r.extraTimeReason && <p className="text-xs max-w-48 whitespace-pre-wrap">{r.extraTimeReason}</p>}
                     </td>
                     <td className="px-4 py-4">
                       <AttendanceReview

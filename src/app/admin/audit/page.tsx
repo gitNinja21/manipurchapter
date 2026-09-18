@@ -17,6 +17,8 @@ type Entry = {
 const actions: Record<string, string> = {
   APPROVED: "Approved",
   CORRECTED: "Attendance corrected",
+  EXTRA_TIME_APPROVED: "Extra time approved",
+  EXTRA_TIME_REJECTED: "Extra time rejected",
   REJECTED: "Rejected",
   PENDING: "Reset to pending",
   DELETED: "Shift deleted",
@@ -221,6 +223,9 @@ function Snapshot({ label, json }: { label: string; json: string | null }) {
         approvalStatus: string;
         clockInAt: string | null;
         clockOutAt: string | null;
+        unpaidBreakMinutes?: number;
+        extraTimeStatus?: string;
+        extraTimeReason?: string;
       })
     : null;
   return (
@@ -234,6 +239,9 @@ function Snapshot({ label, json }: { label: string; json: string | null }) {
           In: {s.clockInAt ? formatIstDateTime(new Date(s.clockInAt)) : "—"}
           <br />
           Out: {s.clockOutAt ? formatIstDateTime(new Date(s.clockOutAt)) : "—"}
+          {s.unpaidBreakMinutes !== undefined && <><br />Unpaid break: {s.unpaidBreakMinutes} minutes</>}
+          {s.extraTimeStatus && <><br />Extra time: {s.extraTimeStatus}</>}
+          {s.extraTimeReason && <><br />Reason: {s.extraTimeReason}</>}
         </p>
       )}
     </div>

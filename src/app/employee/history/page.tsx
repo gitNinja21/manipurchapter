@@ -1,11 +1,16 @@
 "use client";
+import { netWorkHours } from "@/lib/workPolicy";
 
 import { useEffect, useState } from "react";
-import { formatWorkDate, formatIstTime, hoursBetween } from "@/lib/time";
+import { formatWorkDate, formatIstTime } from "@/lib/time";
 
 type Record = {
   id: string;
   workDate: string;
+  unpaidBreakMinutes: number;
+  extraTimeCutoff: string | null;
+  extraTimeStatus: string;
+  extraTimeReason: string | null;
   clockInAt: string | null;
   clockOutAt: string | null;
   approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
@@ -39,7 +44,7 @@ export default function HistoryPage() {
                   <th className="px-4 py-2.5 font-medium">Date</th>
                   <th className="px-4 py-2.5 font-medium">In</th>
                   <th className="px-4 py-2.5 font-medium">Out</th>
-                  <th className="px-4 py-2.5 font-medium text-right">Hours</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Net hours</th>
                   <th className="px-4 py-2.5 font-medium">Status</th>
                 </tr>
               </thead>
@@ -47,7 +52,7 @@ export default function HistoryPage() {
                 {records.map((r) => {
                   const inAt = r.clockInAt ? new Date(r.clockInAt) : null;
                   const outAt = r.clockOutAt ? new Date(r.clockOutAt) : null;
-                  const hours = hoursBetween(inAt, outAt);
+                  const hours = netWorkHours(r);
                   return (
                     <tr key={r.id} className="border-t border-border">
                       <td className="px-4 py-2.5">{formatWorkDate(r.workDate)}</td>
@@ -63,6 +68,8 @@ export default function HistoryPage() {
                       </td>
                       <td className="px-4 py-2.5 text-right font-medium">
                         {hours !== null ? hours.toFixed(2) : "—"}
+                        {!!r.unpaidBreakMinutes && <p className="text-xs font-normal">{r.unpaidBreakMinutes}m break deducted</p>}
+                        {r.extraTimeStatus !== "NOT_REQUIRED" && r.extraTimeCutoff && <p className="text-xs font-normal">Extra time: {r.extraTimeStatus}</p>}
                       </td>
                       <td className="px-4 py-2.5">
                         <ApprovalStatusBadge status={outAt ? r.approvalStatus : null} />

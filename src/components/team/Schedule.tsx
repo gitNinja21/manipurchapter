@@ -10,6 +10,7 @@ function plus(date: string, n: number) {
   return d.toISOString().slice(0, 10);
 }
 type ScheduleData = {
+  recurring: {id: string; name: string; employeeCode: string; attendancePolicyFrom: string}[];
   shifts: {
     id: string;
     userId: string;
@@ -52,6 +53,15 @@ export default function Schedule({ admin }: { admin: boolean }) {
           payroll.
         </p>
       </div>
+      {!!data?.recurring?.length && <section className="admin-panel p-5 space-y-3">
+        <h3 className="font-semibold">Daily attendance rules</h3>
+        <p className="text-sm">9:30–10:30 am arrival window · 1-hour unpaid break · actual clock-out time. Late arrivals require approval; time after 10:30 pm requires a reason and approval.</p>
+        {data.recurring.map(person => <div key={person.id} className="text-sm border-t border-border pt-2">
+          <strong>{person.name}</strong> · from {formatWorkDate(person.attendancePolicyFrom)}
+          <p className="text-foreground/60">Usual departure: {person.employeeCode === "NIJULI" ? "7–7:30 pm" : person.employeeCode === "RONYAMZ" ? "8–8:30 pm" : "closing, around 10:30 pm"}. This is guidance; actual clock-out determines hours.</p>
+        </div>)}
+        <p className="text-xs text-foreground/60">These recurring clock rules apply daily. Monday remains a paid off-day under the existing payroll rule. Date-specific schedule entries below do not override these clock rules.</p>
+      </section>}
       <div className="flex flex-wrap gap-2 items-center">
         <button
           className="admin-button"

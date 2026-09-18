@@ -9,6 +9,10 @@ import { formatIstTime } from "@/lib/time";
 type TodayRecord = {
   clockInAt: string | null;
   clockOutAt: string | null;
+  workDate: string;
+  unpaidBreakMinutes: number;
+  extraTimeCutoff: string | null;
+  extraTimeStatus: string;
 } | null;
 
 type Announcement = {
@@ -22,6 +26,10 @@ type Announcement = {
 const ANNOUNCEMENTS_PREVIEW_COUNT = 3;
 
 export default function EmployeeClockPage() {
+  const [policy, setPolicy] = useState(false);
+  const [arrival, setArrival] = useState<string | null>(null);
+  const [lateStatus, setLateStatus] = useState<string | null>(null);
+  const [extraTimeReason, setExtraTimeReason] = useState("");
   const [record, setRecord] = useState<TodayRecord>(null);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<
@@ -34,16 +42,25 @@ export default function EmployeeClockPage() {
   const [announcementsLoading, setAnnouncementsLoading] = useState(true);
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch("/api/attendance/today");
-    const data = await res.json();
-    setRecord(data.record ?? null);
-    setLoading(false);
+  const refresh = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
+    try {
+      const res = await fetch("/api/attendance/today");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not load attendance.");
+      setRecord(data.record ?? null);
+      setPolicy(!!data.policy);
+      setArrival(data.arrivalState);
+      setLateStatus(data.lateRequest?.status ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not load attendance. Please refresh.");
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
-    refresh();
+    void refresh();
+    const timer = setInterval(() => { if (!document.hidden) void refresh(true); }, 30000);
+    return () => clearInterval(timer);
   }, [refresh]);
 
   useEffect(() => {
@@ -123,6 +140,7 @@ export default function EmployeeClockPage() {
           descriptor,
           lat: coordsRef.current?.lat,
           lng: coordsRef.current?.lng,
+          extraTimeReason,
         }),
       });
       const data = await res.json();
@@ -160,6 +178,25 @@ export default function EmployeeClockPage() {
         </p>
       </div>
 
+      {policy && (
+        <section className="admin-panel p-4 space-y-2 text-sm">
+          <h2 className="font-semibold">Your daily attendance rules · IST</h2>
+          <p>Clock in 9:30–10:30 am. A 1-hour unpaid break is deducted. Regular pay covers up to 9 net hours; additional net hours go to your bonus balance.</p>
+          <p>Clock out when you actually leave. After 10:30 pm, a reason and admin review are required for the extra time.</p>
+          {!hasClockedIn && arrival === "EARLY" && <p>Clock-in opens at 9:30 am.</p>}
+          {!hasClockedIn && lateStatus && <p>Today’s late-arrival request: <strong>{lateStatus}</strong>.</p>}
+          {!hasClockedIn && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request late arrival / view approval</Link>}
+          {!hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Admin approval is required before clock-in. Your work starts at your actual clock-in time, not the request time.</p>}
+        </section>
+      )}
+      {record?.clockInAt && !record.clockOutAt && record.extraTimeCutoff && mode !== "submitting" && (
+        <label className="admin-panel p-4 block text-sm">
+          Reason for working after 10:30 pm (required for a late clock-out)
+          <textarea className="input mt-2" rows={3} maxLength={1000} value={extraTimeReason} onChange={e => setExtraTimeReason(e.target.value)} placeholder="For example: finishing a late table’s service" />
+          <span className="block text-xs text-foreground/60 mt-2">Applies to your shift starting {record.workDate}. Time after 10:30 pm stays excluded until admin approval.</span>
+        </label>
+      )}
+      {record?.extraTimeStatus === "PENDING" && <p className="text-sm text-accent">Clock-out saved. Your extra-time reason is awaiting admin review in Team → Requests.</p>}
       {loading ? (
         <div className="bg-surface border border-border rounded-2xl p-8 text-center text-sm text-foreground/50">
           Loading…
@@ -212,7 +249,8 @@ export default function EmployeeClockPage() {
           ) : !hasClockedIn ? (
             <button
               onClick={() => startCapture("in")}
-              className="w-full rounded-lg bg-brand text-white font-medium py-3 hover:bg-brand-dark transition-colors"
+              disabled={policy && (arrival === "EARLY" || (arrival === "LATE" && lateStatus !== "APPROVED"))}
+              className="w-full rounded-lg bg-brand text-white font-medium py-3 hover:bg-brand-dark transition-colors disabled:opacity-50"
             >
               Clock In
             </button>

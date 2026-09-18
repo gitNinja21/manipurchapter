@@ -5,6 +5,7 @@ import { formatWorkDate, formatIstDateTime } from "@/lib/time";
 import { ErrorNotice } from "./TeamCommon";
 type Home = {
   today: string;
+  attendancePolicyFrom: string | null;
   month: string;
   birthdayToday: boolean;
   requests: number;
@@ -47,6 +48,8 @@ export default function HomeSummary({ admin = false }: { admin?: boolean }) {
                     {data.nextShift.note}
                   </p>
                 </>
+              ) : data.attendancePolicyFrom ? (
+                <p className="text-sm text-foreground/60 mt-2">Daily arrival window: 9:30–10:30 am IST, from {formatWorkDate(data.attendancePolicyFrom)}. Clock out when you actually leave.</p>
               ) : (
                 <p className="text-sm text-foreground/60 mt-2">
                   No upcoming shift assigned.
@@ -87,7 +90,7 @@ export default function HomeSummary({ admin = false }: { admin?: boolean }) {
               </p>
               <dl className="grid grid-cols-2 gap-4 text-sm">
                 {[
-                  ["Hours worked", data.summary.totalHours],
+                  ["Net hours worked", data.summary.totalHours],
                   ["Extra hours this month", data.summary.overtimeHours],
                   ["Bonus days earned", data.summary.bonusDays],
                   [

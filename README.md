@@ -318,7 +318,7 @@ The **Team** tab is available to approved, onboarded employees and admins.
 - **Employee home:** personal approved hours, overtime, bonus-day progress, next
   shift and request/notification shortcuts. Salary amounts remain admin-only.
 
-Break tracking and existing payroll rules are unchanged.
+For the four employees in the rollout below, the one-hour unpaid break is deducted automatically. Other employees retain their existing payroll rules.
 
 ### Optional device push for announcements
 
@@ -346,3 +346,43 @@ script `scripts/test-team.mjs` requires a disposable, separately migrated databa
 whose filename is `team-workspace-test.sqlite`, and a local app server pointing
 to that same database. Set `TEAM_TEST_DATABASE_URL` and `TEAM_TEST_BASE_URL` before
 running it. It creates test accounts and records; use a fresh database per run.
+
+
+## Four-person attendance rollout (19 September 2026 IST)
+
+Migration `20260919120000_work_rules` activates recurring rules only for existing
+employee login IDs `GOKUL`, `RONYAMZ`, `NIJULI`, and `HINGNAMBE NEWME`. Verify all
+four appear under **Team → Schedule → Daily attendance rules** after deployment.
+If an ID was renamed, the migration will not guess another employee's identity.
+
+- Arrivals from 09:30 through the end of the 10:30 minute are on time. Earlier
+  clock-ins are blocked. From 10:31, employees submit a **Late arrival** request
+  with a reason, for today or a future date. An admin approves that date before
+  clock-in. Approval does not replace location/selfie verification and does not
+  backdate attendance to the request time.
+- All four get a fixed 60-minute unpaid break on new clock-ins from the effective
+  date. This is an automatic deduction, not start/stop break tracking. Net hours
+  cannot fall below zero. Old recorded shifts retain their original deductions.
+- Clock-out uses the server timestamp at the attendance submission. Typical
+  leaving times are guidance only, never an automatic clock-out.
+- After 22:30, clock-out requires a reason and automatically creates an extra-time
+  request. Until approved, time beyond 22:30 is excluded. Rejection retains the
+  actual clock-out but caps payable hours at 22:30. Approval includes that time.
+  The admin then separately approves attendance in Attendance. Pending extra-time
+  requests block attendance approval, and decisions are recorded in Audit.
+- An open shift remains available after midnight for up to 24 hours from clock-in.
+  Older forgotten shifts require an attendance correction. Corrections retain the
+  break snapshot and re-open extra-time review when relevant.
+- On working days, regular pay is `min(net hours, 9) × hourly rate`. Net hours above
+  nine enter the employee's existing bonus balance. Every completed eight hours
+  earns one additional nine-hour day's pay, carrying remainders across months.
+- The existing Monday paid-off-day rule remains: Monday pays the daily rate and
+  Monday attendance does not add regular or bonus pay. Changing that rule requires
+  a separate payroll decision.
+
+The same net-hour calculation powers payroll, previews, employee history and the
+admin attendance table. Run `npm test`, `npm run lint`, and `npm run build`.
+Then run `node scripts/test-work-rules.mjs` for isolated end-to-end checks. It
+creates its own temporary SQLite database, uploads and a test-only process clock,
+starts a localhost server on port 3104, and stops it on completion. No real staff
+records or production data are used.

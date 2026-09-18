@@ -1,7 +1,7 @@
+import { requestExtraTime } from "@/lib/workPolicyServer";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { todayWorkDate } from "@/lib/time";
 import { saveDataUrlPhoto } from "@/lib/photoStorage";
 import { euclideanDistance, isFaceMatch, parseDescriptor } from "@/lib/faceMatch";
 import { checkWithinRestaurant, getRestaurantLocationConfig } from "@/lib/geofence";
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { photoDataUrl?: string; descriptor?: number[]; lat?: number; lng?: number };
+  let body: { photoDataUrl?: string; descriptor?: number[]; lat?: number; lng?: number; extraTimeReason?: string };
   try {
     body = await req.json();
   } catch {
@@ -31,10 +31,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Could not read a face from that photo." }, { status: 400 });
   }
 
-  const workDate = todayWorkDate();
-
-  const existing = await prisma.attendanceRecord.findUnique({
-    where: { userId_workDate: { userId: user.id, workDate } },
+  const now = new Date();
+  const existing = await prisma.attendanceRecord.findFirst({
+    where: { userId: user.id, clockInAt: { not: null }, clockOutAt: null },
+    orderBy: { workDate: "desc" },
   });
   if (!existing?.clockInAt) {
     return NextResponse.json(
@@ -47,6 +47,15 @@ export async function POST(req: NextRequest) {
       { error: "You've already clocked out today." },
       { status: 409 }
     );
+  }
+
+  if (+now - +existing.clockInAt > 24 * 3600000) {
+    return NextResponse.json({error: "This shift is over 24 hours old. Submit an attendance correction with your actual leaving time."}, {status: 409});
+  }
+  const needsExtraReview = !!existing.extraTimeCutoff && now > existing.extraTimeCutoff;
+  const extraTimeReason = typeof body.extraTimeReason === "string" ? body.extraTimeReason.trim() : "";
+  if (needsExtraReview && (extraTimeReason.length < 3 || extraTimeReason.length > 1000)) {
+    return NextResponse.json({error: "You are clocking out after 10:30 pm. Explain why you worked later (3–1000 characters). This extra time needs admin approval.", code: "EXTRA_TIME_REASON_REQUIRED"}, {status: 400});
   }
 
   // Location gate — a no-op unless RESTAURANT_LAT/RESTAURANT_LNG are set.
@@ -99,15 +108,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const record = await prisma.attendanceRecord.update({
-    where: { userId_workDate: { userId: user.id, workDate } },
-    data: {
-      clockOutAt: new Date(),
-      clockOutPhoto: photoKey,
-      clockOutFaceMatch: faceMatch,
-      clockOutFaceDistance: faceDistance,
-    },
+  const record = await prisma.$transaction(async (tx) => {
+    const changed = await tx.attendanceRecord.updateMany({
+      where: { id: existing.id, clockOutAt: null, updatedAt: existing.updatedAt },
+      data: {
+        clockOutAt: now,
+        clockOutPhoto: photoKey,
+        clockOutFaceMatch: faceMatch,
+        clockOutFaceDistance: faceDistance,
+        extraTimeReason: needsExtraReview ? extraTimeReason : null,
+        extraTimeStatus: needsExtraReview ? "PENDING" : "NOT_REQUIRED",
+        approvalStatus: "PENDING",
+      },
+    });
+    if (!changed.count) return null;
+    const result = await tx.attendanceRecord.findUniqueOrThrow({where: {id: existing.id}});
+    if (needsExtraReview) await requestExtraTime(tx, result, user.name, extraTimeReason);
+    return result;
   });
+  if (!record) return NextResponse.json({error: "This shift changed. Refresh before trying again."}, {status: 409});
 
   return NextResponse.json({ ok: true, record, faceMatch });
 }

@@ -124,3 +124,33 @@ test("salary previews do not mutate attendance and paid-day equivalents handle z
   assert.equal(actual.paidWorkDays, 0);
   assert.equal(actual.pendingApprovalDays, 1);
 });
+
+
+test("payroll uses net hours, keeps old records unchanged and awards exact bonus blocks", async (t) => {
+  const users = prisma.user.findMany, attendance = prisma.attendanceRecord.findMany;
+  t.after(() => { prisma.user.findMany = users; prisma.attendanceRecord.findMany = attendance; });
+  prisma.user.findMany = (async () => [{id: "a", name: "A", employeeCode: "A", createdAt: new Date("2020-01-01"), hourlyRateRs: 100, active: true} as User]) as typeof prisma.user.findMany;
+  let records: AttendanceRecord[] = [];
+  prisma.attendanceRecord.findMany = (async () => records) as typeof prisma.attendanceRecord.findMany;
+  const shift = (day: string, elapsed: number, breakMinutes = 60) => ({id: day, userId: "a", workDate: day, approvalStatus: "APPROVED", clockInAt: new Date(`${day}T00:00:00Z`), clockOutAt: new Date(+new Date(`${day}T00:00:00Z`) + elapsed * 3600000), unpaidBreakMinutes: breakMinutes} as AttendanceRecord);
+  records = [shift("2020-09-01", 9.5), shift("2020-09-02", 10), shift("2020-09-03", 14), shift("2020-09-04", 14)];
+  let [s] = await computeStatsForRange("2020-09-01", "2020-09-04");
+  assert.equal(s.totalHours, 43.5);
+  assert.equal(s.regularPayRs, 3550);
+  assert.equal(s.overtimeHours, 8);
+  assert.equal(s.bonusDays, 1);
+  assert.equal(s.salaryRs, 4450);
+  records = [shift("2020-09-01", 0.5), shift("2020-09-02", 10, 0)];
+  [s] = await computeStatsForRange("2020-09-01", "2020-09-02");
+  assert.equal(s.regularPayRs, 900);
+  assert.equal(s.overtimeHours, 1);
+  const late = {...shift("2020-09-01", 14), extraTimeCutoff: new Date("2020-09-01T12:00:00Z"), extraTimeStatus: "REJECTED"};
+  records = [late];
+  [s] = await computeStatsForRange("2020-09-01", "2020-09-01");
+  assert.equal(s.totalHours, 11);
+  assert.equal(s.overtimeHours, 2);
+  records = [{...late, extraTimeStatus: "APPROVED"}];
+  [s] = await computeStatsForRange("2020-09-01", "2020-09-01");
+  assert.equal(s.totalHours, 13);
+  assert.equal(s.overtimeHours, 4);
+});

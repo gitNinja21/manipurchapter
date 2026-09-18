@@ -383,7 +383,7 @@ export default function PayrollPage() {
         </summary>
         <div className="mt-3 space-y-2 text-foreground/70">
           <p>
-            A full shift is 9 hours. Shorter approved shifts are paid by the
+            A full shift is 9 net working hours after any assigned unpaid break. Shorter approved shifts are paid by the
             hour. Daily pay is the employee’s hourly rate × 9.
           </p>
           <p>
