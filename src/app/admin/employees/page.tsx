@@ -20,38 +20,101 @@ type Employee = {
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("all");
+  const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [justAdded, setJustAdded] = useState<{ employeeCode: string; defaultPassword: string } | null>(
-    null
-  );
+  const [justAdded, setJustAdded] = useState<{
+    employeeCode: string;
+    defaultPassword: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch("/api/admin/employees");
-    const data = await res.json();
-    setEmployees(data.employees ?? []);
-    setLoading(false);
+    setLoadError("");
+    try {
+      const res = await fetch("/api/admin/employees");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not load employees.");
+      setEmployees(data.employees ?? []);
+    } catch (e) {
+      setLoadError(
+        e instanceof Error ? e.message : "Could not load employees.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setStatus(params.get("status") || "all");
+    setQuery(params.get("q") || "");
     load();
   }, [load]);
 
-  const pending = employees.filter((e) => !e.approved);
-  const approvedEmployees = employees.filter((e) => e.approved);
+  const matches = employees.filter((e) =>
+    `${e.name} ${e.employeeCode}`.toLowerCase().includes(query.toLowerCase()),
+  );
+  const pending = matches.filter(
+    (e) => !e.approved && (status === "all" || status === "pending"),
+  );
+  const approvedEmployees = matches.filter(
+    (e) =>
+      e.approved &&
+      status !== "pending" &&
+      (status === "all" ||
+        (status === "active" && e.active) ||
+        (status === "inactive" && !e.active)),
+  );
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold">Employees</h1>
+        <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold">
+          Employees
+        </h1>
         <p className="text-sm text-foreground/55 mt-1">
-          Employees create their own account at the sign-up page and take a reference photo —
-          review and approve them below before they can clock in.
+          Employees create their own account at the sign-up page and take a
+          reference photo — review and approve them below before they can clock
+          in.
         </p>
       </div>
 
+      <div className="admin-panel p-4 flex flex-wrap gap-3">
+        <label className="flex-1 min-w-48">
+          <span className="sr-only">Search employees</span>
+          <input
+            className="input"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search employee name or ID…"
+          />
+        </label>
+        <label>
+          <span className="sr-only">Employee status</span>
+          <select
+            className="input"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="all">All employees</option>
+            <option value="pending">Awaiting account approval</option>
+            <option value="active">Active employees</option>
+            <option value="inactive">Inactive employees</option>
+          </select>
+        </label>
+      </div>
+      {loadError && (
+        <p role="alert" className="text-danger">
+          {loadError}{" "}
+          <button className="underline" onClick={load}>
+            Try again
+          </button>
+        </p>
+      )}
       {!loading && pending.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-foreground/70">
@@ -69,12 +132,12 @@ export default function EmployeesPage() {
       )}
 
       <div className="bg-surface border border-border rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="admin-table-scroll">
           <table className="w-full text-sm min-w-[720px]">
             <thead>
               <tr className="bg-surface-muted text-foreground/60 text-left">
-                <th className="px-4 py-2.5 font-medium">Login ID</th>
                 <th className="px-4 py-2.5 font-medium">Name</th>
+                <th className="px-4 py-2.5 font-medium">Login ID</th>
                 <th className="px-4 py-2.5 font-medium">Rate/hr</th>
                 <th className="px-4 py-2.5 font-medium">Status</th>
                 <th className="px-4 py-2.5 font-medium">Onboarding</th>
@@ -84,14 +147,20 @@ export default function EmployeesPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-foreground/45">
+                  <td
+                    colSpan={6}
+                    className="px-4 py-6 text-center text-foreground/45"
+                  >
                     Loading…
                   </td>
                 </tr>
               ) : approvedEmployees.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-foreground/45">
-                    No approved employees yet.
+                  <td
+                    colSpan={6}
+                    className="px-4 py-6 text-center text-foreground/45"
+                  >
+                    No approved employees match this view.
                   </td>
                 </tr>
               ) : (
@@ -100,7 +169,9 @@ export default function EmployeesPage() {
                     key={emp.id}
                     employee={emp}
                     editing={editingId === emp.id}
-                    onToggleEdit={() => setEditingId(editingId === emp.id ? null : emp.id)}
+                    onToggleEdit={() =>
+                      setEditingId(editingId === emp.id ? null : emp.id)
+                    }
                     onSaved={() => {
                       setEditingId(null);
                       load();
@@ -124,19 +195,20 @@ export default function EmployeesPage() {
           {showAdd ? "Close" : "Add an employee manually instead"}
         </button>
         <p className="text-xs text-foreground/45 mt-1">
-          For someone who can&apos;t sign up themselves (e.g. no smartphone) — most employees
-          should use the sign-up page instead.
+          For someone who can&apos;t sign up themselves (e.g. no smartphone) —
+          most employees should use the sign-up page instead.
         </p>
 
         {justAdded && (
           <div className="mt-4 bg-success/10 border border-success/20 rounded-xl px-4 py-3 text-sm text-foreground/80">
-            Added <span className="font-semibold">{justAdded.employeeCode}</span>. Give them this
-            login ID and starting password:{" "}
+            Added{" "}
+            <span className="font-semibold">{justAdded.employeeCode}</span>.
+            Give them this login ID and starting password:{" "}
             <span className="font-mono bg-white border border-border rounded px-1.5 py-0.5">
               {justAdded.defaultPassword}
             </span>
-            . They&apos;ll be asked to set their own password and profile the first time they
-            sign in.
+            . They&apos;ll be asked to set their own password and profile the
+            first time they sign in.
           </div>
         )}
 
@@ -188,7 +260,9 @@ function PendingSignupCard({
   async function handleReject() {
     setSaving(true);
     setError(null);
-    const res = await fetch(`/api/admin/employees/${employee.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/admin/employees/${employee.id}`, {
+      method: "DELETE",
+    });
     const data = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) {
@@ -219,7 +293,9 @@ function PendingSignupCard({
         </p>
         <p className="text-foreground/60">Phone: {employee.phone || "—"}</p>
         <p className="text-foreground/60">Address: {employee.address || "—"}</p>
-        {employee.hobbies && <p className="text-foreground/60">Hobbies: {employee.hobbies}</p>}
+        {employee.hobbies && (
+          <p className="text-foreground/60">Hobbies: {employee.hobbies}</p>
+        )}
 
         {!rejecting ? (
           <div className="flex flex-wrap items-center gap-3 pt-2">
@@ -251,7 +327,9 @@ function PendingSignupCard({
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <span className="text-sm text-danger">Reject and delete this signup?</span>
+            <span className="text-sm text-danger">
+              Reject and delete this signup?
+            </span>
             <button
               type="button"
               onClick={handleReject}
@@ -306,7 +384,10 @@ function AddEmployeeForm({
       setError(data.error || "Could not add employee.");
       return;
     }
-    onDone({ employeeCode: data.employee.employeeCode, defaultPassword: data.defaultPassword });
+    onDone({
+      employeeCode: data.employee.employeeCode,
+      defaultPassword: data.defaultPassword,
+    });
   }
 
   return (
@@ -343,7 +424,8 @@ function AddEmployeeForm({
         />
       </Field>
       <p className="text-xs text-foreground/50 self-end pb-2">
-        They&apos;ll start on a shared default password and set their own on first sign-in.
+        They&apos;ll start on a shared default password and set their own on
+        first sign-in.
       </p>
 
       {error && (
@@ -425,8 +507,10 @@ function EmployeeRow({
   return (
     <>
       <tr className="border-t border-border">
-        <td className="px-4 py-2.5 font-mono text-xs">{employee.employeeCode}</td>
-        <td className="px-4 py-2.5">{employee.name}</td>
+        <td className="px-4 py-2.5 font-medium">{employee.name}</td>
+        <td className="px-4 py-2.5 font-mono text-xs">
+          {employee.employeeCode}
+        </td>
         <td className="px-4 py-2.5">₹{employee.hourlyRateRs}</td>
         <td className="px-4 py-2.5">
           {employee.active ? (
@@ -491,7 +575,9 @@ function EmployeeRow({
 
             {!employee.mustChangePassword && (
               <div className="mt-4 max-w-xl text-sm text-foreground/70 bg-white border border-border rounded-lg p-3 space-y-1">
-                <p className="font-medium text-foreground/80 mb-1">Profile on file</p>
+                <p className="font-medium text-foreground/80 mb-1">
+                  Profile on file
+                </p>
                 <p>Phone: {employee.phone || "—"}</p>
                 <p>Alternate phone: {employee.alternatePhone || "—"}</p>
                 <p>Address: {employee.address || "—"}</p>
@@ -548,7 +634,9 @@ function DeleteEmployeeButton({
   async function handleDelete() {
     setDeleting(true);
     setError(null);
-    const res = await fetch(`/api/admin/employees/${employee.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/admin/employees/${employee.id}`, {
+      method: "DELETE",
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setDeleting(false);
@@ -573,12 +661,15 @@ function DeleteEmployeeButton({
   return (
     <div className="space-y-2">
       <p className="text-sm text-danger font-medium">
-        This permanently deletes {employee.name} ({employee.employeeCode}) — their login and
-        every attendance record, photo, and salary figure with it. This cannot be undone.
-        Deactivating (above) is the reversible option.
+        This permanently deletes {employee.name} ({employee.employeeCode}) —
+        their login and every attendance record, photo, and salary figure with
+        it. This cannot be undone. Deactivating (above) is the reversible
+        option.
       </p>
       <p className="text-sm text-foreground/60">
-        Type <span className="font-mono font-semibold">{employee.employeeCode}</span> to confirm:
+        Type{" "}
+        <span className="font-mono font-semibold">{employee.employeeCode}</span>{" "}
+        to confirm:
       </p>
       <div className="flex items-center gap-2">
         <input
@@ -590,7 +681,11 @@ function DeleteEmployeeButton({
         <button
           type="button"
           onClick={handleDelete}
-          disabled={deleting || typedCode.trim().toUpperCase() !== employee.employeeCode.toUpperCase()}
+          disabled={
+            deleting ||
+            typedCode.trim().toUpperCase() !==
+              employee.employeeCode.toUpperCase()
+          }
           className="text-sm bg-danger text-white rounded-lg px-3 py-2 hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {deleting ? "Deleting…" : "Permanently delete"}
@@ -616,7 +711,13 @@ function DeleteEmployeeButton({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="text-sm block">
       <span className="block text-foreground/55 mb-1">{label}</span>

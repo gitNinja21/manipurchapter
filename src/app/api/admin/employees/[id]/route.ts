@@ -1,3 +1,4 @@
+import { auditData } from "@/lib/attendanceAudit";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { requireAdmin } from "@/lib/auth";
@@ -6,10 +7,11 @@ import { deletePhotoByKey } from "@/lib/photoStorage";
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Admin only." }, { status: 403 });
+  if (!admin)
+    return NextResponse.json({ error: "Admin only." }, { status: 403 });
 
   const { id } = await params;
 
@@ -24,7 +26,10 @@ export async function PATCH(
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request body." },
+      { status: 400 },
+    );
   }
 
   const target = await prisma.user.findUnique({ where: { id } });
@@ -41,7 +46,8 @@ export async function PATCH(
     approved?: boolean;
   } = {};
 
-  if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim();
+  if (typeof body.name === "string" && body.name.trim())
+    data.name = body.name.trim();
   if (typeof body.hourlyRateRs === "number" && body.hourlyRateRs >= 0)
     data.hourlyRateRs = body.hourlyRateRs;
   if (typeof body.active === "boolean") data.active = body.active;
@@ -49,7 +55,7 @@ export async function PATCH(
     if (body.newPassword.length < 6) {
       return NextResponse.json(
         { error: "New password must be at least 6 characters." },
-        { status: 400 }
+        { status: 400 },
       );
     }
     data.passwordHash = await bcrypt.hash(body.newPassword, 10);
@@ -93,10 +99,11 @@ export async function PATCH(
 // false }) is the reversible alternative that keeps history intact.
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: "Admin only." }, { status: 403 });
+  if (!admin)
+    return NextResponse.json({ error: "Admin only." }, { status: 403 });
 
   const { id } = await params;
 
@@ -113,15 +120,26 @@ export async function DELETE(
   // ever changes, so a delete can't silently orphan an announcement.
   if (target.announcements.length > 0) {
     return NextResponse.json(
-      { error: "This employee has authored announcements and can't be deleted. Deactivate them instead." },
-      { status: 409 }
+      {
+        error:
+          "This employee has authored announcements and can't be deleted. Deactivate them instead.",
+      },
+      { status: 409 },
     );
   }
 
-  await prisma.$transaction([
-    prisma.attendanceRecord.deleteMany({ where: { userId: id } }),
-    prisma.user.delete({ where: { id } }),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    const records = await tx.attendanceRecord.findMany({
+      where: { userId: id },
+    });
+    for (const record of records) {
+      await tx.attendanceAudit.create({
+        data: auditData(record, target, admin, "EMPLOYEE_DELETED", null),
+      });
+    }
+    await tx.attendanceRecord.deleteMany({ where: { userId: id } });
+    await tx.user.delete({ where: { id } });
+  });
 
   // Best-effort photo cleanup on disk, after the database delete has
   // already succeeded — a leftover file here is harmless, unlike leaving

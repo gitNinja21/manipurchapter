@@ -95,3 +95,23 @@ model Announcement {
   authorId String
   author   User   @relation("AnnouncementAuthor", fields: [authorId], references: [id])
 }
+
+// Immutable snapshots deliberately have no foreign keys: deleting a record or
+// employee must not erase the history of an administrator's payroll decisions.
+model AttendanceAudit {
+  id           String   @id @default(cuid())
+  recordId     String
+  userId       String
+  employeeName String
+  employeeCode String
+  workDate     String
+  actorId      String
+  actorName    String
+  action       String
+  beforeJson   String
+  afterJson    String?
+  createdAt    DateTime @default(now())
+
+  @@index([workDate, createdAt])
+  @@index([recordId])
+}

@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: __dirname,
   webpack: (config) => {
     // face-api.js (via @tensorflow/tfjs-core) has an optional Node.js code
     // path (fs, node-fetch's "encoding") that's only ever used when running

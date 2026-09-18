@@ -64,7 +64,7 @@ password and finish their profile the first time they sign in.
 
 ## How salary is calculated
 
-The admin **Overview** page runs payroll for whatever date range you pick
+The admin **Payroll** page runs payroll for whatever date range you pick
 (pick a full calendar month for it to line up with pay periods). For each
 employee, over that range:
 
@@ -77,10 +77,12 @@ employee, over that range:
   paid at the full daily rate automatically. (This is why "Missed
   clock-ins" only counts non-Monday days.)
 - **Overtime** is any hours worked beyond 9 on a working day. It's tracked
-  across the whole range (not day-by-day), and every 8 accumulated
-  overtime hours converts into one extra day's pay — fractionally, not
-  rounded down. So 4 accumulated overtime hours is worth half a bonus day,
-  8 hours is a full bonus day, 12 is 1.5 bonus days, and so on.
+  per employee from their join date, across reporting periods. Each completed
+  8-hour block earns one extra day's pay: 4 hours earns no bonus yet, 8 earns
+  one day, 12 earns one day with 4 hours carried forward, and 16 earns two.
+  A report includes only bonus days whose threshold is reached within its
+  dates. Remaining hours carry forward across months; changing the report's
+  start date does not reset them.
 - **Total salary** = (off-day pay) + (regular working-day pay) + (overtime
   bonus-day pay).
 - **Nothing before an employee joined counts.** If you run payroll for a
@@ -93,8 +95,39 @@ employee, over that range:
 Only clock-ins/outs an admin has **approved** in the Attendance Log count
 toward hours or salary — a completed day sits unpaid (but visible) until
 reviewed. The exact math lives in `src/lib/stats.ts`
-(`computeStatsForRange`), and the Overview table breaks out off days, OT
+(`computeStatsForRange`), and each expandable Payroll row breaks out off days, OT
 hours, and bonus days per employee so you can sanity-check the total.
+
+## Admin workspace
+
+- **Overview** focuses on today's active, approved team, outstanding attendance
+  approvals across dates, previous days' missing clock-outs, pending signups,
+  and month-to-date salary. Monday clock-ins are optional. Each attention item
+  links to its employee or filtered attendance records.
+- **Attendance** supports employee search, status filters, IST date shortcuts,
+  and 50-row pagination. Before an approval, rejection, or reset, the admin
+  sees that employee's month-to-date salary before and after the decision.
+  The preview does not save anything. Confirming records the decision and its
+  audit snapshot atomically; a changed shift requires a fresh review.
+- **Payroll** has a compact employee table, expandable salary breakdowns,
+  account-creation cutoffs, and progress toward the next 8-hour overtime bonus.
+  Paid-day equivalents include prorated approved work plus paid Mondays;
+  overtime bonus days are shown separately. Search and status filters also
+  apply to summary cards and the CSV export. Choose a calendar month to export
+  monthly earnings. Exports are calculations, not payment confirmations.
+- **Audit history** records administrator attendance decisions and deletions,
+  including attendance removed with an employee account. Snapshots retain the
+  employee, administrator, work date, original and resulting status/times, and
+  change timestamp. They survive deletion of the original record. History
+  starts when this migration is applied; it cannot reconstruct earlier changes.
+  Date filters use the shift's work date, not the audit timestamp. This history
+  covers admin decisions, not ordinary employee clock-in/out events.
+- **Employees** supports name/ID search and pending, active, and inactive filters.
+
+Apply migrations with `npm run db:deploy` before starting the updated app.
+The normal `npm start` command already does this. The audit migration adds a
+new table without changing existing payroll rules. Run `npm test` for payroll
+and reporting regression checks, and `npm run build` for production validation.
 
 ## Running it locally
 
@@ -207,7 +240,7 @@ src/middleware.ts          Redirects based on login/role/onboarding status (Edge
 src/app/page.tsx           Landing + login page
 src/app/onboarding/        Forced first-login flow (password, profile, enrollment photo)
 src/app/employee/          Clock in/out, my attendance, announcements (employee view)
-src/app/admin/             Overview/stats, employees, attendance log, announcements (admin view)
+src/app/admin/             Overview, payroll, employees, attendance, audit history, announcements (admin view)
 src/app/api/               All backend routes (auth, onboarding, attendance, admin, announcements, photos)
 ```
 
@@ -252,7 +285,7 @@ src/app/api/               All backend routes (auth, onboarding, attendance, adm
   possible until the record resets at midnight (Asia/Kolkata). If your team
   ever needs split shifts in a single day, that's a schema change away
   (ask, and I can add it).
-- **"Missed" days** on the admin overview count every non-Monday calendar
+- **"Missed" days** in payroll statistics count every non-Monday calendar
   day in the selected range (up to today) where an employee has no clock-in
   at all — Mondays are excluded since they're paid off-days with no
   attendance expected. It doesn't know about other planned days off, so

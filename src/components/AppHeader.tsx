@@ -25,7 +25,7 @@ export default function AppHeader({
 
   return (
     <header className="bg-brand text-white">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
         <div>
           <p className="font-[family-name:var(--font-display)] font-bold text-lg leading-tight">
             Manipur Chapter
@@ -48,12 +48,13 @@ export default function AppHeader({
           </button>
         </div>
       </div>
-      <nav className="max-w-5xl mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto">
+      <nav className="max-w-6xl mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto">
         {tabs.map((tab) => {
           const active = pathname === tab.href;
           return (
             <Link
               key={tab.href}
+              aria-current={active ? "page" : undefined}
               href={tab.href}
               className={`px-4 py-2.5 text-sm font-medium rounded-t-lg whitespace-nowrap transition-colors ${
                 active

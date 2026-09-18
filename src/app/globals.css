@@ -53,3 +53,16 @@ body {
     @apply rounded-lg bg-brand text-white font-medium py-2.5 hover:bg-brand-dark transition-colors disabled:opacity-60;
   }
 }
+
+@layer components {
+  .admin-panel { @apply bg-surface border border-border rounded-2xl; }
+  .admin-button { @apply inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-sm font-medium hover:bg-surface-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .admin-badge { @apply inline-flex rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-foreground/75; }
+  .admin-table-scroll { @apply overflow-auto max-h-[65vh]; }
+  .admin-table-scroll thead { @apply sticky top-0 z-20 bg-surface-muted; }
+  .admin-table-scroll th { @apply text-xs font-medium text-foreground/65 whitespace-nowrap; }
+  .admin-table-scroll th:first-child { @apply sticky left-0 z-30 bg-surface-muted; }
+  .admin-table-scroll td:first-child { @apply sticky left-0 z-10 bg-white; }
+  .admin-table-scroll tbody tr:hover td { @apply bg-background; }
+}
+button, a, input, select, summary { outline-offset: 4px; }
