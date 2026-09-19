@@ -260,7 +260,7 @@ function RequestCard({
             </div>
             {r.kind === "CORRECTION" && (
               <p className="text-xs text-foreground/60">
-                Approval changes the times and resets attendance approval.
+                Approval changes the times and recalculates payroll automatically.
                 Review salary impact in Attendance afterwards.
               </p>
             )}

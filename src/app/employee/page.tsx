@@ -152,6 +152,7 @@ export default function EmployeeClockPage() {
         setMode("idle");
         return;
       }
+      window.dispatchEvent(new Event("attendance-updated"));
       setMessage(
         action === "in"
           ? "Clocked in! Have a great shift."

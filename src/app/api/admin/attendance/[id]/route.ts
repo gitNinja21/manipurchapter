@@ -3,11 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { deletePhotoByKey } from "@/lib/photoStorage";
-import { APPROVAL_STATUS, isApprovalStatus } from "@/lib/attendanceApproval";
+import { isApprovalStatus } from "@/lib/attendanceApproval";
 
-// Approves, rejects, or resets a completed day. Only APPROVED days count
-// toward hours/salary in the admin Overview — see src/lib/stats.ts. A day
-// isn't eligible until it has both a clock-in and a clock-out.
+// Explicit exclusion/restoration only. Completed shifts count automatically.
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -28,9 +26,9 @@ export async function PATCH(
     );
   }
 
-  if (!isApprovalStatus(body.approvalStatus)) {
+  if (!isApprovalStatus(body.approvalStatus) || body.approvalStatus === "PENDING") {
     return NextResponse.json(
-      { error: "approvalStatus must be PENDING, APPROVED, or REJECTED." },
+      { error: "Choose APPROVED to restore or REJECTED to exclude this shift. Routine approval is no longer required." },
       { status: 400 },
     );
   }
@@ -46,7 +44,6 @@ export async function PATCH(
     );
   }
   if (
-    body.approvalStatus !== APPROVAL_STATUS.PENDING &&
     (!record.clockInAt || !record.clockOutAt)
   ) {
     return NextResponse.json(
@@ -69,8 +66,6 @@ export async function PATCH(
   }
   if (record.approvalStatus === body.approvalStatus)
     return NextResponse.json({ ok: true, record });
-  if (record.extraTimeStatus === "PENDING" && body.approvalStatus === "APPROVED")
-    return NextResponse.json({error: "Review the extra-time request in Team → Requests before approving attendance."}, {status: 409});
   const nextStatus = body.approvalStatus;
   const updated = await prisma.$transaction(async (tx) => {
     const changed = await tx.attendanceRecord.updateMany({

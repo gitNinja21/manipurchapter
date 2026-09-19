@@ -59,7 +59,7 @@ test("grace, incomplete shifts, exceptions and pending attendance have distinct 
   );
   assert.deepEqual(
     attendancePoints({ ...record, approvalStatus: "PENDING" }),
-    [],
+    attendancePoints(record),
   );
   assert.deepEqual(attendancePoints({ ...record, workDate: "2026-09-21" }), []);
 });

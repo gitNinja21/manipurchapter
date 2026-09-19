@@ -36,3 +36,33 @@ export async function chimeOnce(userId: string, messageId: string) {
   if(navigator.locks) await navigator.locks.request(key,claim);
   else if(document.hasFocus()) claim();
 }
+
+/** Distinct, louder attendance bell; output still obeys the device volume. */
+export function playAttendanceChime() {
+  if (!context || context.state !== "running") return false;
+  const now = context.currentTime;
+  for (const [frequency, delay] of [[880,0],[1320,0.45],[880,0.9],[1320,1.35]]) {
+    const oscillator = context.createOscillator(), gain = context.createGain();
+    oscillator.type="sine";oscillator.frequency.value=frequency;
+    gain.gain.setValueAtTime(0.0001,now+delay);
+    gain.gain.exponentialRampToValueAtTime(0.8,now+delay+0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001,now+delay+0.4);
+    oscillator.connect(gain);gain.connect(context.destination);
+    oscillator.start(now+delay);oscillator.stop(now+delay+0.42);
+    oscillator.onended=()=>{oscillator.disconnect();gain.disconnect();};
+  }
+  return true;
+}
+export async function attendanceChimeOnce(userId: string, reminderId: string) {
+  const key=`mc-attendance-heard:${userId}`;
+  const claim=()=>{
+    if(document.visibilityState !== "visible" || !soundReady()) return;
+    try {
+      if(localStorage.getItem(key)===reminderId) return;
+      localStorage.setItem(key,reminderId);
+      if(!playAttendanceChime()) localStorage.removeItem(key);
+    } catch { /* Do not duplicate bells if browser storage is blocked. */ }
+  };
+  if(navigator.locks) await navigator.locks.request(key,claim);
+  else if(document.hasFocus()) claim();
+}

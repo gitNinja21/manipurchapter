@@ -41,7 +41,7 @@ export default async function AdminOverviewPage() {
         workDate: { lte: today },
         clockInAt: { not: null },
         clockOutAt: { not: null },
-        approvalStatus: "PENDING",
+        extraTimeStatus: "PENDING",
       },
     }),
     prisma.attendanceRecord.count({
@@ -56,7 +56,7 @@ export default async function AdminOverviewPage() {
         workDate: { lte: today },
         clockInAt: { not: null },
         clockOutAt: { not: null },
-        approvalStatus: "PENDING",
+        extraTimeStatus: "PENDING",
       },
       include: { user: { select: { name: true } } },
       orderBy: { workDate: "asc" },
@@ -127,10 +127,10 @@ export default async function AdminOverviewPage() {
           href="#today-team"
         />
         <MetricCard
-          label="Awaiting approval"
+          label="Extra time to review"
           value={pendingCount}
           detail="Completed shifts · all dates"
-          href={attendanceLink("PENDING")}
+          href="/admin/team?view=requests"
         />
         <MetricCard
           label="Salary this month"
@@ -152,14 +152,14 @@ export default async function AdminOverviewPage() {
         <div className="grid md:grid-cols-3 gap-6">
           {[
             {
-              title: "Attendance to approve",
+              title: "Extra time to review",
               count: pendingCount,
-              href: attendanceLink("PENDING"),
+              href: "/admin/team?view=requests",
               items: pending.map((r) => ({
                 id: r.id,
                 label: r.user.name,
                 detail: formatWorkDate(r.workDate),
-                href: `/admin/attendance?from=${r.workDate}&to=${r.workDate}&userId=${r.userId}&status=PENDING`,
+                href: "/admin/team?view=requests",
               })),
             },
             {
@@ -284,7 +284,7 @@ export default async function AdminOverviewPage() {
       </section>
       <HomeSummary admin />
       <p className="text-xs text-foreground/60">
-        Salary includes approved work, paid Mondays, and earned overtime
+        Salary includes completed work, paid Mondays, and earned overtime
         bonuses. Review the full breakdown in Payroll.
       </p>
     </div>

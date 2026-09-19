@@ -26,6 +26,9 @@ test("service worker distinguishes chat, stays visible, avoids duplicate OS soun
   assert.match(n.options.body,/team message/);assert.equal(n.options.silent,false);
   visible=true;n=await push({kind:"CHAT",url:"/employee/team?view=chat",silent:false});assert.equal(n.options.silent,true);
   visible=false;n=await push({kind:"CHAT",silent:true});assert.equal(n.options.silent,true);
+  n=await push({kind:"ATTENDANCE_IN",url:"/employee"});assert.equal(n.options.data.url,"/employee");assert.equal(n.options.silent,false);assert.match(n.options.body,/Attendance reminder/);
+  visible=true;n=await push({kind:"ATTENDANCE_OUT",url:"/employee/team?view=requests"});assert.equal(n.options.silent,true);assert.equal(n.options.data.url,"/employee/team?view=requests");
+  visible=false;
   n=await push({url:"https://evil.example"});assert.match(n.options.body,/announcement/);assert.equal(n.options.data.url,"/");
   let task:Promise<unknown>|undefined;
   handlers.notificationclick({notification:{close:()=>{},data:{url:"https://evil.example"}},waitUntil:(p:Promise<unknown>)=>task=p});await task;
@@ -33,7 +36,7 @@ test("service worker distinguishes chat, stays visible, avoids duplicate OS soun
 });
 
 test("concurrent tabs claim a message once; hidden tabs and duplicate polling stay silent", async (t) => {
-  const {unlockChime,chimeOnce}=await import("./chatSound");
+  const {unlockChime,chimeOnce,attendanceChimeOnce}=await import("./chatSound");
   let oscillators=0;
   const memory=new Map<string,string>();
   let queue=Promise.resolve();
@@ -54,4 +57,10 @@ test("concurrent tabs claim a message once; hidden tabs and duplicate polling st
   await chimeOnce("staff","one");assert.equal(oscillators,2);
   (mocks.document as {visibilityState:string}).visibilityState="hidden";
   await chimeOnce("staff","two");assert.equal(oscillators,2);
+  (mocks.document as {visibilityState:string}).visibilityState="visible";
+  await Promise.all([attendanceChimeOnce("staff","OUT:0"),attendanceChimeOnce("staff","OUT:0")]);
+  assert.equal(oscillators,6); // four notes, once across both tabs
+  await attendanceChimeOnce("staff","OUT:1");assert.equal(oscillators,10);
+  (mocks.document as {visibilityState:string}).visibilityState="hidden";
+  await attendanceChimeOnce("staff","OUT:2");assert.equal(oscillators,10);
 });

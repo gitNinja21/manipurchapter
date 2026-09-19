@@ -72,7 +72,7 @@ export const PATCH = teamRoute(async (u, req) => {
       const record = await tx.attendanceRecord.findUnique({where: {userId_workDate: {userId: r.userId, workDate: r.fromDate}}});
       if (record) {
         const after = await tx.attendanceRecord.update({where: {id: record.id}, data: {
-          ...(r.kind === "LATE_ARRIVAL" ? {lateExcused: true, lateArrivalRequestId: r.id} : {earlyExcused: true}), approvalStatus: "PENDING"}});
+          ...(r.kind === "LATE_ARRIVAL" ? {lateExcused: true, lateArrivalRequestId: r.id} : {earlyExcused: true}), approvalStatus: record.approvalStatus}});
         await tx.attendanceAudit.create({data: auditData(record, r.user, u, "EXCEPTION_APPROVED", after)});
       }
     }
@@ -80,7 +80,7 @@ export const PATCH = teamRoute(async (u, req) => {
       const record = await tx.attendanceRecord.findUnique({where: {id: r.expectedRecordId ?? ""}});
       if (!record || record.userId !== r.userId || record.extraTimeStatus !== "PENDING" || record.clockOutAt?.toISOString() !== r.proposedOut?.toISOString() || record.clockInAt?.toISOString() !== r.proposedIn?.toISOString())
         throw new TeamError("This attendance record changed. Review the latest request instead.", 409);
-      const after = await tx.attendanceRecord.update({where: {id: record.id}, data: {extraTimeStatus: status, approvalStatus: "PENDING"}});
+      const after = await tx.attendanceRecord.update({where: {id: record.id}, data: {extraTimeStatus: status, approvalStatus: record.approvalStatus}});
       await tx.attendanceAudit.create({data: auditData(record, r.user, u, `EXTRA_TIME_${status}`, after)});
     }
     if (status === "APPROVED" && r.kind === "CORRECTION") {

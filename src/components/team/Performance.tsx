@@ -87,7 +87,7 @@ export default function Performance({ admin }: { admin: boolean }) {
         <h2 className="text-xl font-semibold">Attendance & monthly points</h2>
         <p className="text-sm text-foreground/60 mt-1">
           Pay follows actual clocked time. Time beyond the required shift becomes
-          bonus hours after review. Points become final after attendance or referral approval.
+          bonus hours after review. Attendance points update automatically on completion; referrals still need approval.
         </p>
       </div>
       <label className="block text-sm max-w-xs">
@@ -148,7 +148,7 @@ export default function Performance({ admin }: { admin: boolean }) {
                 </span>
               </h3>
               <p className="text-sm mt-2">
-                {e.eligibleShifts} approved scheduled shifts ·{" "}
+                {e.eligibleShifts} completed scheduled shifts ·{" "}
                 {e.eligibleShifts ? e.pointsPerShift : "—"} points / shift
               </p>
               {!e.attendancePolicyFrom && (
@@ -379,7 +379,7 @@ export default function Performance({ admin }: { admin: boolean }) {
         <h3 className="text-lg font-semibold">Points history</h3>
         {data?.entries.length === 0 && (
           <p className="text-sm">
-            No approved awards or deductions this month.
+            No awards or deductions this month.
           </p>
         )}
         {data?.entries

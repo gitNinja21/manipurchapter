@@ -60,8 +60,7 @@ export default function PayrollPage() {
         .includes(query.toLowerCase()) &&
       (status === "all" ||
         (status === "active" && s.active) ||
-        (status === "inactive" && !s.active) ||
-        (status === "pending" && s.pendingApprovalDays > 0)),
+        (status === "inactive" && !s.active)),
   );
   const sum = (
     key: "salaryRs" | "regularPayRs" | "offDaysPayRs" | "bonusPayRs",
@@ -76,7 +75,7 @@ export default function PayrollPage() {
       "Billing from",
       "Hourly rate INR",
       "Daily rate INR",
-      "Approved hours",
+      "Counted hours",
       "Paid day equivalents",
       "Paid Mondays",
       "Overtime hours in period",
@@ -86,7 +85,6 @@ export default function PayrollPage() {
       "Off-day pay INR",
       "Bonus pay INR",
       "Total salary INR",
-      "Pending approval days",
       "Rejected days",
     ];
     const rows = visible.map((s) => [
@@ -108,7 +106,6 @@ export default function PayrollPage() {
       s.offDaysPayRs,
       s.bonusPayRs,
       s.salaryRs,
-      s.pendingApprovalDays,
       s.rejectedDays,
     ]);
     const blob = new Blob(
@@ -136,7 +133,7 @@ export default function PayrollPage() {
           </p>
           <h1 className="text-3xl font-semibold">Payroll</h1>
           <p className="text-sm text-foreground/60 mt-2">
-            Review earnings, resolve pending shifts, and export your selected
+            Review earnings, resolve incomplete shifts, and export your selected
             period.
           </p>
         </div>
@@ -174,7 +171,6 @@ export default function PayrollPage() {
               <option value="all">All employees</option>
               <option value="active">Active employees</option>
               <option value="inactive">Inactive employees</option>
-              <option value="pending">Needs attendance approval</option>
             </select>
           </label>
         </div>
@@ -283,13 +279,6 @@ export default function PayrollPage() {
                     </td>
                     <td className="px-5 py-4 font-semibold whitespace-nowrap">
                       {money(s.salaryRs)}
-                      {s.pendingApprovalDays > 0 && (
-                        <span className="block font-normal text-xs text-foreground/60 mt-1">
-                          {s.pendingApprovalDays}{" "}
-                          {s.pendingApprovalDays === 1 ? "shift" : "shifts"}{" "}
-                          pending
-                        </span>
-                      )}
                     </td>
                   </tr>
                   {expanded === s.userId && (
@@ -303,7 +292,7 @@ export default function PayrollPage() {
                             <dl className="space-y-2">
                               {[
                                 [
-                                  "Regular approved work",
+                                  "Regular completed work",
                                   money(s.regularPayRs),
                                 ],
                                 [
@@ -334,11 +323,11 @@ export default function PayrollPage() {
                               {money(s.dailyRateRs)}/day
                             </p>
                             <p>
-                              {s.totalHours.toFixed(2)} approved hours ·{" "}
+                              {s.totalHours.toFixed(2)} counted hours ·{" "}
                               {s.fullDaysWorked} full shifts
                             </p>
                             <p>
-                              {s.pendingApprovalDays} pending · {s.rejectedDays}{" "}
+                              {s.rejectedDays}{" "}
                               rejected · {s.incompleteDays} not clocked out
                             </p>
                             <p>
@@ -386,7 +375,7 @@ export default function PayrollPage() {
             New shifts are paid for actual clocked time up to 9 hours, including the paid break. Friday part-time shifts require 7 clock hours and pay 6 after the unpaid break. Missing hours are not topped up or deducted twice. A bonus day is worth the hourly rate × 9.
           </p>
           <p>
-            Billing starts at account creation in IST. Regular staff have paid Mondays; part-time staff are paid for their assigned shifts. Only approved, completed working-day shifts count toward
+            Billing starts at account creation in IST. Regular staff have paid Mondays; part-time staff are paid for their assigned shifts. Completed working-day shifts count automatically toward
             regular earnings and overtime.
           </p>
           <p>

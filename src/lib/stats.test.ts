@@ -99,11 +99,11 @@ test("overtime pays whole days, carries across months, and stays separate per em
     shift("a", "2020-09-02", 8, "PENDING"), shift("a", "2020-09-03", 8, "REJECTED"),
     shift("a", "2020-08-31", 8)]; // Monday retains existing paid-off-day policy
   let [a] = await computeStatsForRange("2020-09-01", "2020-09-03");
-  assert.equal(a.overtimeHours, 1);
-  assert.equal(a.bonusDays, 1);
+  assert.equal(a.overtimeHours, 9);
+  assert.equal(a.bonusDays, 2);
   assert.equal(a.overtimeBalanceHours, 0);
   [a] = await computeStatsForRange("2020-09-02", "2020-09-03");
-  assert.equal(a.bonusDays, 0); // previously earned bonus is not paid again
+  assert.equal(a.bonusDays, 1); // only the new eight-hour block is paid
   records = [shift("a", "2020-09-01", 4), shift("a", "2020-09-02", 4 - 1 / 3600)];
   [a] = await computeStatsForRange("2020-09-01", "2020-09-02");
   assert.equal(a.bonusDays, 0); // one second short must not round up
@@ -121,8 +121,8 @@ test("salary previews do not mutate attendance and paid-day equivalents handle z
   assert.equal(preview.salaryRs, 0);
   assert.equal(record.approvalStatus, "PENDING");
   const [actual] = await computeStatsForRange("2020-09-01", "2020-09-01");
-  assert.equal(actual.paidWorkDays, 0);
-  assert.equal(actual.pendingApprovalDays, 1);
+  assert.equal(actual.paidWorkDays, 0.5);
+  assert.equal(actual.pendingApprovalDays, 0);
 });
 
 
@@ -170,4 +170,25 @@ test("duration policy pays clock hours, carries approved bonus blocks, and prese
   prisma.attendanceRecord.findMany = (async () => [row("2020-10-01","23:00","REJECTED")]) as typeof prisma.attendanceRecord.findMany;
   [s] = await computeStatsForRange("2020-10-01","2020-10-01");
   assert.equal(s.regularPayRs,900);assert.equal(s.overtimeHours,0);assert.equal(s.totalHours,8);
+});
+
+test("completed pending shifts pay automatically, retain short-hour deductions, and never include pending extra time", async t => {
+  const users=prisma.user.findMany, attendance=prisma.attendanceRecord.findMany;
+  t.after(()=>{prisma.user.findMany=users;prisma.attendanceRecord.findMany=attendance;});
+  prisma.user.findMany=(async()=>[{id:"a",name:"Employee",employeeCode:"A",createdAt:new Date("2020-01-01"),hourlyRateRs:100,active:true} as User]) as typeof users;
+  const at=(day:string,hour:string)=>new Date(`2020-09-${day}T${hour}:00+05:30`);
+  const record={id:"one",userId:"a",workDate:"2020-09-01",policyVersion:2,shiftDurationMinutes:540,unpaidBreakMinutes:0,approvalStatus:"PENDING",clockInAt:at("01","10:00"),clockOutAt:at("01","18:30"),extraTimeCutoff:at("01","19:00"),extraTimeStatus:"NOT_REQUIRED"} as AttendanceRecord;
+  let records=[record];
+  prisma.attendanceRecord.findMany=(async()=>records) as typeof attendance;
+  let [s]=await computeStatsForRange("2020-09-01","2020-09-01");
+  assert.equal(s.regularPayRs,850);assert.equal(s.pendingApprovalDays,0);
+  records=[{...record,clockOutAt:at("01","22:00"),extraTimeStatus:"PENDING"}];
+  [s]=await computeStatsForRange("2020-09-01","2020-09-01");
+  assert.equal(s.regularPayRs,900);assert.equal(s.overtimeHours,0);
+  records=[{...records[0],extraTimeStatus:"APPROVED"}];
+  [s]=await computeStatsForRange("2020-09-01","2020-09-01");assert.equal(s.overtimeHours,3);
+  records=[{...record,approvalStatus:"REJECTED"}];
+  [s]=await computeStatsForRange("2020-09-01","2020-09-01");assert.equal(s.salaryRs,0);assert.equal(s.rejectedDays,1);
+  records=[{...record,clockOutAt:null}];
+  [s]=await computeStatsForRange("2020-09-01","2020-09-01");assert.equal(s.salaryRs,0);assert.equal(s.incompleteDays,1);
 });

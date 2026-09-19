@@ -2,7 +2,7 @@ import { salaryCredit, overtimeMs } from "./performance";
 import { netWorkHours, recurringRule } from "./workPolicy";
 import { prisma } from "./prisma";
 import { todayWorkDate, workDateFor } from "./time";
-import { APPROVAL_STATUS } from "./attendanceApproval";
+import { APPROVAL_STATUS, countsForPayroll } from "./attendanceApproval";
 
 // --- Payroll rules ---
 // Version 2 uses actual clocked time including paid breaks, capped at the
@@ -21,13 +21,13 @@ export type EmployeeStats = {
   billingFromDate: string | null; // null when employment does not overlap the selected range
   daysPresent: number; // has a clock-in
   daysComplete: number; // has both clock-in and clock-out (regardless of approval)
-  paidWorkDays: number; // approved regular-day equivalents, including prorated shifts
-  fullDaysWorked: number; // approved days with 9 regular salary-credit hours
+  paidWorkDays: number; // eligible regular-day equivalents, including prorated shifts
+  fullDaysWorked: number; // eligible days with 9 regular salary-credit hours
   incompleteDays: number; // clocked in, forgot to clock out (no hours counted)
   missedDays: number; // calendar days in range (up to today) with no record at all
-  pendingApprovalDays: number; // complete, but admin hasn't approved or rejected yet — not counted
+  pendingApprovalDays: number; // retained for API compatibility; always zero
   rejectedDays: number; // complete, but admin rejected it — not counted
-  totalHours: number; // only from APPROVED days
+  totalHours: number; // completed, non-excluded days
   offDays: number; // Mondays in range — paid leave regardless of attendance
   offDaysPayRs: number;
   regularPayRs: number; // scheduled salary credit or pro-rated work, with deductions included
@@ -132,18 +132,14 @@ export async function computeStatsForRange(
       0,
     );
 
-    const pendingApprovalDays = complete.filter(
-      (r) => r.approvalStatus === APPROVAL_STATUS.PENDING,
-    ).length;
+    const pendingApprovalDays = 0; // Compatibility field; attendance no longer waits for review.
     const rejectedDays = complete.filter(
       (r) => r.approvalStatus === APPROVAL_STATUS.REJECTED,
     ).length;
 
-    // Only admin-approved days count toward paid hours — a completed day
-    // sits in pendingApprovalDays (unpaid, but visible) until someone
-    // reviews it from the Attendance Log.
+    // Completion automatically enables regular pay; extra time retains its own gate.
     const totalHours = complete
-      .filter((r) => r.approvalStatus === APPROVAL_STATUS.APPROVED)
+      .filter(countsForPayroll)
       .reduce(
         (sum, r) => sum + (netWorkHours(r) ?? 0),
         0,
@@ -165,20 +161,20 @@ export async function computeStatsForRange(
       }
 
       const record = recordsByDate.get(day);
-      const approvedHours =
-        record && record.approvalStatus === APPROVAL_STATUS.APPROVED
+      const creditedHours =
+        record && countsForPayroll(record)
           ? salaryCredit(record)
           : 0;
 
-      if (approvedHours <= 0) continue; // absent (or not yet approved) — no pay for this working day
+      if (creditedHours <= 0) continue; // absent or excluded — no pay for this working day
 
-      paidWorkDays += Math.min(approvedHours / FULL_DAY_HOURS, 1);
-      if (approvedHours >= FULL_DAY_HOURS) {
+      paidWorkDays += Math.min(creditedHours / FULL_DAY_HOURS, 1);
+      if (creditedHours >= FULL_DAY_HOURS) {
         fullDaysWorked += 1;
         regularPayRs += dailyRateRs;
       } else {
         // Short day: pro-rated for actual hours worked, not a full day's pay.
-        regularPayRs += approvedHours * emp.hourlyRateRs;
+        regularPayRs += creditedHours * emp.hourlyRateRs;
       }
     }
 
@@ -194,7 +190,7 @@ export async function computeStatsForRange(
         record.workDate < joinWorkDate ||
         record.workDate > effectiveToDate ||
         isMonday(record.workDate) ||
-        record.approvalStatus !== APPROVAL_STATUS.APPROVED ||
+        !countsForPayroll(record) ||
         !record.clockInAt ||
         !record.clockOutAt
       )

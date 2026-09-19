@@ -20,7 +20,7 @@ await writeFile(
   `const fs=require('node:fs'); const RealDate=Date; const now=()=>Number(fs.readFileSync(${JSON.stringify(clockPath)},'utf8')); global.Date=class extends RealDate { constructor(...args){ if(args.length)super(...args); else super(now()); } static now(){return now();} static parse(value){return RealDate.parse(value);} static UTC(...args){return RealDate.UTC(...args);} };`,
 );
 const env = {
-  ...process.env,
+  ...process.env, ATTENDANCE_REMINDERS_ENABLED:"false",
   DATABASE_URL: url,
   JWT_SECRET: "isolated-work-rules-test-secret",
   UPLOADS_DIR: path.join(dir, "uploads"),
@@ -222,7 +222,8 @@ try {
     const out = (await ok(cookie, "/api/attendance/clock-out", "POST", {...photo,extraTimeReason:"Approved additional service"}))
       .record;
     if(out.extraTimeStatus === "PENDING") { const review=await db.staffRequest.findFirst({where:{userId:out.userId,kind:"EXTRA_TIME",fromDate:day,status:"PENDING"}}); await ok(admin,`/api/team/requests/${review.id}`,"PATCH",{status:"APPROVED"}); }
-    await approve(rec.id);
+    // No separate approval: completed attendance already pays and earns points.
+    assert.ok(rec.id);
     return out;
   };
   // Three consecutive working days: Monday is skipped. Separate early and late patterns.
@@ -418,7 +419,7 @@ try {
         approvalStatus: "APPROVED",
       })
     ).status,
-    409,
+    200,
   );
   const extraReq = await db.staffRequest.findFirst({
     where: {
@@ -629,7 +630,7 @@ try {
   const current=(await ok(admin,`${manualPath}?userId=${targetId}&workDate=2026-10-01`)).record;
   const overtime=(await ok(admin,manualPath,"POST",{...close,expectedUpdatedAt:current.updatedAt,clockOutAt:at("2026-10-01","21:00"),reason:"Correct leaving time; stayed to finish serving a table"})).record;
   assert.equal(overtime.extraTimeStatus,"PENDING");assert.equal(overtime.approvalStatus,"PENDING");
-  assert.equal((await request(admin,`/api/admin/attendance/${overtime.id}`,"PATCH",{approvalStatus:"APPROVED"})).status,409);
+  assert.equal((await request(admin,`/api/admin/attendance/${overtime.id}`,"PATCH",{approvalStatus:"APPROVED"})).status,200);
   const audit = await db.attendanceAudit.findMany({where:{recordId:entered.id,action:{in:["ADMIN_TIME_ENTRY","ADMIN_TIME_CORRECTION"]}}});
   assert.equal(audit.length,3);assert.ok(audit.every(a=>JSON.parse(a.afterJson).correctionReason));
   assert.equal(await db.notification.count({where:{userId:targetId,kind:"ATTENDANCE_CORRECTED"}}),3);

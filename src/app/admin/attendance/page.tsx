@@ -124,7 +124,7 @@ export default function AdminAttendancePage() {
       <div>
         <h1 className="text-3xl font-semibold">Attendance</h1>
         <p className="text-sm text-foreground/60 mt-2">
-          Review shifts and their salary impact before approving.
+          Completed shifts count automatically. Review records and correct mistakes here.
         </p>
       </div>
       <ManualAttendance onSaved={() => setReload(n => n+1)} />
@@ -152,8 +152,7 @@ export default function AdminAttendancePage() {
               onChange={(e) => update({ status: e.target.value })}
             >
               <option value="">All shifts</option>
-              <option value="PENDING">Awaiting approval</option>
-              <option value="APPROVED">Approved</option>
+              <option value="COMPLETE">Completed · counted automatically</option>
               <option value="REJECTED">Rejected</option>
               <option value="INCOMPLETE">Missing clock-outs · past days</option>
               <option value="OPEN">Clocked in · today</option>
@@ -225,7 +224,7 @@ export default function AdminAttendancePage() {
                     </td>
                     <td className="px-4 py-4 tabular-nums">
                       {netWorkHours(r)?.toFixed(2) ?? "—"}
-                      {r.clockOutAt && !offDay(r.workDate) && <p className="text-xs font-normal">{salaryCredit(r).toFixed(2)} salary hours {r.approvalStatus === "APPROVED" ? "credited" : "if approved"}</p>}
+                      {r.clockOutAt && !offDay(r.workDate) && <p className="text-xs font-normal">{salaryCredit(r).toFixed(2)} salary hours {r.approvalStatus === "REJECTED" ? "excluded" : "credited"}</p>}
                       {!!r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">{r.unpaidBreakMinutes}m break deducted</p>}
                         {r.policyVersion === 2 && !r.unpaidBreakMinutes && <p className="text-xs font-normal">60m paid break · included in pay</p>}
                       {r.extraTimeStatus !== "NOT_REQUIRED" && r.extraTimeCutoff && <a className="text-xs text-brand underline block" href="/admin/team?view=requests">Extra time: {r.extraTimeStatus}</a>}
@@ -306,7 +305,7 @@ export default function AdminAttendancePage() {
         </div>
       </div>
       <p className="text-xs text-foreground/60">
-        Only approved, completed shifts count toward worked hours and salary.
+        Completed shifts count automatically toward hours and salary, unless explicitly excluded. Extra time still needs review.
         Attendance decisions and deletions are recorded in Audit history.
       </p>
       {lightbox && (

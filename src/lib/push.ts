@@ -86,3 +86,24 @@ export async function sendChatPush(messageId: string, senderId: string, senderRo
     }
   }));
 }
+
+export async function sendAttendancePush(userId: string, reminder: import("./attendanceReminders").AttendanceReminder) {
+  if (!pushConfigured()) return;
+  const subscriptions = await prisma.pushSubscription.findMany({
+    where: {userId,user:{role:"EMPLOYEE",active:true,approved:true,mustChangePassword:false}},
+  });
+  await Promise.allSettled(subscriptions.map(async s => {
+    if (!allowedPushEndpoint(s.endpoint)) return;
+    try {
+      await webpush.sendNotification({endpoint:s.endpoint,keys:{auth:s.auth,p256dh:s.p256dh}},JSON.stringify({
+        kind:reminder.kind,tag:`${reminder.kind}:${reminder.key}`,url:reminder.href,
+      }),{TTL:60,timeout:5000,urgency:"high",vapidDetails:{
+        subject:process.env.VAPID_SUBJECT!,publicKey:process.env.VAPID_PUBLIC_KEY!,privateKey:process.env.VAPID_PRIVATE_KEY!,
+      }});
+    } catch(error) {
+      const status=(error as {statusCode?:number}).statusCode;
+      if(status===404 || status===410) await prisma.pushSubscription.deleteMany({where:{id:s.id}});
+      else console.warn("Attendance push unavailable",status ?? "network");
+    }
+  }));
+}

@@ -78,32 +78,18 @@ export default function AttendanceReview({
       <span
         className={`admin-badge ${status === "APPROVED" ? "!bg-success/10 !text-success" : status === "REJECTED" ? "!bg-danger/10 !text-danger" : ""}`}
       >
-        {status === "PENDING"
-          ? "Awaiting review"
-          : status === "APPROVED"
-            ? "Approved"
-            : "Rejected"}
+        {status === "REJECTED" ? "Excluded from payroll" : "Counts automatically"}
       </span>
       {!target && (
         <div>
           <button
             className="text-brand text-xs underline underline-offset-4"
             onClick={() =>
-              review(status === "PENDING" ? "APPROVED" : "PENDING")
+              review(status === "REJECTED" ? "APPROVED" : "REJECTED")
             }
           >
-            {status === "PENDING"
-              ? "Review salary & approve"
-              : "Review & reset"}
+            {status === "REJECTED" ? "Review & restore" : "Review & exclude"}
           </button>
-          {status === "PENDING" && (
-            <button
-              className="ml-3 text-xs text-danger underline underline-offset-4"
-              onClick={() => review("REJECTED")}
-            >
-              Reject
-            </button>
-          )}
         </div>
       )}
       {target && (
@@ -113,9 +99,9 @@ export default function AttendanceReview({
         >
           <p className="font-semibold text-sm">
             {target === "APPROVED"
-              ? "Approve"
+              ? "Restore"
               : target === "REJECTED"
-                ? "Reject"
+                ? "Exclude"
                 : "Reset"}{" "}
             this shift?
           </p>
@@ -179,7 +165,7 @@ export default function AttendanceReview({
                 className="admin-button !bg-brand !text-white !text-xs"
                 onClick={save}
               >
-                Confirm {target.toLowerCase()}
+                Confirm {target === "APPROVED" ? "restore" : "exclusion"}
               </button>
             ) : (
               !busy && (

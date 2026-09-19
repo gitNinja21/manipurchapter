@@ -43,6 +43,11 @@ export async function GET(req: NextRequest) {
     where.clockOutAt = null;
     where.workDate = { gte: from, lte: to, equals: today };
   }
+  if (status === "COMPLETE") {
+    where.approvalStatus = { in: ["PENDING", "APPROVED"] };
+    where.clockInAt = { not: null };
+    where.clockOutAt = { not: null };
+  }
   if (status && ["PENDING", "APPROVED", "REJECTED"].includes(status)) {
     where.approvalStatus = status;
     where.clockInAt = { not: null };

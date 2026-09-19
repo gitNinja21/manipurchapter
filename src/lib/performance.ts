@@ -1,3 +1,4 @@
+import { countsForPayroll } from "./attendanceApproval";
 import { netWorkMs, paidTimeMs } from "./workPolicy";
 export const HOUR = 3600000;
 export type PolicyRecord = Parameters<typeof netWorkMs>[0] & {
@@ -53,7 +54,7 @@ export function attendancePoints(r: PolicyRecord) {
   const result: { kind: string; points: number }[] = [];
   if (
     !r.policyVersion ||
-    r.approvalStatus !== "APPROVED" ||
+    !countsForPayroll(r) ||
     !r.clockInAt ||
     !r.clockOutAt ||
     (r.workDate && offDay(r.workDate))

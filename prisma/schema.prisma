@@ -98,11 +98,8 @@ model AttendanceRecord {
   clockOutFaceMatch    Boolean?
   clockOutFaceDistance Float?
 
-  // Gates whether a completed day counts toward hours/salary in the admin
-  // Overview stats. "PENDING" | "APPROVED" | "REJECTED" (see
-  // src/lib/attendanceApproval.ts). Only APPROVED days are counted — a day
-  // isn't eligible for approval at all until it has both a clock-in and a
-  // clock-out.
+  // Legacy status retained for audit and explicit exclusions. Completed PENDING
+  // and APPROVED records count automatically; REJECTED records stay excluded.
   approvalStatus String @default("PENDING")
   // Snapshots prevent future policy changes from rewriting historical payroll.
   unpaidBreakMinutes Int @default(60)

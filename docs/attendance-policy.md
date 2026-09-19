@@ -38,10 +38,10 @@ Regular staff retain the existing paid-Monday rule.
 - Bonus starts beyond the required clock duration: 9 hours normally, 7 on Friday
   for Tokili. These hours are not also paid as regular salary.
 - Every 8 approved bonus hours earns a 9-hour day at the employee's hourly rate;
-  remaining hours carry across months. Only completed, approved attendance pays.
+  remaining hours carry across months. Completed attendance pays automatically unless explicitly excluded.
 - Any clock-out after the rolling finish requires a reason and extra-time review.
   Rejecting extra time caps paid and actual hours at that finish without changing
-  the recorded timestamps. Approve extra time before approving attendance.
+  the recorded timestamps. Regular pay counts immediately while extra time awaits review.
 - Extra-shift points remain +1 for approved actual work exceeding 10.5 hours
   (excluding the break). Merely earning a bonus hour does not award this point.
 
@@ -54,7 +54,7 @@ moves with actual clock-in. Old and proposed starts must be future, with no
 recorded arrival, approved leave or overlap. Admin edits use the same safeguards.
 
 Approved late/early exceptions excuse disciplinary incidents, not unworked pay.
-Both employee corrections and manual admin edits reset approval and reopen
+Both employee corrections and manual admin edits recalculate payroll and reopen
 extra-time review when needed. Corrections to version 2 recalculate finish and
 cutoff from corrected clock-in while preserving the original duration and break.
 Legacy records retain their old payroll/finish rules when corrected.
@@ -63,8 +63,7 @@ Legacy records retain their old payroll/finish rules when corrected.
 
 Three consecutive scheduled working days over 15 minutes late, or three early
 departures, create separate meeting cases. Off-days and approved leave are
-skipped; an ordinary missed/compliant day breaks the streak. Pending attendance
-can flag incidents immediately; rejected attendance cannot. Pending cases are
+skipped; an ordinary missed/compliant day breaks the streak. Open attendance can flag incidents immediately; excluded attendance cannot. Pending cases are
 recomputed after corrections/reviews and on clock-in/performance load.
 
 The next clock-in verifies face and location, then saves the first arrival attempt
@@ -77,7 +76,7 @@ on subsequent days in the same month; pending meetings survive month rollover.
 
 ## Points and referrals
 
-Final points are derived from approved attendance and referral records, not
+Final points are derived from completed attendance and approved referral records, not
 incremented counters, so repeated requests/reapprovals cannot duplicate awards:
 
 - +0.5 for an on-time arrival and completed scheduled finish.
@@ -122,8 +121,10 @@ The endpoint is admin-only and rejects future/pre-employment times, overlaps,
 approved leave and stale edits. Existing duration/break snapshots are preserved; version 2 finish and overtime cutoff are recalculated from corrected clock-in;
 extra time goes back through review. Starting today's attendance while a manager
 meeting is pending requires an explicit confirmation that the meeting occurred.
-The normal approval action remains required for completed attendance to count
-toward payroll.
+Completed attendance counts toward payroll automatically. No separate attendance
+approval is required. Existing pending completed shifts are included; historically
+rejected shifts remain excluded. Admins can explicitly exclude or restore a shift
+with a salary preview, and the decision remains audited.
 
 
 ## Migration notes
@@ -141,7 +142,7 @@ one hour in both cases.
 Admin → Attendance → Add / correct attendance has an explicit “Recalculate this
 record using the current pay policy” checkbox for completed records. Leave the
 correct times unchanged, provide a reason and save; review extra time if needed,
-then approve attendance again. This updates only the selected record's policy,
+and payroll updates automatically. This updates only the selected record's policy,
 break, schedule and duration, recalculates related incidents/points, and logs a
 POLICY_RECALCULATED audit with before/after values. Existing timestamps retain
 seconds when the form values have not been changed. Historical rows are otherwise

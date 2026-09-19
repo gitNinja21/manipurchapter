@@ -1,3 +1,4 @@
+import { countsForPayroll } from "./attendanceApproval";
 import type { Prisma, User } from "@prisma/client";
 import { prisma } from "./prisma";
 import { policyApplies, policyTimes, recurringRule } from "./workPolicy";
@@ -304,7 +305,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
       r.scheduledStartAt &&
       r.clockInAt &&
       r.clockOutAt &&
-      r.approvalStatus === "APPROVED" &&
+      countsForPayroll(r) &&
       !offDay(r.workDate),
   )) {
     const t = totals.get(r.userId) ?? {
@@ -343,7 +344,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
         userId: r.userId,
         date: r.workDate,
         ...deviations(r),
-        status: r.approvalStatus,
+        status: countsForPayroll(r) ? "COMPLETED" : r.approvalStatus === "REJECTED" ? "EXCLUDED" : "OPEN",
         latePenaltyActive: r.latePenaltyActive,
         earlyPenaltyActive: r.earlyPenaltyActive,
       }))

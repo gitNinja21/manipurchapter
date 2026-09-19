@@ -123,7 +123,7 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
               });
               setLoaded(false);
               setMessage(
-                "Attendance saved. Review extra time if requested, then approve the completed shift for payroll. An open shift can be clocked out normally by the employee.",
+                "Attendance saved. Completed shifts count automatically; review extra time if requested. An open shift can be clocked out normally by the employee.",
               );
               onSaved();
             });
@@ -176,7 +176,7 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
           {record?.clockInAt && record.clockOutAt && <label className="flex gap-2 text-sm">
             <input type="checkbox" checked={applyCurrentPolicy} disabled={action.busy} onChange={e => setApplyCurrentPolicy(e.target.checked)} />
             <span>Recalculate this record using the current pay policy.
-              <span className="block text-xs text-foreground/60">Normally 9 clock hours including the paid break; Tokili Friday is 7 clock hours with 6 paid. Recalculates pay, bonus hours and incidents. Leave times unchanged if they are correct. Requires approval again.</span>
+              <span className="block text-xs text-foreground/60">Normally 9 clock hours including the paid break; Tokili Friday is 7 clock hours with 6 paid. Recalculates pay, bonus hours and incidents. Leave times unchanged if they are correct. Updates payroll automatically.</span>
             </span>
           </label>}
           <label className="flex gap-2 text-sm">
@@ -189,7 +189,7 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
             reason above includes the meeting outcome.
           </label>
           <p className="text-sm text-foreground/60">
-            Saving resets attendance to pending review. Breaks, scheduled hours
+            Saving updates payroll automatically. Breaks, scheduled hours
             and extra-time review still apply.
           </p>
           <button className="admin-button" disabled={action.busy}>

@@ -87,17 +87,13 @@ export default function HomeSummary({ admin = false }: { admin?: boolean }) {
               <h2 className="font-semibold">Your attendance this month</h2>
               <p className="text-xs text-foreground/60">
                 {formatWorkDate(data.month)} – {formatWorkDate(data.today)} ·
-                approved work
+                completed work
               </p>
               <dl className="grid grid-cols-2 gap-4 text-sm">
                 {[
                   ["Net hours worked", data.summary.totalHours],
                   ["Extra hours this month", data.summary.overtimeHours],
                   ["Bonus days earned", data.summary.bonusDays],
-                  [
-                    "Shifts awaiting approval",
-                    data.summary.pendingApprovalDays,
-                  ],
                 ].map(([label, value]) => (
                   <div key={label}>
                     <dt className="text-foreground/60">{label}</dt>

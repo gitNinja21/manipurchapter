@@ -47,7 +47,7 @@ type WorkRecord = {
   extraTimeCutoff?: Date | string | null;
   extraTimeStatus?: string;
 };
-/** Exact net time; approval for the whole day remains a separate payroll gate. */
+/** Exact net time; unapproved extra time remains capped at the scheduled finish. */
 export function netWorkMs(record: WorkRecord): number | null {
   if (!record.clockInAt || !record.clockOutAt) return null;
   const start = +new Date(record.clockInAt);

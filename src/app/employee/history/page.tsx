@@ -71,7 +71,7 @@ export default function HistoryPage() {
                       </td>
                       <td className="px-4 py-2.5 text-right font-medium">
                         {hours !== null ? hours.toFixed(2) : "—"}
-                        {r.clockOutAt && !offDay(r.workDate) && <p className="text-xs font-normal">{salaryCredit(r).toFixed(2)} salary hours {r.approvalStatus === "APPROVED" ? "credited" : "if approved"}</p>}
+                        {r.clockOutAt && !offDay(r.workDate) && <p className="text-xs font-normal">{salaryCredit(r).toFixed(2)} salary hours {r.approvalStatus === "REJECTED" ? "excluded" : "credited"}</p>}
                         {!!r.unpaidBreakMinutes && <p className="text-xs font-normal">{r.unpaidBreakMinutes}m break deducted</p>}
                         {r.policyVersion === 2 && !r.unpaidBreakMinutes && <p className="text-xs font-normal">60m paid break · included in pay</p>}
                         {r.extraTimeStatus !== "NOT_REQUIRED" && r.extraTimeCutoff && <p className="text-xs font-normal">Extra time: {r.extraTimeStatus}</p>}
@@ -86,8 +86,7 @@ export default function HistoryPage() {
             </table>
           </div>
           <p className="text-xs text-foreground/40">
-            A day&apos;s hours count toward pay once your manager approves it — that usually
-            happens within a day or two of your shift.
+            Completed shifts count toward pay automatically. Short hours still reduce pay; extra time counts after review.
           </p>
         </>
       )}
@@ -97,7 +96,6 @@ export default function HistoryPage() {
 
 function ApprovalStatusBadge({ status }: { status: "PENDING" | "APPROVED" | "REJECTED" | null }) {
   if (!status) return null;
-  if (status === "APPROVED") return <span className="text-xs text-success">✓ Approved</span>;
-  if (status === "REJECTED") return <span className="text-xs text-danger">Not approved</span>;
-  return <span className="text-xs text-accent">Pending review</span>;
+  if (status === "REJECTED") return <span className="text-xs text-danger">Excluded from payroll</span>;
+  return <span className="text-xs text-success">✓ Completed</span>;
 }
