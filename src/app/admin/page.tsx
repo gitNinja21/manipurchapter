@@ -1,3 +1,4 @@
+import { monthlyPerformance } from "@/lib/performanceServer";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
@@ -77,6 +78,7 @@ export default async function AdminOverviewPage() {
       orderBy: { createdAt: "asc" },
     }),
   ]);
+  const scores = await monthlyPerformance(today.slice(0,7));
   const present = employees.filter((e) =>
     e.attendance.some((r) => r.clockInAt),
   ).length;
@@ -245,7 +247,7 @@ export default async function AdminOverviewPage() {
               {employees.map((e) => (
                 <tr key={e.id} className="border-t border-border">
                   <td className="px-5 py-3 font-medium">
-                    {e.name}
+                    {e.name} <Link className="admin-badge" href="/admin/team?view=performance" title="Current month points">{scores.totals.get(e.id)?.points ?? 0} pts</Link>
                     <span className="block text-xs font-normal text-foreground/55">
                       {e.employeeCode}
                     </span>

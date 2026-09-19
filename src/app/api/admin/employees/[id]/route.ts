@@ -109,7 +109,7 @@ export async function DELETE(
 
   const target = await prisma.user.findUnique({
     where: { id },
-    include: { attendance: true, announcements: true },
+    include: { attendance: true, announcements: true, arrivals: {select: {photo: true}} },
   });
   if (!target || target.role !== "EMPLOYEE") {
     return NextResponse.json({ error: "Employee not found." }, { status: 404 });
@@ -148,6 +148,7 @@ export async function DELETE(
     if (record.clockInPhoto) await deletePhotoByKey(record.clockInPhoto);
     if (record.clockOutPhoto) await deletePhotoByKey(record.clockOutPhoto);
   }
+  for (const arrival of target.arrivals) await deletePhotoByKey(arrival.photo);
   if (target.profilePhoto) await deletePhotoByKey(target.profilePhoto);
 
   return NextResponse.json({ ok: true });

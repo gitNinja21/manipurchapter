@@ -1,3 +1,5 @@
+import { monthlyPerformance } from "@/lib/performanceServer";
+import { todayWorkDate } from "@/lib/time";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { requireAdmin } from "@/lib/auth";
@@ -29,7 +31,8 @@ export async function GET() {
     },
   });
 
-  return NextResponse.json({ employees });
+  const scores = await monthlyPerformance(todayWorkDate().slice(0,7));
+  return NextResponse.json({ employees: employees.map(e => ({...e, points: scores.totals.get(e.id)?.points ?? 0})) });
 }
 
 export async function POST(req: NextRequest) {

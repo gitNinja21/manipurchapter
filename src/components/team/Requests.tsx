@@ -59,7 +59,7 @@ export default function Requests({ admin }: { admin: boolean }) {
                   fromDate: from,
                   toDate: to,
                   reason,
-                  ...(kind === "CORRECTION"
+                  ...(["CORRECTION", "SHIFT_CHANGE"].includes(kind)
                     ? {
                         proposedIn: inTime ? `${inTime}:00+05:30` : null,
                         proposedOut: outTime ? `${outTime}:00+05:30` : null,
@@ -80,7 +80,9 @@ export default function Requests({ admin }: { admin: boolean }) {
               >
                 <option value="LEAVE">Leave</option>
                 <option value="CORRECTION">Attendance correction</option>
-                <option value="LATE_ARRIVAL">Late arrival</option>
+                <option value="LATE_ARRIVAL">Excused late arrival</option>
+                <option value="EARLY_DEPARTURE">Excused early departure</option>
+                <option value="SHIFT_CHANGE">Temporary shift change (one day)</option>
               </select>
             </label>
             <div className="grid sm:grid-cols-2 gap-3">
@@ -108,10 +110,10 @@ export default function Requests({ admin }: { admin: boolean }) {
                 </label>
               )}
             </div>
-            {kind === "CORRECTION" && (
+            {["CORRECTION", "SHIFT_CHANGE"].includes(kind) && (
               <div className="grid sm:grid-cols-2 gap-3">
                 <label className="text-sm">
-                  Correct clock-in (IST)
+                  Start / clock-in (IST)
                   <input
                     type="datetime-local"
                     className="input mt-1"
@@ -121,7 +123,7 @@ export default function Requests({ admin }: { admin: boolean }) {
                   />
                 </label>
                 <label className="text-sm">
-                  Correct clock-out (IST)
+                  Finish / clock-out (IST)
                   <input
                     type="datetime-local"
                     className="input mt-1"
@@ -132,7 +134,8 @@ export default function Requests({ admin }: { admin: boolean }) {
                 </label>
               </div>
             )}
-            {kind === "LATE_ARRIVAL" && <p className="text-sm text-foreground/60">Explain why you will be late or are late. Approval permits a late clock-in on the selected date only. You must still clock in with your location and selfie; submitting this request does not start paid time.</p>}
+            {kind === "SHIFT_CHANGE" && <p className="text-sm text-foreground/60">Only an approved request changes your shift for this date. Approval must happen before the new start and before any arrival is recorded. One hour is excluded for break.</p>}
+            {kind === "LATE_ARRIVAL" && <p className="text-sm text-foreground/60">Explain why you will be late or are late. Approval excuses the lateness for the selected date only. You must still clock in with your location and selfie; submitting this request does not start paid time.</p>}
             <label className="block text-sm">
               Reason
               <textarea
@@ -198,7 +201,7 @@ function RequestCard({
       <div className="flex justify-between gap-3">
         <div>
           <h3 className="font-semibold">
-            {r.kind === "LEAVE" ? "Leave" : r.kind === "LATE_ARRIVAL" ? "Late arrival" : r.kind === "EXTRA_TIME" ? "Time after scheduled finish" : "Attendance correction"}
+            {r.kind === "LEAVE" ? "Leave" : r.kind === "LATE_ARRIVAL" ? "Late arrival" : r.kind === "SHIFT_CHANGE" ? "Temporary shift change" : r.kind === "EARLY_DEPARTURE" ? "Excused early departure" : r.kind === "EXTRA_TIME" ? "Extra time review" : "Attendance correction"}
             {admin ? ` · ${r.user.name}` : ""}
           </h3>
           <p className="text-xs text-foreground/60 mt-1">
@@ -221,8 +224,8 @@ function RequestCard({
           {r.reviewNote ? `: ${r.reviewNote}` : ""}
         </p>
       )}
-      {r.kind === "EXTRA_TIME" && r.extraTimeCutoff && <p className="text-sm font-medium">Scheduled finish: {formatIstDateTime(new Date(r.extraTimeCutoff))}</p>}
-      {r.kind === "EXTRA_TIME" && <p className="text-sm text-foreground/60">{admin ? "Approve to count time after the scheduled finish. Reject to cap payable time at that finish while keeping the actual clock-out. The 1-hour break still applies. Review and approve attendance separately afterwards." : "Time after the scheduled finish counts only if your admin approves it. Your actual clock-out is kept. The 1-hour break still applies, and attendance needs separate approval."}</p>}
+      {r.kind === "EXTRA_TIME" && r.extraTimeCutoff && <p className="text-sm font-medium">Extra-time threshold: {formatIstDateTime(new Date(r.extraTimeCutoff))}</p>}
+      {r.kind === "EXTRA_TIME" && <p className="text-sm text-foreground/60">{admin ? "Approve to count time after the review threshold. Reject to cap payable time at that threshold while keeping the actual clock-out. The 1-hour break still applies. Review and approve attendance separately afterwards." : "Time after the review threshold counts only if your admin approves it. Your actual clock-out is kept. The 1-hour break still applies, and attendance needs separate approval."}</p>}
       <ErrorNotice error={action.error} />
       {r.status === "PENDING" &&
         (admin ? (

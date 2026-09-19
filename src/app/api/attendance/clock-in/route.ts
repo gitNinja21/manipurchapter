@@ -1,9 +1,10 @@
-import { policyApplies, policyTimes, arrivalState, scheduleLabels } from "@/lib/workPolicy";
+import { effectiveSchedule, syncMeetings, penaltyContext } from "@/lib/performanceServer";
+import { extraCutoff } from "@/lib/performance";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { todayWorkDate } from "@/lib/time";
-import { saveDataUrlPhoto } from "@/lib/photoStorage";
+import { saveDataUrlPhoto, deletePhotoByKey } from "@/lib/photoStorage";
 import { euclideanDistance, isFaceMatch, parseDescriptor } from "@/lib/faceMatch";
 import { checkWithinRestaurant, getRestaurantLocationConfig } from "@/lib/geofence";
 
@@ -34,19 +35,10 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
   const workDate = todayWorkDate();
-  const governed = policyApplies(user, workDate);
-  let lateArrivalRequestId: string | null = null;
-  if (governed) {
-    const state = arrivalState(now, workDate, user);
-    if (state === "EARLY") return NextResponse.json({ error: `Your clock-in window opens at ${scheduleLabels(user).opening} IST.` }, { status: 403 });
-    if (state === "LATE") {
-      const approval = await prisma.staffRequest.findFirst({ where: {
-        userId: user.id, kind: "LATE_ARRIVAL", fromDate: workDate, toDate: workDate, status: "APPROVED",
-      }});
-      if (!approval) return NextResponse.json({ error: `Your ${scheduleLabels(user).latest} arrival deadline has passed. Submit a late-arrival reason in Team → Requests and wait for admin approval before clocking in.`, code: "LATE_APPROVAL_REQUIRED" }, { status: 403 });
-      lateArrivalRequestId = approval.id;
-    }
-  }
+  const schedule = await effectiveSchedule(prisma, user, workDate);
+  if (schedule && now < schedule.opens) return NextResponse.json({error: "Your arrival window has not opened yet."}, {status: 403});
+  const leave = await prisma.staffRequest.findFirst({where: {userId: user.id, kind: "LEAVE", status: "APPROVED", fromDate: {lte: workDate}, toDate: {gte: workDate}}});
+  if (leave) return NextResponse.json({error: "You have approved leave today. Ask your manager to resolve this before clock-in."}, {status: 409});
   const open = await prisma.attendanceRecord.findFirst({where: {userId: user.id, clockInAt: {not: null}, clockOutAt: null}});
   if (open) return NextResponse.json({error: "You already have an open shift. Clock out or ask your admin to correct it before starting another."}, {status: 409});
 
@@ -117,35 +109,32 @@ export async function POST(req: NextRequest) {
   const record = await prisma.$transaction(async (tx) => {
     const duplicate = await tx.attendanceRecord.findFirst({where: {userId: user.id, OR: [{clockInAt: {not: null}, clockOutAt: null}, {workDate, clockInAt: {not: null}}]}});
     if (duplicate) return null;
-    return tx.attendanceRecord.upsert({
-    where: { userId_workDate: { userId: user.id, workDate } },
-    create: {
-      userId: user.id,
-      workDate,
-      clockInAt: now,
-      unpaidBreakMinutes: governed ? 60 : 0,
-      extraTimeCutoff: governed ? policyTimes(workDate, user).closesAt : null,
-      extraTimeStatus: "NOT_REQUIRED",
-      lateArrivalRequestId,
-      approvalStatus: "PENDING",
-      clockInPhoto: photoKey,
-      clockInFaceMatch: faceMatch,
-      clockInFaceDistance: faceDistance,
-    },
-    update: {
-      clockInAt: now,
-      unpaidBreakMinutes: governed ? 60 : 0,
-      extraTimeCutoff: governed ? policyTimes(workDate, user).closesAt : null,
-      extraTimeStatus: "NOT_REQUIRED",
-      lateArrivalRequestId,
-      approvalStatus: "PENDING",
-      clockInPhoto: photoKey,
-      clockInFaceMatch: faceMatch,
-      clockInFaceDistance: faceDistance,
-    },
-  });
+    const pending = await syncMeetings(tx, user.id, workDate);
+    if (pending.length) {
+      const attempt = await tx.arrivalAttempt.upsert({where: {userId_workDate: {userId: user.id, workDate}},
+        create: {userId: user.id, workDate, arrivedAt: now, photo: photoKey, latitude: lat, longitude: lng}, update: {}});
+      return {meetingRequired: true, arrivedAt: attempt.arrivedAt, arrivalPhoto: attempt.photo};
+    }
+    const attempt = await tx.arrivalAttempt.findUnique({where: {userId_workDate: {userId: user.id, workDate}}});
+    const clockInAt = attempt?.approvedAt ?? now;
+    const currentSchedule = await effectiveSchedule(tx, user, workDate);
+    const approval = await tx.staffRequest.findFirst({where: {userId: user.id, kind: "LATE_ARRIVAL", fromDate: workDate, status: "APPROVED"}});
+    const rules = {
+      clockInAt, policyVersion: 1,
+      scheduledStartAt: currentSchedule?.start ?? null, scheduledEndAt: currentSchedule?.end ?? null,
+      unpaidBreakMinutes: currentSchedule?.breakMinutes ?? 0,
+      extraTimeCutoff: extraCutoff(clockInAt, currentSchedule?.breakMinutes ?? 0, currentSchedule?.end),
+      extraTimeStatus: "NOT_REQUIRED", lateArrivalRequestId: approval?.id ?? null, lateExcused: !!approval,
+      ...await penaltyContext(tx, user.id, workDate),
+      approvalStatus: "PENDING", clockInPhoto: photoKey, clockInFaceMatch: faceMatch, clockInFaceDistance: faceDistance,
+    };
+    return tx.attendanceRecord.upsert({where: {userId_workDate: {userId: user.id, workDate}},
+      create: {userId: user.id, workDate, ...rules}, update: rules});
 
   });
+  if (!record) await deletePhotoByKey(photoKey);
+  if (record && "meetingRequired" in record && record.arrivalPhoto !== photoKey) await deletePhotoByKey(photoKey);
   if (!record) return NextResponse.json({error: "A clock-in has already been recorded. Refresh the page."}, {status: 409});
+  if ("meetingRequired" in record) return NextResponse.json({error: "Your arrival has been recorded. Meet your manager, then open Team → Performance for clearance. Retry clock-in after approval; your approved arrival time will be used.", code: "MEETING_REQUIRED", arrivedAt: record.arrivedAt}, {status: 403});
   return NextResponse.json({ ok: true, record, faceMatch });
 }

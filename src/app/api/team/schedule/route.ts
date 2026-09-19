@@ -1,3 +1,4 @@
+import { validateShift, policyAudit } from "@/lib/performanceServer";
 import { prisma } from "@/lib/prisma";
 import { teamRoute, jsonBody, TeamError, adminOnly, notify } from "@/lib/team";
 import { validRange } from "@/lib/reporting";
@@ -98,11 +99,14 @@ export const POST = teamRoute(async (u, req) => {
       })
     )
       throw new TeamError("This overlaps another assigned shift.", 409);
+    await validateShift(tx, userId, workDate, startsAt, endsAt);
+    const before = await tx.scheduledShift.findUnique({where: {userId_workDate: {userId, workDate}}});
     const result = await tx.scheduledShift.upsert({
       where: { userId_workDate: { userId, workDate } },
       create: { userId, workDate, startsAt, endsAt, note },
       update: { startsAt, endsAt, note },
     });
+    await policyAudit(tx, u, userId, result.id, "SCHEDULE_UPDATED", before, result);
     await notify(
       tx,
       [employee],

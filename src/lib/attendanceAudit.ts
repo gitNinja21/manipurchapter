@@ -16,6 +16,13 @@ export function auditData(
       extraTimeStatus: r.extraTimeStatus,
       extraTimeReason: r.extraTimeReason,
       lateArrivalRequestId: r.lateArrivalRequestId,
+      policyVersion: r.policyVersion,
+      scheduledStartAt: r.scheduledStartAt,
+      scheduledEndAt: r.scheduledEndAt,
+      latePenaltyActive: r.latePenaltyActive,
+      earlyPenaltyActive: r.earlyPenaltyActive,
+      lateExcused: r.lateExcused,
+      earlyExcused: r.earlyExcused,
     });
   return {
     recordId: record.id,

@@ -180,23 +180,24 @@ export default function EmployeeClockPage() {
         </p>
       </div>
 
+      <Link className="text-brand underline block" href="/employee/team?view=performance">My points, attendance incidents and manager clearance</Link>
       {policy && (
         <section className="admin-panel p-4 space-y-2 text-sm">
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>
-          <p>{schedule?.fixed ? "Scheduled start:" : "Clock-in window:"} {schedule?.arrival} IST. A 1-hour unpaid break is deducted. Regular pay covers up to 9 net hours; additional net hours go to your bonus balance.</p>
-          <p>Clock out when you actually leave. After your scheduled finish ({schedule?.finish}), a reason and admin review are required for the extra time.</p>
-          {schedule?.allowEarly && <p>You may clock in early. Pay uses your actual approved working time.</p>}
+          <p>{schedule?.fixed ? "Scheduled start:" : "Clock-in window:"} {schedule?.arrival} IST. A 1-hour unpaid break is deducted. Maintaining your scheduled shift earns 9 salary hours; actual net hours above 9 go to your bonus balance.</p>
+          <p>Clock out when you actually leave. A reason and admin review are required after your scheduled finish ({schedule?.finish}) or 10½ actual working hours, whichever comes first.</p>
+          {schedule?.allowEarly && <p>You may clock in early. Bonus hours use actual approved work, excluding the break.</p>}
           {!hasClockedIn && arrival === "EARLY" && <p>Clock-in opens at {schedule?.opening}.</p>}
           {!hasClockedIn && lateStatus && <p>Today’s late-arrival request: <strong>{lateStatus}</strong>.</p>}
-          {!hasClockedIn && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request late arrival / view approval</Link>}
-          {!hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Admin approval is required before clock-in. Your work starts at your actual clock-in time, not the request time.</p>}
+          {!hasClockedIn && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request an excused late arrival</Link>}
+          {!hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Clock in when you arrive. More than 15 minutes late is an incident; after three consecutive incidents, manager clearance is required. After that meeting, every late minute reduces pay for the rest of the month.</p>}
         </section>
       )}
       {record?.clockInAt && !record.clockOutAt && record.extraTimeCutoff && mode !== "submitting" && (
         <label className="admin-panel p-4 block text-sm">
-          Reason for working after {formatIstTime(new Date(record.extraTimeCutoff))} (required for a late clock-out)
+          Extra-time reason after {formatIstTime(new Date(record.extraTimeCutoff))} (required for a late clock-out)
           <textarea className="input mt-2" rows={3} maxLength={1000} value={extraTimeReason} onChange={e => setExtraTimeReason(e.target.value)} placeholder="For example: finishing a late table’s service" />
-          <span className="block text-xs text-foreground/60 mt-2">Applies to your shift starting {record.workDate}. Time after that scheduled finish stays excluded until admin approval.</span>
+          <span className="block text-xs text-foreground/60 mt-2">Applies to your shift starting {record.workDate}. Time after that threshold stays excluded until admin approval.</span>
         </label>
       )}
       {record?.extraTimeStatus === "PENDING" && <p className="text-sm text-accent">Clock-out saved. Your extra-time reason is awaiting admin review in Team → Requests.</p>}
@@ -252,7 +253,7 @@ export default function EmployeeClockPage() {
           ) : !hasClockedIn ? (
             <button
               onClick={() => startCapture("in")}
-              disabled={policy && (arrival === "EARLY" || (arrival === "LATE" && lateStatus !== "APPROVED"))}
+              disabled={policy && arrival === "EARLY"}
               className="w-full rounded-lg bg-brand text-white font-medium py-3 hover:bg-brand-dark transition-colors disabled:opacity-50"
             >
               Clock In

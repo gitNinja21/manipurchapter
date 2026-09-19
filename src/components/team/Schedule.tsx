@@ -55,19 +55,18 @@ export default function Schedule({ admin }: { admin: boolean }) {
           {admin ? "Team schedule" : "My schedule"}
         </h2>
         <p className="text-sm text-foreground/60 mt-1">
-          All times in IST. Schedules and leave do not automatically alter
-          payroll.
+          All times in IST. Approved dated shifts set attendance rules for that day. Attendance needs separate approval for payroll.
         </p>
       </div>
       {!!data?.recurring?.length && <section className="admin-panel p-5 space-y-3">
         <h3 className="font-semibold">Daily attendance rules</h3>
-        <p className="text-sm">1-hour unpaid break · actual clock-out time. Late arrivals require approval; time after each employee’s scheduled finish requires a reason and approval.</p>
+        <p className="text-sm">1-hour unpaid break · actual clock-out time. Three consecutive late arrivals or early departures require manager clearance. Extra time needs a reason and approval after the scheduled finish or 10½ actual hours.</p>
         {data.recurring.map(person => <div key={person.id} className="text-sm border-t border-border pt-2">
           <strong>{person.name}</strong> · from {formatWorkDate(person.attendancePolicyFrom)}
           <p>{scheduleLabels(person).fixed ? "Start" : "Arrival window"}: {scheduleLabels(person).arrival} · Finish: {scheduleLabels(person).finish} IST.</p>
           <p className="text-foreground/60">{person.employeeCode === "NIJULI" ? "Usual departure: 7–7:30 pm. " : person.employeeCode === "RONYAMZ" ? "Usual departure: 8–8:30 pm. " : ""}Actual clock-out determines hours. {person.attendanceAllowEarly ? "Early clock-in is allowed." : "Clock-in opens at the start time."}</p>
         </div>)}
-        <p className="text-xs text-foreground/60">These recurring clock rules apply daily. Monday remains a paid off-day under the existing payroll rule. Date-specific schedule entries below do not override these clock rules.</p>
+        <p className="text-xs text-foreground/60">These recurring clock rules apply daily. Monday remains a paid off-day under the existing payroll rule. Approved date-specific shifts below override the recurring schedule for that date only.</p>
       </section>}
       <div className="flex flex-wrap gap-2 items-center">
         <button

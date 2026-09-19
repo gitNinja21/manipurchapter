@@ -5,6 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 type Employee = {
   id: string;
   employeeCode: string;
+  points?: number;
   name: string;
   hourlyRateRs: number;
   active: boolean;
@@ -507,7 +508,7 @@ function EmployeeRow({
   return (
     <>
       <tr className="border-t border-border">
-        <td className="px-4 py-2.5 font-medium">{employee.name}</td>
+        <td className="px-4 py-2.5 font-medium">{employee.name} <a href="/admin/team?view=performance" className="admin-badge" title="Current month points">{employee.points ?? 0} pts</a></td>
         <td className="px-4 py-2.5 font-mono text-xs">
           {employee.employeeCode}
         </td>

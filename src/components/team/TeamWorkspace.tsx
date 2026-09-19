@@ -4,6 +4,7 @@ import Chat from "./Chat";
 import Birthdays from "./Birthdays";
 import Schedule from "./Schedule";
 import Requests from "./Requests";
+import Performance from "./Performance";
 export default function TeamWorkspace({ admin }: { admin: boolean }) {
   const params = useSearchParams(),
     router = useRouter(),
@@ -23,6 +24,7 @@ export default function TeamWorkspace({ admin }: { admin: boolean }) {
           ["birthdays", "Birthdays"],
           ["schedule", "Schedule"],
           ["requests", "Requests"],
+          ["performance", "Points & attendance"],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -34,7 +36,7 @@ export default function TeamWorkspace({ admin }: { admin: boolean }) {
           </button>
         ))}
       </nav>
-      {view === "birthdays" ? (
+      {view === "performance" ? (<Performance admin={admin}/>) : view === "birthdays" ? (
         <Birthdays />
       ) : view === "schedule" ? (
         <Schedule admin={admin} />

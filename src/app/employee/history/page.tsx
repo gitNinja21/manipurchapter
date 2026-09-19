@@ -1,10 +1,11 @@
 "use client";
+import { salaryCredit, offDay, type PolicyRecord } from "@/lib/performance";
 import { netWorkHours } from "@/lib/workPolicy";
 
 import { useEffect, useState } from "react";
 import { formatWorkDate, formatIstTime } from "@/lib/time";
 
-type Record = {
+type Record = PolicyRecord & {
   id: string;
   workDate: string;
   unpaidBreakMinutes: number;
@@ -68,6 +69,7 @@ export default function HistoryPage() {
                       </td>
                       <td className="px-4 py-2.5 text-right font-medium">
                         {hours !== null ? hours.toFixed(2) : "—"}
+                        {r.clockOutAt && !offDay(r.workDate) && <p className="text-xs font-normal">{salaryCredit(r).toFixed(2)} salary hours {r.approvalStatus === "APPROVED" ? "credited" : "if approved"}</p>}
                         {!!r.unpaidBreakMinutes && <p className="text-xs font-normal">{r.unpaidBreakMinutes}m break deducted</p>}
                         {r.extraTimeStatus !== "NOT_REQUIRED" && r.extraTimeCutoff && <p className="text-xs font-normal">Extra time: {r.extraTimeStatus}</p>}
                       </td>

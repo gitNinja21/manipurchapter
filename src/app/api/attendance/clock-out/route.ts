@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   const needsExtraReview = !!existing.extraTimeCutoff && now > existing.extraTimeCutoff;
   const extraTimeReason = typeof body.extraTimeReason === "string" ? body.extraTimeReason.trim() : "";
   if (needsExtraReview && (extraTimeReason.length < 3 || extraTimeReason.length > 1000)) {
-    return NextResponse.json({error: `You are clocking out after your scheduled finish (${formatIstTime(existing.extraTimeCutoff)} IST). Explain why you worked later (3–1000 characters). This extra time needs admin approval.`, code: "EXTRA_TIME_REASON_REQUIRED"}, {status: 400});
+    return NextResponse.json({error: `You are clocking out after your extra-time review threshold (${formatIstTime(existing.extraTimeCutoff)} IST). Explain why you worked later (3–1000 characters). This extra time needs admin approval.`, code: "EXTRA_TIME_REASON_REQUIRED"}, {status: 400});
   }
 
   // Location gate — a no-op unless RESTAURANT_LAT/RESTAURANT_LNG are set.
@@ -110,10 +110,12 @@ export async function POST(req: NextRequest) {
   }
 
   const record = await prisma.$transaction(async (tx) => {
+    const exception = await tx.staffRequest.findFirst({where: {userId: user.id, kind: "EARLY_DEPARTURE", fromDate: existing.workDate, status: "APPROVED"}});
     const changed = await tx.attendanceRecord.updateMany({
       where: { id: existing.id, clockOutAt: null, updatedAt: existing.updatedAt },
       data: {
         clockOutAt: now,
+        earlyExcused: existing.earlyExcused || !!exception,
         clockOutPhoto: photoKey,
         clockOutFaceMatch: faceMatch,
         clockOutFaceDistance: faceDistance,

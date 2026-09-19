@@ -1,12 +1,12 @@
+import { salaryCredit } from "./performance";
 import { netWorkHours, netWorkMs } from "./workPolicy";
 import { prisma } from "./prisma";
 import { todayWorkDate, workDateFor } from "./time";
 import { APPROVAL_STATUS } from "./attendanceApproval";
 
 // --- Payroll rules ---
-// A "complete day" is 9 hours worked. Working fewer hours than that is paid
-// pro-rata for the actual hours worked (not zero) — it just doesn't reach a
-// full day's pay. Hours worked beyond 9 in a day count as overtime and are
+// A completed scheduled shift earns 9 salary hours under policy version 1.
+// Other short shifts use actual work; after-meeting deductions reduce credit once. Hours worked beyond 9 in a day count as overtime and are
 // accumulated per employee from their join date. Every completed 8-hour block
 // earns one extra day's pay. Unconverted hours carry across reporting periods.
 const FULL_DAY_HOURS = 9;
@@ -23,7 +23,7 @@ export type EmployeeStats = {
   daysPresent: number; // has a clock-in
   daysComplete: number; // has both clock-in and clock-out (regardless of approval)
   paidWorkDays: number; // approved regular-day equivalents, including prorated shifts
-  fullDaysWorked: number; // approved days with >= 9 hours worked
+  fullDaysWorked: number; // approved days with 9 regular salary-credit hours
   incompleteDays: number; // clocked in, forgot to clock out (no hours counted)
   missedDays: number; // calendar days in range (up to today) with no record at all
   pendingApprovalDays: number; // complete, but admin hasn't approved or rejected yet — not counted
@@ -31,7 +31,7 @@ export type EmployeeStats = {
   totalHours: number; // only from APPROVED days
   offDays: number; // Mondays in range — paid leave regardless of attendance
   offDaysPayRs: number;
-  regularPayRs: number; // pay for actual working days (full-day rate or pro-rated short-day pay)
+  regularPayRs: number; // scheduled salary credit or pro-rated work, with deductions included
   overtimeHours: number; // hours worked beyond 9/day on working days, accumulated over the range
   overtimeBalanceHours: number; // unconverted hours as of the report end
   bonusDays: number; // whole 8-hour blocks earned within the selected range
@@ -166,7 +166,7 @@ export async function computeStatsForRange(
       const record = recordsByDate.get(day);
       const approvedHours =
         record && record.approvalStatus === APPROVAL_STATUS.APPROVED
-          ? (netWorkHours(record) ?? 0)
+          ? salaryCredit(record)
           : 0;
 
       if (approvedHours <= 0) continue; // absent (or not yet approved) — no pay for this working day

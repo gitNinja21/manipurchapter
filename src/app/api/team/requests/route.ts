@@ -1,4 +1,4 @@
-import { policyApplies } from "@/lib/workPolicy";
+import { validateShift, effectiveSchedule } from "@/lib/performanceServer";
 import { prisma } from "@/lib/prisma";
 import {
   teamRoute,
@@ -48,7 +48,7 @@ export const POST = teamRoute(async (u, req) => {
     fromDate = String(b.fromDate),
     toDate = kind !== "LEAVE" ? fromDate : String(b.toDate),
     reason = textField(b.reason, "Reason", 1000);
-  if (!["LEAVE", "CORRECTION", "LATE_ARRIVAL"].includes(kind) || !validRange(fromDate, toDate))
+  if (!["LEAVE", "CORRECTION", "LATE_ARRIVAL", "SHIFT_CHANGE", "EARLY_DEPARTURE"].includes(kind) || !validRange(fromDate, toDate))
     throw new TeamError("Choose a valid request and date range.");
   if ((Date.parse(toDate) - Date.parse(fromDate)) / 86400000 > 365)
     throw new TeamError("Choose a period of up to one year.");
@@ -61,14 +61,14 @@ export const POST = teamRoute(async (u, req) => {
     );
   if (kind === "LEAVE" && fromDate < todayWorkDate())
     throw new TeamError("Leave requests must start today or later.");
-  if (kind === "LATE_ARRIVAL" && (!policyApplies(u, fromDate) || fromDate < todayWorkDate() || Date.parse(fromDate) - Date.parse(todayWorkDate()) > 365 * 86400000))
+  if (kind === "LATE_ARRIVAL" && (!(await effectiveSchedule(prisma, u, fromDate)) || fromDate < todayWorkDate() || Date.parse(fromDate) - Date.parse(todayWorkDate()) > 365 * 86400000))
     throw new TeamError("Late-arrival requests must be for today or a future date covered by your attendance rules.");
   const proposedIn =
-      kind === "CORRECTION" ? new Date(String(b.proposedIn)) : null,
+      ["CORRECTION", "SHIFT_CHANGE"].includes(kind) ? new Date(String(b.proposedIn)) : null,
     proposedOut =
-      kind === "CORRECTION" ? new Date(String(b.proposedOut)) : null;
+      ["CORRECTION", "SHIFT_CHANGE"].includes(kind) ? new Date(String(b.proposedOut)) : null;
   if (
-    kind === "CORRECTION" &&
+    ["CORRECTION", "SHIFT_CHANGE"].includes(kind) &&
     (!proposedIn ||
       !proposedOut ||
       !Number.isFinite(+proposedIn) ||
@@ -76,12 +76,14 @@ export const POST = teamRoute(async (u, req) => {
       +proposedOut <= +proposedIn ||
       +proposedOut - +proposedIn > 24 * 3600000 ||
       workDateFor(proposedIn) !== fromDate ||
-      +proposedOut > Date.now())
+      (kind === "CORRECTION" && +proposedOut > Date.now()))
   )
     throw new TeamError(
       "Enter valid clock-in/out times in IST, up to 24 hours apart and not in the future.",
     );
+  if (["SHIFT_CHANGE", "EARLY_DEPARTURE"].includes(kind) && (fromDate < todayWorkDate() || Date.parse(fromDate) - Date.parse(todayWorkDate()) > 365*86400000)) throw new TeamError("Choose today or a date within the next year.");
   const request = await prisma.$transaction(async (tx) => {
+    if (kind === "SHIFT_CHANGE") await validateShift(tx, u.id, fromDate, proposedIn!, proposedOut!);
     if (kind === "LATE_ARRIVAL" && await tx.attendanceRecord.findFirst({where: {userId: u.id, workDate: fromDate, clockInAt: {not: null}}}))
       throw new TeamError("You have already clocked in on this date.", 409);
     if (
@@ -129,7 +131,7 @@ export const POST = teamRoute(async (u, req) => {
       admins,
       "REQUEST",
       r.id,
-      `${u.name}: new ${kind === "LEAVE" ? "leave" : kind === "LATE_ARRIVAL" ? "late-arrival" : "attendance correction"} request`,
+      `${u.name}: new ${kind === "LEAVE" ? "leave" : kind === "LATE_ARRIVAL" ? "late-arrival" : kind === "SHIFT_CHANGE" ? "shift change" : kind === "EARLY_DEPARTURE" ? "early departure" : "attendance correction"} request`,
       "team?view=requests",
     );
     return r;

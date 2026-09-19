@@ -51,6 +51,10 @@ try {
  const scheduleSql=await readFile('prisma/migrations/20260919130000_employee_schedules/migration.sql','utf8');
  for (const update of scheduleSql.split('\n').filter(line=>line.startsWith('UPDATE "User"'))) await db.$executeRawUnsafe(update);
  assert.equal(await db.user.count({where:{attendancePolicyFrom:'2026-09-19'}}),10);
+ const departures=await readFile('prisma/migrations/20260919160000_departure_deadlines/migration.sql','utf8');
+ for(const statement of departures.split(';').filter(x=>x.includes('UPDATE'))) await db.$executeRawUnsafe(statement);
+ assert.equal((await db.user.findUnique({where:{id:'n'}})).attendanceEndMinute,1140);
+ assert.equal((await db.user.findUnique({where:{id:'r'}})).attendanceEndMinute,1200);
 
  server=spawn(process.execPath,['--require',preload,'node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3104'],{env,stdio:['ignore','pipe','pipe']});
  server.stdout.on('data',b=>logs+=b);server.stderr.on('data',b=>logs+=b);
@@ -69,22 +73,19 @@ try {
  await ok(n,'/api/attendance/clock-in','POST',photo);
  await ok(h,'/api/attendance/clock-in','POST',photo);
  await setTime('2026-09-19T10:31:00+05:30');
- assert.equal((await request(r,'/api/attendance/clock-in','POST',photo)).data.code,'LATE_APPROVAL_REQUIRED');
  const late=(await ok(r,'/api/team/requests','POST',{kind:'LATE_ARRIVAL',fromDate:'2026-09-19',reason:'Delayed bus'})).request;
- assert.equal((await request(r,'/api/attendance/clock-in','POST',photo)).status,403);
  assert.equal((await request(other,`/api/team/requests/${late.id}`,'PATCH',{status:'APPROVED'})).status,403);
  await ok(admin,`/api/team/requests/${late.id}`,'PATCH',{status:'APPROVED'});
  const rr=(await ok(r,'/api/attendance/clock-in','POST',photo)).record;
  assert.equal(rr.lateArrivalRequestId,late.id);
  assert.equal(rr.clockInAt,new Date('2026-09-19T10:31:00+05:30').toISOString());
  const legacy=(await ok(other,'/api/attendance/clock-in','POST',photo)).record;
- assert.equal(legacy.unpaidBreakMinutes,0);assert.equal(legacy.extraTimeCutoff,null);
+ assert.equal(legacy.unpaidBreakMinutes,0);assert.equal(legacy.extraTimeCutoff,new Date('2026-09-19T21:01:00+05:30').toISOString());
  assert.equal((await request(other,'/api/team/requests','POST',{kind:'LATE_ARRIVAL',fromDate:'2026-09-20',reason:'Not covered'})).status,400);
  for (const [id,code,start,end,net] of additional) {
    const cookie=await login(code);
    const startDate=new Date(`2026-09-19T${start}:00+05:30`);
    await setTime(new Date(+startDate+60000).toISOString());
-   assert.equal((await request(cookie,'/api/attendance/clock-in','POST',photo)).data.code,'LATE_APPROVAL_REQUIRED');
    await setTime(startDate.toISOString());
    const status=await ok(cookie,'/api/attendance/today');
    assert.equal(status.arrivalState,'ON_TIME');assert.equal(status.schedule.fixed,true);assert.equal(status.schedule.allowEarly,true);
@@ -99,7 +100,7 @@ try {
    await ok(cookie,'/api/attendance/clock-out','POST',photo);
    await ok(admin,`/api/admin/attendance/${clocked.id}`,'PATCH',{approvalStatus:'APPROVED'});
    const earned=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats.find(s=>s.userId===id);
-   assert.equal(earned.totalHours,net);assert.equal(earned.regularPayRs,net*100);assert.equal(earned.overtimeHours,0);
+   assert.equal(earned.totalHours,net);assert.equal(earned.regularPayRs,900);assert.equal(earned.overtimeHours,0);
  }
 
  await setTime('2026-09-19T19:00:00+05:30');
@@ -108,7 +109,7 @@ try {
  await ok(admin,`/api/admin/attendance/${nr.id}`,'PATCH',{approvalStatus:'APPROVED'});
  let stats=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats;
  assert.equal(stats.find(s=>s.userId==='n').totalHours,8.5);
- assert.equal(stats.find(s=>s.userId==='n').regularPayRs,850);
+ assert.equal(stats.find(s=>s.userId==='n').regularPayRs,900);
  await setTime('2026-09-19T22:30:01+05:30');
  assert.equal((await request(g,'/api/attendance/clock-out','POST',photo)).data.code,'EXTRA_TIME_REASON_REQUIRED');
  assert.equal((await db.attendanceRecord.findUnique({where:{id:gr.id}})).clockOutAt,null);
@@ -122,8 +123,8 @@ try {
  await ok(admin,`/api/team/requests/${extra.id}`,'PATCH',{status:'REJECTED',reviewNote:'Extra time not authorised'});
  await ok(admin,`/api/admin/attendance/${gr.id}`,'PATCH',{approvalStatus:'APPROVED'});
  stats=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats;
- assert.equal(stats.find(s=>s.userId==='g').totalHours,12);
- assert.equal(stats.find(s=>s.userId==='g').overtimeHours,3);
+ assert.equal(stats.find(s=>s.userId==='g').totalHours,10.5);
+ assert.equal(stats.find(s=>s.userId==='g').overtimeHours,1.5);
  assert.equal((await db.attendanceRecord.findUnique({where:{id:gr.id}})).clockOutAt.toISOString(),new Date('2026-09-19T23:30:00+05:30').toISOString());
  // Overnight clock-out remains attached to the original work date.
  await setTime('2026-09-20T00:30:00+05:30');
@@ -145,9 +146,10 @@ try {
  const recurrence=await ok(g,'/api/team/schedule?from=2026-09-19&to=2026-09-20');assert.equal(recurrence.recurring.length,1);assert.equal(recurrence.recurring[0].id,'g');
  assert.equal((await ok(admin,'/api/team/schedule?from=2026-09-19&to=2026-09-20')).recurring.length,10);
  await setTime('2026-09-20T11:00:00+05:30');
- assert.equal((await request(g,'/api/attendance/clock-in','POST',photo)).status,403); // no previous-day approval reuse
+ const nextDay=(await ok(g,'/api/attendance/clock-in','POST',photo)).record;
+ assert.equal(nextDay.lateArrivalRequestId,null); // no previous-day exception reuse
  assert.equal((await request(r,'/api/attendance/clock-out','POST',{...photo,extraTimeReason:'Forgot yesterday'})).status,409); // >24h needs correction
- console.log('PASS: all ten schedules and exact account targeting; six fixed deadlines and individual finish cutoffs; arrival window; late reasons/approval and date scope; unchanged other employees; break-adjusted payroll; extra-time reason enforcement and review; overnight clock-out; correction safeguards; audit; employee privacy.');
+ console.log('PASS: all ten schedules and exact account targeting; six fixed deadlines and individual finish cutoffs; arrival window; late reasons/approval and date scope; universal actual-work review threshold; break-adjusted payroll with full-shift salary credit; extra-time reason enforcement and review; overnight clock-out; correction safeguards; audit; employee privacy.');
  console.log('Disposable test files:',dir);
 } catch(e) {console.error(logs.slice(-5000));throw e;}
 finally {if(server)server.kill('SIGTERM');await db.$disconnect();}

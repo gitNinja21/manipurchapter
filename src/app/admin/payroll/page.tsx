@@ -383,8 +383,7 @@ export default function PayrollPage() {
         </summary>
         <div className="mt-3 space-y-2 text-foreground/70">
           <p>
-            A full shift is 9 net working hours after any assigned unpaid break. Shorter approved shifts are paid by the
-            hour. Daily pay is the employee’s hourly rate × 9.
+            Completing the scheduled shift earns 9 salary hours even when actual work after the break is shorter. Incomplete shifts are prorated; after a manager meeting, missing minutes reduce the 9-hour credit once. Daily pay is the employee’s hourly rate × 9.
           </p>
           <p>
             Billing starts at account creation in IST. Mondays are paid

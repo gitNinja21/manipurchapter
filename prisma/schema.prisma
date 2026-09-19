@@ -69,6 +69,9 @@ model User {
   attendanceEndMinute Int @default(1350)
   attendanceAllowEarly Boolean @default(false)
 
+  meetings ManagerMeeting[]
+  arrivals ArrivalAttempt[]
+  referrals ReferralClaim[]
   attendance    AttendanceRecord[]
   announcements Announcement[]     @relation("AnnouncementAuthor")
 }
@@ -104,6 +107,13 @@ model AttendanceRecord {
   extraTimeStatus String @default("NOT_REQUIRED")
   extraTimeReason String?
   lateArrivalRequestId String?
+  policyVersion Int @default(0)
+  scheduledStartAt DateTime?
+  scheduledEndAt DateTime?
+  latePenaltyActive Boolean @default(false)
+  earlyPenaltyActive Boolean @default(false)
+  lateExcused Boolean @default(false)
+  earlyExcused Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -227,4 +237,64 @@ model PushSubscription {
   p256dh String
   auth String
   createdAt DateTime @default(now())
+}
+
+model ManagerMeeting {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind String
+  triggerDate String
+  status String @default("PENDING")
+  clearedDate String?
+  reviewedAt DateTime?
+  reviewedBy String?
+  note String?
+  createdAt DateTime @default(now())
+  @@unique([userId, kind, triggerDate])
+  @@index([userId, status])
+}
+model ArrivalAttempt {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workDate String
+  arrivedAt DateTime
+  photo String
+  latitude Float?
+  longitude Float?
+  proposedAt DateTime?
+  reason String?
+  approvedAt DateTime?
+  approvedBy String?
+  @@unique([userId, workDate])
+}
+model ReferralClaim {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billDate String
+  billNumber String
+  billKey String @unique
+  partyReference String
+  approvedPartyKey String? @unique
+  reason String
+  status String @default("PENDING")
+  reviewedBy String?
+  reviewedAt DateTime?
+  note String?
+  createdAt DateTime @default(now())
+  @@index([userId, billDate])
+}
+model PolicyAudit {
+  id String @id @default(cuid())
+  entityId String
+  userId String
+  actorId String
+  actorName String
+  action String
+  beforeJson String
+  afterJson String
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
 }

@@ -1,3 +1,4 @@
+import { assertScheduleMutable, policyAudit } from "@/lib/performanceServer";
 import { prisma } from "@/lib/prisma";
 import { teamRoute, adminOnly, TeamError, notify } from "@/lib/team";
 export const DELETE = teamRoute(async (u, req) => {
@@ -9,6 +10,8 @@ export const DELETE = teamRoute(async (u, req) => {
       include: { user: true },
     });
     if (!shift) throw new TeamError("Shift not found.", 404);
+    await assertScheduleMutable(tx, shift.userId, shift.workDate);
+    await policyAudit(tx, u, shift.userId, shift.id, "SCHEDULE_DELETED", shift, null);
     await tx.scheduledShift.delete({ where: { id } });
     await notify(
       tx,

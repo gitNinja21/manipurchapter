@@ -24,6 +24,8 @@ export function teamRoute(
     } catch (e) {
       if (e instanceof TeamError)
         return NextResponse.json({ error: e.message }, { status: e.status });
+      if (e && typeof e === "object" && "code" in e && ["P2002", "P2034", "P1008"].includes(String(e.code)))
+        return NextResponse.json({error: "This item was changed or already exists. Refresh and try again."}, {status: 409});
       console.error(
         "Team request failed",
         e instanceof Error ? e.name : "Error",

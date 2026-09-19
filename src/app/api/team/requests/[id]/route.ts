@@ -1,4 +1,5 @@
-import { policyApplies, policyTimes } from "@/lib/workPolicy";
+import { effectiveSchedule, validateShift, policyAudit, penaltyContext, syncMeetings } from "@/lib/performanceServer";
+import { extraCutoff } from "@/lib/performance";
 import { requestExtraTime } from "@/lib/workPolicyServer";
 import { prisma } from "@/lib/prisma";
 import { teamRoute, jsonBody, TeamError, notify } from "@/lib/team";
@@ -57,6 +58,23 @@ export const PATCH = teamRoute(async (u, req) => {
         "This employee has assigned shifts during the leave. Cancel or reassign those shifts before approving.",
         409,
       );
+    if (status === "APPROVED" && r.kind === "SHIFT_CHANGE") {
+      if (!r.proposedIn || !r.proposedOut) throw new TeamError("Shift times are missing.");
+      await validateShift(tx, r.userId, r.fromDate, r.proposedIn, r.proposedOut);
+      const before = await tx.scheduledShift.findUnique({where: {userId_workDate: {userId: r.userId, workDate: r.fromDate}}});
+      const after = await tx.scheduledShift.upsert({where: {userId_workDate: {userId: r.userId, workDate: r.fromDate}},
+        create: {userId: r.userId, workDate: r.fromDate, startsAt: r.proposedIn, endsAt: r.proposedOut, note: r.reason},
+        update: {startsAt: r.proposedIn, endsAt: r.proposedOut, note: r.reason}});
+      await policyAudit(tx, u, r.userId, after.id, "SHIFT_CHANGE_APPROVED", before, after);
+    }
+    if (status === "APPROVED" && ["LATE_ARRIVAL", "EARLY_DEPARTURE"].includes(r.kind)) {
+      const record = await tx.attendanceRecord.findUnique({where: {userId_workDate: {userId: r.userId, workDate: r.fromDate}}});
+      if (record) {
+        const after = await tx.attendanceRecord.update({where: {id: record.id}, data: {
+          ...(r.kind === "LATE_ARRIVAL" ? {lateExcused: true, lateArrivalRequestId: r.id} : {earlyExcused: true}), approvalStatus: "PENDING"}});
+        await tx.attendanceAudit.create({data: auditData(record, r.user, u, "EXCEPTION_APPROVED", after)});
+      }
+    }
     if (r.kind === "EXTRA_TIME") {
       const record = await tx.attendanceRecord.findUnique({where: {id: r.expectedRecordId ?? ""}});
       if (!record || record.userId !== r.userId || record.extraTimeStatus !== "PENDING" || record.clockOutAt?.toISOString() !== r.proposedOut?.toISOString() || record.clockInAt?.toISOString() !== r.proposedIn?.toISOString())
@@ -77,11 +95,18 @@ export const PATCH = teamRoute(async (u, req) => {
           "Attendance changed after this request. Reject it and ask for a fresh request.",
           409,
         );
-      const governed = policyApplies(r.user, r.fromDate);
-      const extraTimeCutoff = record ? record.extraTimeCutoff : governed ? policyTimes(r.fromDate, r.user).closesAt : null;
+      const schedule = await effectiveSchedule(tx, r.user, r.fromDate);
+      const breakMinutes = record ? record.unpaidBreakMinutes : schedule?.breakMinutes ?? 0;
+      const version = record ? record.policyVersion : 1;
+      const end = record ? record.scheduledEndAt : schedule?.end;
+      const extraTimeCutoff = version ? extraCutoff(r.proposedIn!, breakMinutes, end) : record?.extraTimeCutoff ?? null;
       const needsExtra = !!extraTimeCutoff && !!r.proposedOut && r.proposedOut > extraTimeCutoff;
       const workRules = {
-        unpaidBreakMinutes: record ? record.unpaidBreakMinutes : governed ? 60 : 0,
+        policyVersion: version,
+        scheduledStartAt: record ? record.scheduledStartAt : schedule?.start,
+        scheduledEndAt: end,
+        ...(record ? {} : await penaltyContext(tx, r.userId, r.fromDate)),
+        unpaidBreakMinutes: breakMinutes,
         extraTimeCutoff,
         extraTimeStatus: needsExtra ? "PENDING" : "NOT_REQUIRED",
         extraTimeReason: needsExtra ? r.reason : null,
@@ -132,12 +157,13 @@ export const PATCH = teamRoute(async (u, req) => {
       data: { status, reviewNote, reviewedAt: new Date(), reviewedBy: u.name },
     });
     if (!changed.count) throw new TeamError("Request already changed.", 409);
+    await syncMeetings(tx, r.userId);
     await notify(
       tx,
       [r.user],
       "REQUEST_DECISION",
       `${id}:${status}`,
-      `Your ${r.kind === "LEAVE" ? "leave" : r.kind === "LATE_ARRIVAL" ? "late-arrival" : r.kind === "EXTRA_TIME" ? "extra-time" : "correction"} request was ${status.toLowerCase()}`,
+      `Your ${r.kind === "LEAVE" ? "leave" : r.kind === "LATE_ARRIVAL" ? "late-arrival" : r.kind === "SHIFT_CHANGE" ? "shift change" : r.kind === "EARLY_DEPARTURE" ? "early departure" : r.kind === "EXTRA_TIME" ? "extra-time" : "correction"} request was ${status.toLowerCase()}`,
       "team?view=requests",
     );
   });
