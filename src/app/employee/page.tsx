@@ -11,6 +11,7 @@ type TodayRecord = {
   clockOutAt: string | null;
   workDate: string;
   unpaidBreakMinutes: number;
+  policyVersion: number;
   extraTimeCutoff: string | null;
   extraTimeStatus: string;
 } | null;
@@ -26,7 +27,7 @@ type Announcement = {
 const ANNOUNCEMENTS_PREVIEW_COUNT = 3;
 
 export default function EmployeeClockPage() {
-  const [schedule, setSchedule] = useState<{arrival: string; latest: string; opening: string; finish: string; fixed: boolean; allowEarly: boolean} | null>(null);
+  const [schedule, setSchedule] = useState<{arrival: string; latest: string; opening: string; finish: string; fixed: boolean; allowEarly: boolean; durationHours: number; unpaidBreakMinutes: number} | null>(null);
   const [policy, setPolicy] = useState(false);
   const [arrival, setArrival] = useState<string | null>(null);
   const [lateStatus, setLateStatus] = useState<string | null>(null);
@@ -181,17 +182,18 @@ export default function EmployeeClockPage() {
       </div>
 
       <Link className="text-brand underline block" href="/employee/team?view=performance">My points, attendance incidents and manager clearance</Link>
-      {!policy && <p className="text-sm text-foreground/60">A 60-minute unpaid break is deducted from every shift. Work beyond 9 net hours goes to your bonus balance.</p>}
-      {policy && (
+      {!policy && <p className="text-sm text-foreground/60">{arrival === "OFF" ? "No shift is scheduled today. Ask your admin to assign a shift if you are working." : "Complete 9 hours from clock-in, including a one-hour paid break. Approved time beyond 9 hours goes to your bonus balance."}</p>}
+      {record && record.policyVersion !== 2 && <p className="text-sm text-accent">This attendance record uses the previous pay policy. Its saved break and extra-time cutoff still apply. The updated duration policy applies to new shifts.</p>}
+      {policy && (!record || record.policyVersion === 2) && (
         <section className="admin-panel p-4 space-y-2 text-sm">
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>
-          <p>{schedule?.fixed ? "Scheduled start:" : "Clock-in window:"} {schedule?.arrival} IST. A 1-hour unpaid break is deducted. Maintaining your scheduled shift earns 9 salary hours; actual net hours above 9 go to your bonus balance.</p>
-          <p>Clock out when you actually leave. A reason and admin review are required after your scheduled finish ({schedule?.finish}) or 10½ actual working hours, whichever comes first.</p>
-          {schedule?.allowEarly && <p>You may clock in early. Bonus hours use actual approved work, excluding the break.</p>}
+          <p>{schedule?.fixed ? "Scheduled start:" : "Clock-in window:"} {schedule?.arrival} IST. Complete {schedule?.durationHours} hours from actual clock-in, including a 1-hour {schedule?.unpaidBreakMinutes ? "unpaid" : "paid"} break. Pay follows recorded time; missing hours are not topped up.</p>
+          <p>Clock out when you actually leave. Required finish: {schedule?.finish}. Leaving before completing the shift is an early departure. Staying longer requires a reason and admin approval for bonus hours.</p>
+          {schedule?.allowEarly && <p>You may clock in early. Your required finish moves with your actual clock-in.</p>}
           {!hasClockedIn && arrival === "EARLY" && <p>Clock-in opens at {schedule?.opening}.</p>}
           {!hasClockedIn && lateStatus && <p>Today’s late-arrival request: <strong>{lateStatus}</strong>.</p>}
           {!hasClockedIn && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request an excused late arrival</Link>}
-          {!hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Clock in when you arrive. More than 15 minutes late is an incident; after three consecutive incidents, manager clearance is required. After that meeting, every late minute reduces pay for the rest of the month.</p>}
+          {!hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Clock in when you arrive. More than 15 minutes late is an incident; after three consecutive incidents, manager clearance is required. After that meeting, further late arrivals receive negative points. Pay follows clocked time without a second deduction.</p>}
         </section>
       )}
       {record?.clockInAt && !record.clockOutAt && record.extraTimeCutoff && mode !== "submitting" && (
@@ -254,7 +256,7 @@ export default function EmployeeClockPage() {
           ) : !hasClockedIn ? (
             <button
               onClick={() => startCapture("in")}
-              disabled={policy && arrival === "EARLY"}
+              disabled={arrival === "OFF" || (policy && arrival === "EARLY")}
               className="w-full rounded-lg bg-brand text-white font-medium py-3 hover:bg-brand-dark transition-colors disabled:opacity-50"
             >
               Clock In

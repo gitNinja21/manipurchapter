@@ -1,4 +1,4 @@
-import { scheduleLabels } from "@/lib/workPolicy";
+import { minuteLabel, recurringRule } from "@/lib/workPolicy";
 import { effectiveSchedule } from "@/lib/performanceServer";
 import { formatIstTime } from "@/lib/time";
 import { NextResponse } from "next/server";
@@ -20,6 +20,15 @@ export async function GET() {
   const override = await prisma.scheduledShift.findUnique({where: {userId_workDate: {userId: user.id, workDate}}});
   const lateRequest = await prisma.staffRequest.findFirst({where: {userId: user.id, kind: "LATE_ARRIVAL", fromDate: workDate}, orderBy: {createdAt: "desc"}, select: {status: true, reason: true}});
   const meetings = await prisma.managerMeeting.findMany({where: {userId: user.id, status: "PENDING"}});
-  return NextResponse.json({record, policy: !!schedule, schedule: schedule ? !override ? scheduleLabels(user) : {arrival: formatIstTime(schedule.start), latest: formatIstTime(schedule.start), opening: formatIstTime(schedule.opens), finish: formatIstTime(schedule.end), fixed: true, allowEarly: true} : null,
-    arrivalState: schedule ? new Date() < schedule.opens ? "EARLY" : new Date() > schedule.start ? "LATE" : "ON_TIME" : null, lateRequest, meetings, serverTime: new Date().toISOString()});
+  const rule = recurringRule(user, workDate);
+  const labels = schedule ? {
+    arrival: !override && rule && rule.start !== rule.latest ? `${minuteLabel(rule.start)}–${minuteLabel(rule.latest)}` : formatIstTime(schedule.start),
+    latest: formatIstTime(schedule.start), opening: formatIstTime(schedule.opens),
+    finish: record?.scheduledEndAt ? formatIstTime(record.scheduledEndAt) : `${schedule.durationMinutes / 60} hours after clock-in`,
+    fixed: !!override || rule?.start === rule?.latest, allowEarly: !!override || user.attendanceAllowEarly,
+    durationHours: schedule.durationMinutes / 60, unpaidBreakMinutes: schedule.breakMinutes,
+  } : null;
+  return NextResponse.json({record, policy: !!schedule, schedule: labels,
+    arrivalState: user.weeklyScheduleJson && !schedule ? "OFF" : schedule ? new Date() < schedule.opens ? "EARLY" : new Date() > schedule.start ? "LATE" : "ON_TIME" : null,
+    lateRequest, meetings, serverTime: new Date().toISOString()});
 }

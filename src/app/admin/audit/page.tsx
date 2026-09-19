@@ -16,6 +16,7 @@ type Entry = {
 };
 const actions: Record<string, string> = {
   APPROVED: "Approved",
+  POLICY_RECALCULATED: "Recalculated using current pay policy",
   BREAK_POLICY_UPDATED: "One-hour break applied",
   CORRECTED: "Attendance corrected",
   ADMIN_TIME_ENTRY: "Attendance entered by admin",

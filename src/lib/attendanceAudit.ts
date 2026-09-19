@@ -17,6 +17,7 @@ export function auditData(
       extraTimeReason: r.extraTimeReason,
       lateArrivalRequestId: r.lateArrivalRequestId,
       policyVersion: r.policyVersion,
+      shiftDurationMinutes: r.shiftDurationMinutes,
       scheduledStartAt: r.scheduledStartAt,
       scheduledEndAt: r.scheduledEndAt,
       latePenaltyActive: r.latePenaltyActive,

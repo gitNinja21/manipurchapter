@@ -134,7 +134,7 @@ export default function Requests({ admin }: { admin: boolean }) {
                 </label>
               </div>
             )}
-            {kind === "SHIFT_CHANGE" && <p className="text-sm text-foreground/60">Only an approved request changes your shift for this date. Approval must happen before the new start and before any arrival is recorded. One hour is excluded for break.</p>}
+            {kind === "SHIFT_CHANGE" && <p className="text-sm text-foreground/60">Only an approved request changes your shift for this date. Approval must happen before the new start and before any arrival is recorded. Use a 9-hour interval including the paid break, or 7 hours for Tokili on Friday. Required finish is measured from actual clock-in.</p>}
             {kind === "LATE_ARRIVAL" && <p className="text-sm text-foreground/60">Explain why you will be late or are late. Approval excuses the lateness for the selected date only. You must still clock in with your location and selfie; submitting this request does not start paid time.</p>}
             <label className="block text-sm">
               Reason

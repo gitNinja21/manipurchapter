@@ -1,7 +1,8 @@
-import { netWorkMs } from "./workPolicy";
+import { netWorkMs, paidTimeMs } from "./workPolicy";
 export const HOUR = 3600000;
 export type PolicyRecord = Parameters<typeof netWorkMs>[0] & {
   policyVersion?: number;
+  shiftDurationMinutes?: number;
   scheduledStartAt?: Date | string | null;
   scheduledEndAt?: Date | string | null;
   latePenaltyActive?: boolean;
@@ -18,14 +19,16 @@ export function deviations(r: PolicyRecord) {
     r.scheduledStartAt && r.clockInAt && !r.lateExcused
       ? Math.max(0, +new Date(r.clockInAt) - +new Date(r.scheduledStartAt))
       : 0;
+  const requiredEnd = r.policyVersion === 2 && r.clockInAt ? new Date(+new Date(r.clockInAt) + (r.shiftDurationMinutes ?? 540) * 60000) : r.scheduledEndAt;
   const earlyMs =
-    r.scheduledEndAt && r.clockOutAt && !r.earlyExcused
-      ? Math.max(0, +new Date(r.scheduledEndAt) - +new Date(r.clockOutAt))
+    requiredEnd && r.clockOutAt && !r.earlyExcused
+      ? Math.max(0, +new Date(requiredEnd) - +new Date(r.clockOutAt))
       : 0;
   return { lateMs, earlyMs };
 }
 /** Salary credit never becomes actual overtime. Each missing minute is deducted once. */
 export function salaryCredit(r: PolicyRecord) {
+  if (r.policyVersion === 2) return Math.min(regularTarget(r), (paidTimeMs(r) ?? 0) / HOUR);
   const actual = (netWorkMs(r) ?? 0) / HOUR;
   if (!r.clockInAt || !r.clockOutAt) return 0;
   if (!r.policyVersion || !r.scheduledStartAt || !r.scheduledEndAt)
@@ -61,8 +64,8 @@ export function attendancePoints(r: PolicyRecord) {
     r.scheduledStartAt &&
     r.scheduledEndAt &&
     +new Date(r.clockInAt) <= +new Date(r.scheduledStartAt) &&
-    +new Date(r.clockOutAt) >= +new Date(r.scheduledEndAt) &&
-    salaryCredit(r) >= 9
+    (r.policyVersion === 2 ? earlyMs === 0 : +new Date(r.clockOutAt) >= +new Date(r.scheduledEndAt)) &&
+    salaryCredit(r) >= (r.policyVersion === 2 ? regularTarget(r) : 9)
   )
     result.push({ kind: "On-time full shift", points: 0.5 });
   if ((netWorkMs(r) ?? 0) > 10.5 * HOUR && r.extraTimeStatus === "APPROVED")
@@ -85,4 +88,22 @@ export function extraCutoff(
       end ? +end : Infinity,
     ),
   );
+}
+
+export function regularTarget(r: PolicyRecord) {
+  return Math.max(0, ((r.shiftDurationMinutes ?? 540) - (r.unpaidBreakMinutes ?? 0)) / 60);
+}
+export function overtimeMs(r: PolicyRecord) {
+  return Math.max(0, r.policyVersion === 2
+    ? (paidTimeMs(r) ?? 0) - regularTarget(r) * HOUR
+    : (netWorkMs(r) ?? 0) - 9 * HOUR);
+}
+/** Reused by normal clock-in and both correction paths. */
+export function durationSnapshot(clockIn: Date, schedule?: { start: Date; durationMinutes: number; breakMinutes: number } | null, existing?: PolicyRecord | null) {
+  const duration = existing?.shiftDurationMinutes ?? schedule?.durationMinutes ?? 540;
+  const end = new Date(+clockIn + duration * 60000);
+  return { policyVersion: 2, shiftDurationMinutes: duration,
+    scheduledStartAt: existing ? existing.scheduledStartAt : schedule?.start ?? null,
+    scheduledEndAt: end, extraTimeCutoff: end,
+    unpaidBreakMinutes: existing?.unpaidBreakMinutes ?? schedule?.breakMinutes ?? 0 };
 }

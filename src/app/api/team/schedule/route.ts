@@ -47,7 +47,7 @@ export const GET = teamRoute(async (u, req) => {
   const recurring = await prisma.user.findMany({where: {
     role: "EMPLOYEE", active: true, attendancePolicyFrom: {not: null, lte: to},
     ...(u.role === "ADMIN" ? {} : {id: u.id}),
-  }, select: {id: true, name: true, employeeCode: true, attendancePolicyFrom: true, attendanceStartMinute: true, attendanceLatestMinute: true, attendanceEndMinute: true, attendanceAllowEarly: true}, orderBy: {name: "asc"}});
+  }, select: {id: true, name: true, employeeCode: true, weeklyScheduleJson: true, attendancePolicyFrom: true, attendanceStartMinute: true, attendanceLatestMinute: true, attendanceEndMinute: true, attendanceAllowEarly: true}, orderBy: {name: "asc"}});
   return { shifts, leave, employees, recurring, admin: u.role === "ADMIN" };
 });
 export const POST = teamRoute(async (u, req) => {

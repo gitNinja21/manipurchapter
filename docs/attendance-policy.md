@@ -1,46 +1,63 @@
-# Attendance, salary credit and monthly points
+# Clock-duration attendance policy (version 2)
 
-New clock-ins use policy version 1. Existing attendance keeps version 0 and its
-previous payroll rules. New attendance snapshots the approved schedule, unpaid
-break and whether a manager meeting activates late/early deductions. Changing a
-future schedule never rewrites an existing snapshot.
+New clock-ins and newly created manual/corrected attendance use version 2 after
+rollout. Existing records keep their version and payroll rules, including open
+shifts. Version 2 snapshots shift duration, expected arrival, unpaid break and
+manager-meeting status. Changing schedules does not rewrite existing records.
 
-## Work versus pay
+## Timings
 
-- Actual work is elapsed in/out time less the assigned break (60 minutes for every employee, including those without a schedule). Unapproved extra time is capped at the
-  review threshold. Photos and actual timestamps remain unchanged by that cap.
-- Completing a scheduled shift earns nine regular salary hours even if net work
-  is shorter. Before counselling, up to 15 minutes of lateness is a pay grace;
-  incomplete shifts outside that grace are paid for actual net time, capped at 9.
-- After the relevant manager meeting, late or early minutes reduce the nine-hour
-  credit for the rest of that IST calendar month. A shorter shift already paid
-  for actual hours is never charged an additional deduction for the same time.
-- Actual work above nine hours enters the bonus bank; salary top-ups never do.
-  Eight accumulated bonus hours earn a nine-hour day, with remainder carried
-  across months. Only approved complete attendance counts.
-- Extra work needs a reason after the earlier of scheduled finish and 10.5 actual
-  hours (break added to elapsed time). Admin decides extra time first, then
-  attendance. Unscheduled employees also have the 10.5-hour review threshold.
-- Monday remains the existing paid off-day: no attendance pay/bonus/points or
-  disciplinary incident for that day.
+| Employees | Expected entry IST | Required clock duration |
+| --- | --- | --- |
+| Gokul, Hignam, Nijuli, Robinson | 09:30–10:30 | 9 hours |
+| Angai, Chetan, Sagar | 13:00 | 9 hours |
+| Dinjana Tuesday–Friday | 11:30 | 9 hours |
+| Dinjana Saturday/Sunday | 12:00 | 9 hours |
+| Joyshree, Lachit, Pankaj | 10:00 | 9 hours |
+| Vicky | 12:30 | 9 hours |
+| Tokili Friday | 13:00 | 7 hours |
+| Tokili Saturday/Sunday | 11:00 | 9 hours |
 
-## Temporary shifts and exceptions
+Required finish is actual (or manager-approved) clock-in plus duration. Old fixed
+finish times do not apply to version 2. Lateness compares against expected entry
+(or the end of an arrival window); early departure compares against the rolling
+finish. A 10:30 arrival for a 10:00 start finishing at 19:00 is both 30 minutes
+late and 30 minutes early. It pays 8.5 hours, with no second time deduction.
 
-Employees request a date, start/end times in IST and reason under Team → Requests.
-Only admin approval changes the dated schedule. Both the old and proposed start
-must still be in the future, with no recorded arrival, approved leave or overlap.
-A dated shift overrides recurring rules for that day; recurring rules resume on
-the next day. Admin schedule edits use the same safeguards and are audited.
+Tokili has no recurring shifts Monday–Thursday, no missed-day flags for those
+days, and no automatic paid Monday. An admin can assign an extra dated shift.
+Regular staff retain the existing paid-Monday rule.
 
-Approved late-arrival and early-departure exceptions remove the corresponding
-incident. Corrections retain schedule snapshots, reset attendance approval and
-reopen extra-time review when needed. Historical corrections therefore update
-final points rather than adding a duplicate award.
+## Work, regular pay and bonus
 
-Recurring finish times: Nijuli 19:00 and Robinson 20:00 (the beginning of their
-stated usual departure windows); Gokul and Hignam 22:30. The other six keep their
-previously assigned finish times. Employees without recurring rules need an
-assigned dated shift for schedule-based salary credit and points.
+- Everyone takes a one-hour break. Actual work is elapsed time minus that hour.
+- For standard shifts the break is paid: regular salary hours are elapsed time,
+  capped at 9. There is no full-shift top-up and no second deduction after a meeting.
+- Tokili Friday has an unpaid break: regular salary hours are elapsed time minus
+  one hour, clamped to 0–6. Seven clock hours therefore pay six hours.
+- Bonus starts beyond the required clock duration: 9 hours normally, 7 on Friday
+  for Tokili. These hours are not also paid as regular salary.
+- Every 8 approved bonus hours earns a 9-hour day at the employee's hourly rate;
+  remaining hours carry across months. Only completed, approved attendance pays.
+- Any clock-out after the rolling finish requires a reason and extra-time review.
+  Rejecting extra time caps paid and actual hours at that finish without changing
+  the recorded timestamps. Approve extra time before approving attendance.
+- Extra-shift points remain +1 for approved actual work exceeding 10.5 hours
+  (excluding the break). Merely earning a bonus hour does not award this point.
+
+## Temporary shifts and corrections
+
+Employees request a date, start/end times and reason in Team → Requests. Only
+admin approval changes the expected arrival. The requested interval must be the
+required duration (9 hours normally, 7 for Tokili Friday); actual finish still
+moves with actual clock-in. Old and proposed starts must be future, with no
+recorded arrival, approved leave or overlap. Admin edits use the same safeguards.
+
+Approved late/early exceptions excuse disciplinary incidents, not unworked pay.
+Both employee corrections and manual admin edits reset approval and reopen
+extra-time review when needed. Corrections to version 2 recalculate finish and
+cutoff from corrected clock-in while preserving the original duration and break.
+Legacy records retain their old payroll/finish rules when corrected.
 
 ## Manager clearance
 
@@ -55,7 +72,7 @@ instead of opening attendance while a meeting remains pending. The employee can
 propose an earlier same-day arrival with an explanation; only the manager can
 approve it. Manager clearance requires a recorded arrival and a meeting note.
 All pending cases must be cleared; the employee retries clock-in, which uses the
-approved arrival. Meeting-day time spent waiting is protected. Penalties begin
+approved arrival. Meeting-day time spent waiting is protected. Negative points begin
 on subsequent days in the same month; pending meetings survive month rollover.
 
 ## Points and referrals
@@ -65,7 +82,7 @@ incremented counters, so repeated requests/reapprovals cannot duplicate awards:
 
 - +0.5 for an on-time arrival and completed scheduled finish.
 - +1 once/day for approved actual work exceeding 10.5 hours.
-- −1.5 once/day for late/early arrival after the relevant meeting, even when both
+- −1.5 once/day for late arrival/early departure after the relevant meeting, even when both
   types occur together. Positive extra-work credit is independent.
 - +3 for one manager-verified completed referral bill, one employee per bill.
 
@@ -102,19 +119,35 @@ evidence, records before/after times and the reason in Attendance Audit, and
 notifies the employee. No selfie verification is invented for manual entries.
 
 The endpoint is admin-only and rejects future/pre-employment times, overlaps,
-approved leave and stale edits. Existing schedule/break snapshots are preserved;
+approved leave and stale edits. Existing duration/break snapshots are preserved; version 2 finish and overtime cutoff are recalculated from corrected clock-in;
 extra time goes back through review. Starting today's attendance while a manager
 meeting is pending requires an explicit confirmation that the meeting occurred.
 The normal approval action remains required for completed attendance to count
 toward payroll.
 
-## Universal break update
 
-Every employee now receives the same 60-minute unpaid break, with or without a
-schedule. New clock-ins, manual entries, corrections and the database default
-use 60 minutes. The universal-break migration updates existing zero-break
-records and records each change in Attendance Audit. Other historical policy
-settings, timestamps and approval decisions remain unchanged; net work, salary
-and bonus balances are recalculated from the corrected break. Existing
-60-minute records are not deducted twice. Run
-`python3 scripts/test-universal-break.py` to verify the migration on test data.
+## Migration notes
+
+The version 2 migration adds the duration snapshot and weekday-specific schedule
+configuration, and assigns Lachit, Pankaj and Tokili using their exact account IDs.
+It does not rewrite attendance or previously approved salaries. The earlier
+universal-break migration remains part of history: it corrected legacy zero-break
+records to 60 minutes with an audit entry. Version 2 explicitly stores zero unpaid
+minutes for paid-break shifts and 60 for Tokili Friday; actual work still excludes
+one hour in both cases.
+
+## Selected historical recalculation
+
+Admin → Attendance → Add / correct attendance has an explicit “Recalculate this
+record using the current pay policy” checkbox for completed records. Leave the
+correct times unchanged, provide a reason and save; review extra time if needed,
+then approve attendance again. This updates only the selected record's policy,
+break, schedule and duration, recalculates related incidents/points, and logs a
+POLICY_RECALCULATED audit with before/after values. Existing timestamps retain
+seconds when the form values have not been changed. Historical rows are otherwise
+unchanged. Eight net working hours can correctly coexist with nine paid hours;
+check salary hours/regular pay rather than changing times to inflate net hours.
+
+Dinjana's weekend entry deadline is noon. Required finish remains nine hours from
+actual clock-in (12:00 → 21:00). Weekdays retain 11:30 entry. Paid Monday status is
+stored separately from weekday-specific schedules so her paid off-day remains.

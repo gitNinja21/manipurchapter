@@ -1,5 +1,5 @@
 import { effectiveSchedule, validateShift, policyAudit, penaltyContext, syncMeetings } from "@/lib/performanceServer";
-import { extraCutoff } from "@/lib/performance";
+import { extraCutoff, durationSnapshot } from "@/lib/performance";
 import { requestExtraTime } from "@/lib/workPolicyServer";
 import { prisma } from "@/lib/prisma";
 import { teamRoute, jsonBody, TeamError, notify } from "@/lib/team";
@@ -26,6 +26,7 @@ export const PATCH = teamRoute(async (u, req) => {
             role: true,
             active: true,
             approved: true,
+            weeklyScheduleJson: true,
             attendancePolicyFrom: true,
             attendanceStartMinute: true,
             attendanceLatestMinute: true,
@@ -97,9 +98,10 @@ export const PATCH = teamRoute(async (u, req) => {
         );
       const schedule = await effectiveSchedule(tx, r.user, r.fromDate);
       const breakMinutes = record ? record.unpaidBreakMinutes : schedule?.breakMinutes ?? 60;
-      const version = record ? record.policyVersion : 1;
+      const version = record ? record.policyVersion : 2;
       const end = record ? record.scheduledEndAt : schedule?.end;
-      const extraTimeCutoff = version ? extraCutoff(r.proposedIn!, breakMinutes, end) : record?.extraTimeCutoff ?? null;
+      const v2 = version === 2 ? durationSnapshot(r.proposedIn!, schedule, record) : null;
+      const extraTimeCutoff = v2 ? v2.extraTimeCutoff : version ? extraCutoff(r.proposedIn!, breakMinutes, end) : record?.extraTimeCutoff ?? null;
       const needsExtra = !!extraTimeCutoff && !!r.proposedOut && r.proposedOut > extraTimeCutoff;
       const workRules = {
         policyVersion: version,
@@ -107,6 +109,7 @@ export const PATCH = teamRoute(async (u, req) => {
         scheduledEndAt: end,
         ...(record ? {} : await penaltyContext(tx, r.userId, r.fromDate)),
         unpaidBreakMinutes: breakMinutes,
+        ...(v2 ?? {}),
         extraTimeCutoff,
         extraTimeStatus: needsExtra ? "PENDING" : "NOT_REQUIRED",
         extraTimeReason: needsExtra ? r.reason : null,

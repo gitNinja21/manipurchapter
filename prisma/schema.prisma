@@ -63,6 +63,8 @@ model User {
   pushSubscriptions PushSubscription[]
 
   // Recurring attendance rules apply from this IST date; null keeps legacy rules.
+  paidWeeklyOff Boolean @default(true) // independent of weekday-specific entry times
+  weeklyScheduleJson String? // weekday-keyed recurring rules; null uses standard daily rules
   attendancePolicyFrom String?
   attendanceStartMinute Int @default(570)
   attendanceLatestMinute Int @default(630)
@@ -108,6 +110,7 @@ model AttendanceRecord {
   extraTimeReason String?
   lateArrivalRequestId String?
   policyVersion Int @default(0)
+  shiftDurationMinutes Int @default(540)
   scheduledStartAt DateTime?
   scheduledEndAt DateTime?
   latePenaltyActive Boolean @default(false)

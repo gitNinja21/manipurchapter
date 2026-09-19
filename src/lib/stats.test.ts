@@ -154,3 +154,20 @@ test("payroll uses net hours, keeps old records unchanged and awards exact bonus
   assert.equal(s.totalHours, 13);
   assert.equal(s.overtimeHours, 4);
 });
+
+test("duration policy pays clock hours, carries approved bonus blocks, and preserves old records", async (t) => {
+  const users = prisma.user.findMany, attendance = prisma.attendanceRecord.findMany;
+  t.after(() => { prisma.user.findMany = users; prisma.attendanceRecord.findMany = attendance; });
+  prisma.user.findMany = (async () => [{id:"v2",name:"Test",employeeCode:"TEST",hourlyRateRs:100,active:true,createdAt:new Date("2020-01-01T00:00:00Z")} as User]) as typeof prisma.user.findMany;
+  const row = (date: string, end: string, extraTimeStatus="APPROVED") => ({
+    id:date,userId:"v2",workDate:date,clockInAt:new Date(`${date}T10:00:00+05:30`),clockOutAt:new Date(`${date}T${end}:00+05:30`),
+    policyVersion:2,shiftDurationMinutes:540,unpaidBreakMinutes:0,
+    extraTimeCutoff:new Date(`${date}T19:00:00+05:30`),extraTimeStatus,approvalStatus:"APPROVED",
+  } as AttendanceRecord);
+  prisma.attendanceRecord.findMany = (async () => [row("2020-09-29","23:00"),row("2020-09-30","22:59"),row("2020-10-01","19:01")]) as typeof prisma.attendanceRecord.findMany;
+  let [s] = await computeStatsForRange("2020-10-01","2020-10-01");
+  assert.equal(s.regularPayRs,900);assert.equal(s.bonusDays,1);assert.equal(s.bonusPayRs,900);assert.equal(s.overtimeBalanceHours,0);assert.equal(s.salaryRs,1800);
+  prisma.attendanceRecord.findMany = (async () => [row("2020-10-01","23:00","REJECTED")]) as typeof prisma.attendanceRecord.findMany;
+  [s] = await computeStatsForRange("2020-10-01","2020-10-01");
+  assert.equal(s.regularPayRs,900);assert.equal(s.overtimeHours,0);assert.equal(s.totalHours,8);
+});

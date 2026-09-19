@@ -1,4 +1,4 @@
-import { scheduleLabels } from "@/lib/workPolicy";
+import { recurringDescription } from "@/lib/workPolicy";
 import { prisma } from "@/lib/prisma";
 import { teamRoute, memberWhere } from "@/lib/team";
 import { computeStatsForRange } from "@/lib/stats";
@@ -67,7 +67,7 @@ export const GET = teamRoute(async (u) => {
       : null,
     nextShift,
     attendancePolicyFrom: u.attendancePolicyFrom,
-    schedule: u.attendancePolicyFrom ? scheduleLabels(u) : null,
+    scheduleDescription: u.attendancePolicyFrom ? recurringDescription(u) : null,
     requests,
     unread,
     chatUnread,

@@ -15,6 +15,8 @@ type AttendanceRecord = PolicyRecord & {
   id: string;
   workDate: string;
   unpaidBreakMinutes: number;
+  policyVersion: number;
+  shiftDurationMinutes: number;
   extraTimeCutoff: string | null;
   extraTimeStatus: string;
   extraTimeReason: string | null;
@@ -225,6 +227,7 @@ export default function AdminAttendancePage() {
                       {netWorkHours(r)?.toFixed(2) ?? "—"}
                       {r.clockOutAt && !offDay(r.workDate) && <p className="text-xs font-normal">{salaryCredit(r).toFixed(2)} salary hours {r.approvalStatus === "APPROVED" ? "credited" : "if approved"}</p>}
                       {!!r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">{r.unpaidBreakMinutes}m break deducted</p>}
+                        {r.policyVersion === 2 && !r.unpaidBreakMinutes && <p className="text-xs font-normal">60m paid break · included in pay</p>}
                       {r.extraTimeStatus !== "NOT_REQUIRED" && r.extraTimeCutoff && <a className="text-xs text-brand underline block" href="/admin/team?view=requests">Extra time: {r.extraTimeStatus}</a>}
                       {r.extraTimeReason && <p className="text-xs max-w-48 whitespace-pre-wrap">{r.extraTimeReason}</p>}
                     </td>

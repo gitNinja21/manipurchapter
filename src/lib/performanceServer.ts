@@ -1,12 +1,13 @@
 import type { Prisma, User } from "@prisma/client";
 import { prisma } from "./prisma";
-import { policyApplies, policyTimes } from "./workPolicy";
+import { policyApplies, policyTimes, recurringRule } from "./workPolicy";
 import { attendancePoints, deviations, offDay } from "./performance";
 import { todayWorkDate } from "./time";
 import { TeamError, notify } from "./team";
 type Db = Prisma.TransactionClient;
 type ScheduleUser = Pick<
   User,
+  | "weeklyScheduleJson"
   | "id"
   | "attendancePolicyFrom"
   | "attendanceStartMinute"
@@ -18,22 +19,19 @@ export async function effectiveSchedule(db: Db, u: ScheduleUser, date: string) {
   const shift = await db.scheduledShift.findUnique({
     where: { userId_workDate: { userId: u.id, workDate: date } },
   });
-  if (shift)
-    return {
-      start: shift.startsAt,
-      end: shift.endsAt,
-      opens: new Date(`${date}T00:00:00+05:30`),
-      breakMinutes: 60,
-    };
-  if (!policyApplies(u, date)) return null;
-  const t = policyTimes(date, u);
-  return {
-    start: new Date(+t.lateAt - 60000),
-    end: t.closesAt,
-    opens: t.opensAt,
-    breakMinutes: 60,
+  const rule = recurringRule(u, date);
+  if (shift) return {
+    start: shift.startsAt, end: new Date(+shift.startsAt + (rule?.duration ?? 540) * 60000),
+    opens: new Date(`${date}T00:00:00+05:30`),
+    durationMinutes: rule?.duration ?? 540, breakMinutes: rule?.unpaidBreak ?? 0,
   };
+  if (!policyApplies(u, date) || !rule) return null;
+  const t = policyTimes(date, { ...u, attendanceStartMinute: rule.start, attendanceLatestMinute: rule.latest });
+  const start = new Date(+t.lateAt - 60000);
+  return { start, end: new Date(+start + rule.duration * 60000), opens: t.opensAt,
+    durationMinutes: rule.duration, breakMinutes: rule.unpaidBreak };
 }
+
 export async function assertScheduleMutable(
   db: Db,
   userId: string,
@@ -67,6 +65,8 @@ export async function validateShift(
   await assertScheduleMutable(db, userId, date);
   const employee = await db.user.findUniqueOrThrow({ where: { id: userId } });
   const original = await effectiveSchedule(db, employee, date);
+  const duration = recurringRule(employee, date)?.duration ?? 540;
+  if (+end - +start !== duration * 60000) throw new TeamError(`Temporary shifts must span ${duration / 60} hours including the break. The actual finish moves with clock-in.`);
   if (original && +original.start <= Date.now())
     throw new TeamError(
       "The original shift has already started. Use an attendance exception or correction instead.",
@@ -131,7 +131,7 @@ export async function syncMeetings(
   const [user, records, leave, shifts, meetings] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId } }),
     db.attendanceRecord.findMany({
-      where: { userId, policyVersion: 1, workDate: { lt: today } },
+      where: { userId, policyVersion: { in: [1, 2] }, workDate: { lt: today } },
       orderBy: { workDate: "asc" },
     }),
     db.staffRequest.findMany({
@@ -161,6 +161,7 @@ export async function syncMeetings(
         }
         if (
           offDay(day) ||
+          (user.weeklyScheduleJson && !recurringRule(user, day) && !shifts.some(s => s.workDate === day)) ||
           leave.some((l) => l.fromDate <= day && l.toDate >= day)
         )
           continue;

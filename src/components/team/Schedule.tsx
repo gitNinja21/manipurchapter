@@ -1,5 +1,5 @@
 "use client";
-import { scheduleLabels, type PolicySchedule } from "@/lib/workPolicy";
+import { recurringDescription, recurringRule, type PolicySchedule } from "@/lib/workPolicy";
 import { useState } from "react";
 import { api, useAction, useTeamData } from "./useTeamData";
 import { ErrorNotice } from "./TeamCommon";
@@ -44,7 +44,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
   );
   const action = useAction(reload);
   const recurringForDay = (day: string) => (data?.recurring ?? []).filter(person =>
-    day >= person.attendancePolicyFrom &&
+    day >= person.attendancePolicyFrom && new Date(`${day}T12:00:00Z`).getUTCDay() !== 1 && !!recurringRule(person, day) &&
     !data?.shifts.some(shift => shift.userId === person.id && shift.workDate === day) &&
     !data?.leave.some(leave => leave.userId === person.id && leave.fromDate <= day && leave.toDate >= day)
   );
@@ -60,13 +60,13 @@ export default function Schedule({ admin }: { admin: boolean }) {
       </div>
       {!!data?.recurring?.length && <section className="admin-panel p-5 space-y-3">
         <h3 className="font-semibold">Daily attendance rules</h3>
-        <p className="text-sm">1-hour unpaid break · actual clock-out time. Three consecutive late arrivals or early departures require manager clearance. Extra time needs a reason and approval after the scheduled finish or 10½ actual hours.</p>
+        <p className="text-sm">Complete 9 clock hours including the paid break; Friday part-time shifts require 7 hours with a one-hour unpaid break. The required finish moves with actual clock-in. Extra time requires a reason and approval.</p>
         {data.recurring.map(person => <div key={person.id} className="text-sm border-t border-border pt-2">
           <strong>{person.name}</strong> · from {formatWorkDate(person.attendancePolicyFrom)}
-          <p>{scheduleLabels(person).fixed ? "Start" : "Arrival window"}: {scheduleLabels(person).arrival} · Finish: {scheduleLabels(person).finish} IST.</p>
-          <p className="text-foreground/60">{person.employeeCode === "NIJULI" ? "Usual departure: 7–7:30 pm. " : person.employeeCode === "RONYAMZ" ? "Usual departure: 8–8:30 pm. " : ""}Actual clock-out determines hours. {person.attendanceAllowEarly ? "Early clock-in is allowed." : "Clock-in opens at the start time."}</p>
+          <p>{recurringDescription(person)}</p>
+          <p className="text-foreground/60">Actual clock-out determines hours. {person.attendanceAllowEarly ? "Early clock-in is allowed." : "Clock-in opens at the start time."}</p>
         </div>)}
-        <p className="text-xs text-foreground/60">These recurring clock rules apply daily. Monday remains a paid off-day under the existing payroll rule. Approved date-specific shifts below override the recurring schedule for that date only.</p>
+        <p className="text-xs text-foreground/60">Monday remains a paid off-day for regular staff. Part-time staff work only their listed days, without automatic Monday pay. Approved temporary shifts change the arrival time; required duration stays the same.</p>
       </section>}
       <div className="flex flex-wrap gap-2 items-center">
         <button
@@ -234,8 +234,8 @@ export default function Schedule({ admin }: { admin: boolean }) {
             {recurringForDay(day).map(person => (
               <div key={`daily-${person.id}`} className="rounded-lg bg-surface-muted p-3 text-sm">
                 <strong>{person.name}</strong>
-                <p>{scheduleLabels(person).fixed ? "Start" : "Arrival"}: {scheduleLabels(person).arrival} · Finish: {scheduleLabels(person).finish}</p>
-                <p className="text-xs text-foreground/60">Recurring schedule · 1-hour unpaid break</p>
+                <p>{recurringDescription(person)}</p>
+                <p className="text-xs text-foreground/60">Finish is measured from actual clock-in</p>
               </div>
             ))}
             {data?.leave

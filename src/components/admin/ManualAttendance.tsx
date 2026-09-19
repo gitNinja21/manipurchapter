@@ -5,6 +5,7 @@ import { todayWorkDate } from "@/lib/time";
 type RecordTimes = {
   id: string;
   updatedAt: string;
+  policyVersion: number;
   clockInAt: string | null;
   clockOutAt: string | null;
 };
@@ -28,6 +29,7 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
   const [start, setStart] = useState(""),
     [end, setEnd] = useState(""),
     [reason, setReason] = useState("");
+  const [applyCurrentPolicy, setApplyCurrentPolicy] = useState(false);
   const [meeting, setMeeting] = useState(false),
     [message, setMessage] = useState("");
   const action = useAction();
@@ -95,6 +97,7 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
             setEnd(localTime(d.record?.clockOutAt ?? null));
             setReason("");
             setMeeting(false);
+            setApplyCurrentPolicy(false);
             setLoaded(true);
           })
         }
@@ -110,8 +113,9 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
               await api("/api/admin/attendance/manual", "POST", {
                 userId,
                 workDate: date,
-                clockInAt: `${start}:00+05:30`,
-                clockOutAt: end ? `${end}:00+05:30` : null,
+                clockInAt: record?.clockInAt && start === localTime(record.clockInAt) ? record.clockInAt : `${start}:00+05:30`,
+                clockOutAt: record?.clockOutAt && end === localTime(record.clockOutAt) ? record.clockOutAt : end ? `${end}:00+05:30` : null,
+                applyCurrentPolicy,
                 reason,
                 expectedRecordId: record?.id ?? null,
                 expectedUpdatedAt: record?.updatedAt ?? null,
@@ -169,6 +173,12 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
               placeholder="For example: location permission failed; I verified arrival at 11:30 am."
             />
           </label>
+          {record?.clockInAt && record.clockOutAt && <label className="flex gap-2 text-sm">
+            <input type="checkbox" checked={applyCurrentPolicy} disabled={action.busy} onChange={e => setApplyCurrentPolicy(e.target.checked)} />
+            <span>Recalculate this record using the current pay policy.
+              <span className="block text-xs text-foreground/60">Normally 9 clock hours including the paid break; Tokili Friday is 7 clock hours with 6 paid. Recalculates pay, bonus hours and incidents. Leave times unchanged if they are correct. Requires approval again.</span>
+            </span>
+          </label>}
           <label className="flex gap-2 text-sm">
             <input
               type="checkbox"

@@ -15,7 +15,7 @@ import {
   syncMeetings,
   policyAudit,
 } from "@/lib/performanceServer";
-import { extraCutoff } from "@/lib/performance";
+import { extraCutoff, durationSnapshot } from "@/lib/performance";
 import { requestExtraTime } from "@/lib/workPolicyServer";
 import { auditData } from "@/lib/attendanceAudit";
 
@@ -145,13 +145,17 @@ export const POST = teamRoute(async (u, req) => {
       }
     }
     const schedule = await effectiveSchedule(tx, employee, workDate);
-    const policyVersion = record?.policyVersion ?? 1;
+    const recalculate = b.applyCurrentPolicy === true;
+    if (recalculate && (!record?.clockInAt || !record.clockOutAt || !clockOutAt))
+      throw new TeamError("Load a completed attendance record to recalculate its policy.");
+    const policyVersion = recalculate ? 2 : record?.policyVersion ?? 2;
     const unpaidBreakMinutes =
       record?.unpaidBreakMinutes ?? schedule?.breakMinutes ?? 60;
     const scheduledEndAt = record
       ? record.scheduledEndAt
       : (schedule?.end ?? null);
-    const cutoff = policyVersion
+    const v2 = policyVersion === 2 ? durationSnapshot(clockInAt, schedule, recalculate ? null : record) : null;
+    const cutoff = v2 ? v2.extraTimeCutoff : policyVersion
       ? extraCutoff(clockInAt, unpaidBreakMinutes, scheduledEndAt)
       : (record?.extraTimeCutoff ?? null);
     const needsExtra = !!clockOutAt && !!cutoff && clockOutAt > cutoff;
@@ -179,6 +183,7 @@ export const POST = teamRoute(async (u, req) => {
       earlyExcused:
         record?.earlyExcused ||
         exceptions.some((r) => r.kind === "EARLY_DEPARTURE"),
+      ...(v2 ?? {}),
       extraTimeCutoff: cutoff,
       extraTimeStatus: needsExtra ? "PENDING" : "NOT_REQUIRED",
       extraTimeReason: needsExtra ? reason : null,
@@ -190,7 +195,7 @@ export const POST = teamRoute(async (u, req) => {
       update: data,
     });
     const audit = record
-      ? auditData(record, employee, u, "ADMIN_TIME_CORRECTION", after)
+      ? auditData(record, employee, u, recalculate ? "POLICY_RECALCULATED" : "ADMIN_TIME_CORRECTION", after)
       : {
           recordId: after.id,
           userId,

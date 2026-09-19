@@ -1,14 +1,13 @@
-import { salaryCredit } from "./performance";
-import { netWorkHours, netWorkMs } from "./workPolicy";
+import { salaryCredit, overtimeMs } from "./performance";
+import { netWorkHours, recurringRule } from "./workPolicy";
 import { prisma } from "./prisma";
 import { todayWorkDate, workDateFor } from "./time";
 import { APPROVAL_STATUS } from "./attendanceApproval";
 
 // --- Payroll rules ---
-// A completed scheduled shift earns 9 salary hours under policy version 1.
-// Other short shifts use actual work; after-meeting deductions reduce credit once. Hours worked beyond 9 in a day count as overtime and are
-// accumulated per employee from their join date. Every completed 8-hour block
-// earns one extra day's pay. Unconverted hours carry across reporting periods.
+// Version 2 uses actual clocked time including paid breaks, capped at the
+// shift's regular target. Version 0/1 records retain historical calculations.
+// Every eight approved bonus hours earns one nine-hour day; remainders carry.
 const FULL_DAY_HOURS = 9;
 const OVERTIME_CHUNK_HOURS = 8;
 
@@ -108,7 +107,9 @@ export async function computeStatsForRange(
         : [];
     // Mondays are paid off-days with no attendance expected, so they shouldn't
     // inflate "missed clock-ins" — only non-Monday calendar days count there.
-    const workingCalendarDays = allDays.filter((d) => !isMonday(d)).length;
+    const weeklyApplies = (d: string) => !!emp.weeklyScheduleJson && !!emp.attendancePolicyFrom && d >= emp.attendancePolicyFrom;
+    const expectedDay = (d: string) => !isMonday(d) && (!weeklyApplies(d) || !!recurringRule(emp, d));
+    const workingCalendarDays = allDays.filter(expectedDay).length;
 
     const empRecords = (recordsByUser.get(emp.id) || []).filter(
       (record) =>
@@ -124,7 +125,7 @@ export async function computeStatsForRange(
       (r) => r.clockInAt && !r.clockOutAt,
     ).length;
     const daysPresentOnWorkingDays = empRecords.filter(
-      (r) => r.clockInAt && !isMonday(r.workDate),
+      (r) => r.clockInAt && expectedDay(r.workDate),
     ).length;
     const missedDays = Math.max(
       workingCalendarDays - daysPresentOnWorkingDays,
@@ -159,7 +160,7 @@ export async function computeStatsForRange(
     for (const day of allDays) {
       if (isMonday(day)) {
         // Off day: paid leave, no attendance required.
-        offDays += 1;
+        if (!weeklyApplies(day) || emp.paidWeeklyOff !== false) offDays += 1;
         continue;
       }
 
@@ -198,11 +199,7 @@ export async function computeStatsForRange(
         !record.clockOutAt
       )
         continue;
-      const extraMs = Math.max(
-        0,
-        (netWorkMs(record) ?? 0) -
-          FULL_DAY_HOURS * hourMs,
-      );
+      const extraMs = overtimeMs(record);
       if (record.workDate < effectiveFromDate) priorOvertimeMs += extraMs;
       else periodOvertimeMs += extraMs;
     }

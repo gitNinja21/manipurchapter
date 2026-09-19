@@ -1,0 +1,3 @@
+ALTER TABLE "User" ADD COLUMN "paidWeeklyOff" BOOLEAN NOT NULL DEFAULT true;
+UPDATE "User" SET "paidWeeklyOff" = false WHERE "id" = 'cmu5cut44000895sh1vc465mm';
+UPDATE "User" SET "weeklyScheduleJson" = '{"0":{"start":720,"latest":720,"duration":540,"unpaidBreak":0},"2":{"start":690,"latest":690,"duration":540,"unpaidBreak":0},"3":{"start":690,"latest":690,"duration":540,"unpaidBreak":0},"4":{"start":690,"latest":690,"duration":540,"unpaidBreak":0},"5":{"start":690,"latest":690,"duration":540,"unpaidBreak":0},"6":{"start":720,"latest":720,"duration":540,"unpaidBreak":0}}' WHERE "id" = 'cmu5cokep000495shpehjvqai';

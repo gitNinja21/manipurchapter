@@ -383,15 +383,14 @@ export default function PayrollPage() {
         </summary>
         <div className="mt-3 space-y-2 text-foreground/70">
           <p>
-            Completing the scheduled shift earns 9 salary hours even when actual work after the break is shorter. Incomplete shifts are prorated; after a manager meeting, missing minutes reduce the 9-hour credit once. Daily pay is the employee’s hourly rate × 9.
+            New shifts are paid for actual clocked time up to 9 hours, including the paid break. Friday part-time shifts require 7 clock hours and pay 6 after the unpaid break. Missing hours are not topped up or deducted twice. A bonus day is worth the hourly rate × 9.
           </p>
           <p>
-            Billing starts at account creation in IST. Mondays are paid
-            off-days. Only approved, completed working-day shifts count toward
+            Billing starts at account creation in IST. Regular staff have paid Mondays; part-time staff are paid for their assigned shifts. Only approved, completed working-day shifts count toward
             regular earnings and overtime.
           </p>
           <p>
-            Hours beyond 9 per working day accumulate per employee. Every
+            Approved clock hours beyond the required shift (normally 9; Friday part-time 7) accumulate per employee. Every
             completed 8 hours earns one bonus day. Unused hours carry across
             months; only bonuses earned within the selected dates appear here.
           </p>

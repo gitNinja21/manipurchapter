@@ -219,15 +219,16 @@ try {
     const rec = (await ok(cookie, "/api/attendance/clock-in", "POST", photo))
       .record;
     await setTime(at(day, end));
-    const out = (await ok(cookie, "/api/attendance/clock-out", "POST", photo))
+    const out = (await ok(cookie, "/api/attendance/clock-out", "POST", {...photo,extraTimeReason:"Approved additional service"}))
       .record;
+    if(out.extraTimeStatus === "PENDING") { const review=await db.staffRequest.findFirst({where:{userId:out.userId,kind:"EXTRA_TIME",fromDate:day,status:"PENDING"}}); await ok(admin,`/api/team/requests/${review.id}`,"PATCH",{status:"APPROVED"}); }
     await approve(rec.id);
     return out;
   };
   // Three consecutive working days: Monday is skipped. Separate early and late patterns.
   for (const day of ["2026-09-19", "2026-09-20", "2026-09-22"]) {
     await shift(angai, day, "13:20", "22:30");
-    await shift(chetan, day, "13:00", "22:00");
+    await shift(chetan, day, "13:00", "21:30");
   }
   await setTime(at("2026-09-23", "13:00"));
   let blocked = await request(angai, "/api/attendance/clock-in", "POST", photo);
@@ -307,13 +308,14 @@ try {
     earlyDay.clockInAt,
     new Date(at("2026-09-23", "13:00")).toISOString(),
   );
-  await setTime(at("2026-09-23", "22:30"));
+  await setTime(at("2026-09-23", "21:55"));
   await ok(angai, "/api/attendance/clock-out", "POST", photo);
   await approve(meetingDay.id);
+  await setTime(at("2026-09-23", "22:00"));
   await ok(chetan, "/api/attendance/clock-out", "POST", photo);
   await approve(earlyDay.id);
-  const lateAgain = await shift(angai, "2026-09-24", "13:10", "22:30");
-  const earlyAgain = await shift(chetan, "2026-09-24", "13:00", "22:20");
+  const lateAgain = await shift(angai, "2026-09-24", "13:10", "22:00");
+  const earlyAgain = await shift(chetan, "2026-09-24", "13:00", "21:50");
   assert.equal(lateAgain.latePenaltyActive, true);
   assert.equal(earlyAgain.earlyPenaltyActive, true);
   let stats = (
@@ -344,13 +346,13 @@ try {
       kind: "SHIFT_CHANGE",
       fromDate: "2026-09-25",
       proposedIn: at("2026-09-25", "14:00"),
-      proposedOut: at("2026-09-25", "23:30"),
+      proposedOut: at("2026-09-25", "23:00"),
       reason: "Appointment before work",
     })
   ).request;
   assert.equal(
     (await ok(angai, "/api/attendance/today")).schedule.latest,
-    "1:00 pm",
+    "01:00 pm",
   );
   assert.equal(
     (
@@ -367,7 +369,7 @@ try {
     (await ok(angai, "/api/attendance/today")).schedule.latest,
     /2:00/,
   );
-  const changed = await shift(angai, "2026-09-25", "14:00", "23:30");
+  const changed = await shift(angai, "2026-09-25", "14:00", "23:00");
   assert.equal(
     changed.scheduledStartAt,
     new Date(at("2026-09-25", "14:00")).toISOString(),
@@ -398,7 +400,7 @@ try {
   const extra = (await ok(g, "/api/attendance/clock-in", "POST", photo)).record;
   assert.equal(
     extra.extraTimeCutoff,
-    new Date(at("2026-09-26", "21:00")).toISOString(),
+    new Date(at("2026-09-26", "18:30")).toISOString(),
   );
   await setTime(at("2026-09-26", "21:01"));
   assert.equal(
@@ -620,7 +622,7 @@ try {
   assert.equal((await request(admin,manualPath,"POST",manual)).status,409);
   const close = {...manual,expectedRecordId:entered.id,expectedUpdatedAt:entered.updatedAt,clockOutAt:at("2026-10-01","20:30")};
   const completed = (await ok(admin,manualPath,"POST",close)).record;
-  assert.equal(completed.approvalStatus,"PENDING");assert.equal(completed.unpaidBreakMinutes,60);
+  assert.equal(completed.approvalStatus,"PENDING");assert.equal(completed.unpaidBreakMinutes,0);
   await approve(completed.id);
   assert.equal((await ok(admin,"/api/admin/stats?from=2026-10-01&to=2026-10-01")).stats.find(x=>x.userId===targetId).regularPayRs,900);
   assert.equal((await request(admin,manualPath,"POST",close)).status,409);
@@ -631,6 +633,20 @@ try {
   const audit = await db.attendanceAudit.findMany({where:{recordId:entered.id,action:{in:["ADMIN_TIME_ENTRY","ADMIN_TIME_CORRECTION"]}}});
   assert.equal(audit.length,3);assert.ok(audit.every(a=>JSON.parse(a.afterJson).correctionReason));
   assert.equal(await db.notification.count({where:{userId:targetId,kind:"ATTENDANCE_CORRECTED"}}),3);
+  // Convert one legacy nine-clock-hour record without changing timestamps or other history.
+  const legacyIn=new Date("2026-09-30T12:00:37+05:30"), legacyOut=new Date("2026-09-30T21:00:37+05:30");
+  const legacy=await db.attendanceRecord.create({data:{userId:targetId,workDate:"2026-09-30",clockInAt:legacyIn,clockOutAt:legacyOut,unpaidBreakMinutes:60,policyVersion:0,approvalStatus:"APPROVED"}});
+  assert.equal((await ok(admin,"/api/admin/stats?from=2026-09-30&to=2026-09-30")).stats.find(x=>x.userId===targetId).regularPayRs,800);
+  const recalc={userId:targetId,workDate:legacy.workDate,clockInAt:legacyIn.toISOString(),clockOutAt:legacyOut.toISOString(),expectedRecordId:legacy.id,expectedUpdatedAt:legacy.updatedAt.toISOString(),reason:"Apply paid-break policy to the completed shift",applyCurrentPolicy:true};
+  assert.equal((await request(dinjana,manualPath,"POST",recalc)).status,403);
+  const converted=(await ok(admin,manualPath,"POST",recalc)).record;
+  assert.equal(converted.policyVersion,2);assert.equal(converted.unpaidBreakMinutes,0);assert.equal(converted.approvalStatus,"PENDING");
+  assert.equal(converted.clockInAt,legacyIn.toISOString());assert.equal(converted.clockOutAt,legacyOut.toISOString());
+  await approve(converted.id);
+  assert.equal((await ok(admin,"/api/admin/stats?from=2026-09-30&to=2026-09-30")).stats.find(x=>x.userId===targetId).regularPayRs,900);
+  const policyAudit=await db.attendanceAudit.findFirst({where:{recordId:legacy.id,action:"POLICY_RECALCULATED"}});
+  assert.equal(JSON.parse(policyAudit.beforeJson).policyVersion,0);assert.equal(JSON.parse(policyAudit.afterJson).policyVersion,2);
+  assert.equal((await request(admin,manualPath,"POST",recalc)).status,409);
   // A pending manager meeting requires explicit admin confirmation during manual recovery.
   const held = {...manual,userId:"h",clockInAt:at("2026-10-01","10:30"),reason:"Location issue resolved manually; manager discussed punctuality"};
   assert.equal((await request(admin,manualPath,"POST",held)).status,409);

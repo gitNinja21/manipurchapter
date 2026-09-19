@@ -1,5 +1,5 @@
 import { effectiveSchedule, syncMeetings, penaltyContext } from "@/lib/performanceServer";
-import { extraCutoff } from "@/lib/performance";
+import { durationSnapshot } from "@/lib/performance";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
   const now = new Date();
   const workDate = todayWorkDate();
   const schedule = await effectiveSchedule(prisma, user, workDate);
+  if (user.weeklyScheduleJson && !schedule) return NextResponse.json({error: "You have no scheduled shift today. Ask your admin to assign one."}, {status: 403});
   if (schedule && now < schedule.opens) return NextResponse.json({error: "Your arrival window has not opened yet."}, {status: 403});
   const leave = await prisma.staffRequest.findFirst({where: {userId: user.id, kind: "LEAVE", status: "APPROVED", fromDate: {lte: workDate}, toDate: {gte: workDate}}});
   if (leave) return NextResponse.json({error: "You have approved leave today. Ask your manager to resolve this before clock-in."}, {status: 409});
@@ -120,10 +121,7 @@ export async function POST(req: NextRequest) {
     const currentSchedule = await effectiveSchedule(tx, user, workDate);
     const approval = await tx.staffRequest.findFirst({where: {userId: user.id, kind: "LATE_ARRIVAL", fromDate: workDate, status: "APPROVED"}});
     const rules = {
-      clockInAt, policyVersion: 1,
-      scheduledStartAt: currentSchedule?.start ?? null, scheduledEndAt: currentSchedule?.end ?? null,
-      unpaidBreakMinutes: currentSchedule?.breakMinutes ?? 60,
-      extraTimeCutoff: extraCutoff(clockInAt, currentSchedule?.breakMinutes ?? 60, currentSchedule?.end),
+      clockInAt, ...durationSnapshot(clockInAt, currentSchedule),
       extraTimeStatus: "NOT_REQUIRED", lateArrivalRequestId: approval?.id ?? null, lateExcused: !!approval,
       ...await penaltyContext(tx, user.id, workDate),
       approvalStatus: "PENDING", clockInPhoto: photoKey, clockInFaceMatch: faceMatch, clockInFaceDistance: faceDistance,

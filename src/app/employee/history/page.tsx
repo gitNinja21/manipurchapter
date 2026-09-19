@@ -9,6 +9,8 @@ type Record = PolicyRecord & {
   id: string;
   workDate: string;
   unpaidBreakMinutes: number;
+  policyVersion: number;
+  shiftDurationMinutes: number;
   extraTimeCutoff: string | null;
   extraTimeStatus: string;
   extraTimeReason: string | null;
@@ -71,6 +73,7 @@ export default function HistoryPage() {
                         {hours !== null ? hours.toFixed(2) : "—"}
                         {r.clockOutAt && !offDay(r.workDate) && <p className="text-xs font-normal">{salaryCredit(r).toFixed(2)} salary hours {r.approvalStatus === "APPROVED" ? "credited" : "if approved"}</p>}
                         {!!r.unpaidBreakMinutes && <p className="text-xs font-normal">{r.unpaidBreakMinutes}m break deducted</p>}
+                        {r.policyVersion === 2 && !r.unpaidBreakMinutes && <p className="text-xs font-normal">60m paid break · included in pay</p>}
                         {r.extraTimeStatus !== "NOT_REQUIRED" && r.extraTimeCutoff && <p className="text-xs font-normal">Extra time: {r.extraTimeStatus}</p>}
                       </td>
                       <td className="px-4 py-2.5">
