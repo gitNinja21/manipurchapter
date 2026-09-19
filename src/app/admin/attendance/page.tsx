@@ -9,6 +9,7 @@ import {
 } from "@/lib/time";
 import { validRange, weekStart } from "@/lib/reporting";
 import ReportControls from "@/components/admin/ReportControls";
+import ManualAttendance from "@/components/admin/ManualAttendance";
 import AttendanceReview from "@/components/admin/AttendanceReview";
 type AttendanceRecord = PolicyRecord & {
   id: string;
@@ -124,6 +125,7 @@ export default function AdminAttendancePage() {
           Review shifts and their salary impact before approving.
         </p>
       </div>
+      <ManualAttendance onSaved={() => setReload(n => n+1)} />
       <section className="admin-panel p-4 space-y-4">
         <ReportControls
           from={filters.from}

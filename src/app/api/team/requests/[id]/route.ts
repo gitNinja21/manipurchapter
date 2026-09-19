@@ -96,7 +96,7 @@ export const PATCH = teamRoute(async (u, req) => {
           409,
         );
       const schedule = await effectiveSchedule(tx, r.user, r.fromDate);
-      const breakMinutes = record ? record.unpaidBreakMinutes : schedule?.breakMinutes ?? 0;
+      const breakMinutes = record ? record.unpaidBreakMinutes : schedule?.breakMinutes ?? 60;
       const version = record ? record.policyVersion : 1;
       const end = record ? record.scheduledEndAt : schedule?.end;
       const extraTimeCutoff = version ? extraCutoff(r.proposedIn!, breakMinutes, end) : record?.extraTimeCutoff ?? null;

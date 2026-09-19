@@ -80,7 +80,7 @@ try {
  assert.equal(rr.lateArrivalRequestId,late.id);
  assert.equal(rr.clockInAt,new Date('2026-09-19T10:31:00+05:30').toISOString());
  const legacy=(await ok(other,'/api/attendance/clock-in','POST',photo)).record;
- assert.equal(legacy.unpaidBreakMinutes,0);assert.equal(legacy.extraTimeCutoff,new Date('2026-09-19T21:01:00+05:30').toISOString());
+ assert.equal(legacy.unpaidBreakMinutes,60);assert.equal(legacy.extraTimeCutoff,new Date('2026-09-19T22:01:00+05:30').toISOString());
  assert.equal((await request(other,'/api/team/requests','POST',{kind:'LATE_ARRIVAL',fromDate:'2026-09-20',reason:'Not covered'})).status,400);
  for (const [id,code,start,end,net] of additional) {
    const cookie=await login(code);

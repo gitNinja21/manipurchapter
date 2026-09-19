@@ -181,6 +181,7 @@ export default function EmployeeClockPage() {
       </div>
 
       <Link className="text-brand underline block" href="/employee/team?view=performance">My points, attendance incidents and manager clearance</Link>
+      {!policy && <p className="text-sm text-foreground/60">A 60-minute unpaid break is deducted from every shift. Work beyond 9 net hours goes to your bonus balance.</p>}
       {policy && (
         <section className="admin-panel p-4 space-y-2 text-sm">
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>

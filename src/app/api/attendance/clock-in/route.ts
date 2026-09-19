@@ -122,8 +122,8 @@ export async function POST(req: NextRequest) {
     const rules = {
       clockInAt, policyVersion: 1,
       scheduledStartAt: currentSchedule?.start ?? null, scheduledEndAt: currentSchedule?.end ?? null,
-      unpaidBreakMinutes: currentSchedule?.breakMinutes ?? 0,
-      extraTimeCutoff: extraCutoff(clockInAt, currentSchedule?.breakMinutes ?? 0, currentSchedule?.end),
+      unpaidBreakMinutes: currentSchedule?.breakMinutes ?? 60,
+      extraTimeCutoff: extraCutoff(clockInAt, currentSchedule?.breakMinutes ?? 60, currentSchedule?.end),
       extraTimeStatus: "NOT_REQUIRED", lateArrivalRequestId: approval?.id ?? null, lateExcused: !!approval,
       ...await penaltyContext(tx, user.id, workDate),
       approvalStatus: "PENDING", clockInPhoto: photoKey, clockInFaceMatch: faceMatch, clockInFaceDistance: faceDistance,

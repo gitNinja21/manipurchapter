@@ -102,7 +102,7 @@ model AttendanceRecord {
   // clock-out.
   approvalStatus String @default("PENDING")
   // Snapshots prevent future policy changes from rewriting historical payroll.
-  unpaidBreakMinutes Int @default(0)
+  unpaidBreakMinutes Int @default(60)
   extraTimeCutoff DateTime?
   extraTimeStatus String @default("NOT_REQUIRED")
   extraTimeReason String?

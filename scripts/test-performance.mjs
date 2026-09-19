@@ -604,6 +604,39 @@ try {
     ),
   );
   assert.equal((await request(g, "/api/admin/employees")).status, 403);
+
+  // Manual administrator recovery from a login/location failure.
+  const dinjana = await login("DINJANA");
+  const manualPath = "/api/admin/attendance/manual";
+  const targetId = additional[2][0];
+  const manual = {userId: targetId, workDate: "2026-10-01", clockInAt: at("2026-10-01","11:30"), clockOutAt: null, reason: "Phone location failed; manager verified actual arrival", expectedRecordId: null, expectedUpdatedAt: null};
+  assert.equal((await request(dinjana,manualPath,"POST",manual)).status,403);
+  assert.equal((await request(dinjana,`${manualPath}?userId=${targetId}&workDate=2026-10-01`)).status,403);
+  assert.equal((await request(admin,manualPath,"POST",{...manual,reason:""})).status,400);
+  assert.equal((await request(admin,manualPath,"POST",{...manual,clockInAt:at("2026-10-02","11:30")})).status,400);
+  const entered = (await ok(admin,manualPath,"POST",manual)).record;
+  assert.equal(entered.clockInPhoto,null);assert.equal(entered.clockInFaceMatch,null);
+  assert.equal((await ok(dinjana,"/api/attendance/today")).record.id,entered.id);
+  assert.equal((await request(admin,manualPath,"POST",manual)).status,409);
+  const close = {...manual,expectedRecordId:entered.id,expectedUpdatedAt:entered.updatedAt,clockOutAt:at("2026-10-01","20:30")};
+  const completed = (await ok(admin,manualPath,"POST",close)).record;
+  assert.equal(completed.approvalStatus,"PENDING");assert.equal(completed.unpaidBreakMinutes,60);
+  await approve(completed.id);
+  assert.equal((await ok(admin,"/api/admin/stats?from=2026-10-01&to=2026-10-01")).stats.find(x=>x.userId===targetId).regularPayRs,900);
+  assert.equal((await request(admin,manualPath,"POST",close)).status,409);
+  const current=(await ok(admin,`${manualPath}?userId=${targetId}&workDate=2026-10-01`)).record;
+  const overtime=(await ok(admin,manualPath,"POST",{...close,expectedUpdatedAt:current.updatedAt,clockOutAt:at("2026-10-01","21:00"),reason:"Correct leaving time; stayed to finish serving a table"})).record;
+  assert.equal(overtime.extraTimeStatus,"PENDING");assert.equal(overtime.approvalStatus,"PENDING");
+  assert.equal((await request(admin,`/api/admin/attendance/${overtime.id}`,"PATCH",{approvalStatus:"APPROVED"})).status,409);
+  const audit = await db.attendanceAudit.findMany({where:{recordId:entered.id,action:{in:["ADMIN_TIME_ENTRY","ADMIN_TIME_CORRECTION"]}}});
+  assert.equal(audit.length,3);assert.ok(audit.every(a=>JSON.parse(a.afterJson).correctionReason));
+  assert.equal(await db.notification.count({where:{userId:targetId,kind:"ATTENDANCE_CORRECTED"}}),3);
+  // A pending manager meeting requires explicit admin confirmation during manual recovery.
+  const held = {...manual,userId:"h",clockInAt:at("2026-10-01","10:30"),reason:"Location issue resolved manually; manager discussed punctuality"};
+  assert.equal((await request(admin,manualPath,"POST",held)).status,409);
+  await ok(admin,manualPath,"POST",{...held,managerMeetingCompleted:true});
+  assert.equal(await db.managerMeeting.count({where:{userId:"h",status:"PENDING"}}),0);
+  console.log("PASS: admin-only manual arrival/correction, required reason, future-time rejection, normal employee shift visibility, stale-edit guard, payroll reset, overtime review, meeting confirmation, notification and audit.");
   console.log(
     "PASS: full-shift pay, late/early streaks, Monday skip, manager authority, arrival protection, monthly reset, pending rollover, exact deductions, temporary shifts, actual overtime, approval idempotency, referral dedup/reversal, correction/rejection cleanup, audit and privacy.",
   );

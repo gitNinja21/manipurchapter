@@ -16,7 +16,10 @@ type Entry = {
 };
 const actions: Record<string, string> = {
   APPROVED: "Approved",
+  BREAK_POLICY_UPDATED: "One-hour break applied",
   CORRECTED: "Attendance corrected",
+  ADMIN_TIME_ENTRY: "Attendance entered by admin",
+  ADMIN_TIME_CORRECTION: "Times corrected by admin",
   EXTRA_TIME_APPROVED: "Extra time approved",
   EXTRA_TIME_REJECTED: "Extra time rejected",
   REJECTED: "Rejected",
@@ -226,13 +229,14 @@ function Snapshot({ label, json }: { label: string; json: string | null }) {
         unpaidBreakMinutes?: number;
         extraTimeStatus?: string;
         extraTimeReason?: string;
+        correctionReason?: string;
       })
     : null;
   return (
     <div>
       <p className="font-medium">
         {label}:{" "}
-        {s ? actions[s.approvalStatus] || s.approvalStatus : "Record deleted"}
+        {s ? actions[s.approvalStatus] || s.approvalStatus : label === "Before" ? "No prior record" : "Record deleted"}
       </p>
       {s && (
         <p className="text-foreground/60">
@@ -241,6 +245,7 @@ function Snapshot({ label, json }: { label: string; json: string | null }) {
           Out: {s.clockOutAt ? formatIstDateTime(new Date(s.clockOutAt)) : "—"}
           {s.unpaidBreakMinutes !== undefined && <><br />Unpaid break: {s.unpaidBreakMinutes} minutes</>}
           {s.extraTimeStatus && <><br />Extra time: {s.extraTimeStatus}</>}
+          {s.correctionReason && <><br />Admin correction reason: {s.correctionReason}</>}
           {s.extraTimeReason && <><br />Reason: {s.extraTimeReason}</>}
         </p>
       )}

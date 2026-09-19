@@ -7,8 +7,7 @@ future schedule never rewrites an existing snapshot.
 
 ## Work versus pay
 
-- Actual work is elapsed in/out time less the assigned break (60 minutes for
-  recurring or dated scheduled shifts). Unapproved extra time is capped at the
+- Actual work is elapsed in/out time less the assigned break (60 minutes for every employee, including those without a schedule). Unapproved extra time is capped at the
   review threshold. Photos and actual timestamps remain unchanged by that cap.
 - Completing a scheduled shift earns nine regular salary hours even if net work
   is shorter. Before counselling, up to 15 minutes of lateness is a pay grace;
@@ -92,3 +91,30 @@ override. `KEEP_TEST_SERVER=1` retains the performance test server for UI checks
 Back up the deployed database before applying migrations. The normal start script
 runs `prisma migrate deploy`; migrations preserve existing attendance. This
 implementation does not deploy or push to Git by itself.
+
+## Administrator recovery from technical issues
+
+Admin → Attendance → Add / correct attendance — system issue loads an employee
+and arrival date before allowing an edit. Enter actual IST times and a required
+reason. Clock-out may be empty for an open shift today; past dates require both
+times. Saving creates or updates attendance as PENDING, keeps original photo
+evidence, records before/after times and the reason in Attendance Audit, and
+notifies the employee. No selfie verification is invented for manual entries.
+
+The endpoint is admin-only and rejects future/pre-employment times, overlaps,
+approved leave and stale edits. Existing schedule/break snapshots are preserved;
+extra time goes back through review. Starting today's attendance while a manager
+meeting is pending requires an explicit confirmation that the meeting occurred.
+The normal approval action remains required for completed attendance to count
+toward payroll.
+
+## Universal break update
+
+Every employee now receives the same 60-minute unpaid break, with or without a
+schedule. New clock-ins, manual entries, corrections and the database default
+use 60 minutes. The universal-break migration updates existing zero-break
+records and records each change in Attendance Audit. Other historical policy
+settings, timestamps and approval decisions remain unchanged; net work, salary
+and bonus balances are recalculated from the corrected break. Existing
+60-minute records are not deducted twice. Run
+`python3 scripts/test-universal-break.py` to verify the migration on test data.
