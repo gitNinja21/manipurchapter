@@ -7,6 +7,7 @@ export const GET = teamRoute(async (u) => ({
     birthdayDay: u.birthdayDay,
     shareBirthday: u.shareBirthday,
     muteChat: u.muteChat,
+    chatSoundMode: u.chatSoundMode,
   },
   role: u.role,
   userId: u.id,
@@ -18,6 +19,7 @@ export const PATCH = teamRoute(async (u, req) => {
     birthdayDay?: number | null;
     shareBirthday?: boolean;
     muteChat?: boolean;
+    chatSoundMode?: string;
   } = {};
   if ("birthdayMonth" in b || "birthdayDay" in b) {
     if (b.birthdayMonth === null && b.birthdayDay === null) {
@@ -35,6 +37,10 @@ export const PATCH = teamRoute(async (u, req) => {
       if (typeof b[k] !== "boolean") throw new TeamError("Invalid preference.");
       data[k] = b[k] as boolean;
     }
+  if ("chatSoundMode" in b) {
+    if (!["ADMIN", "ALL", "OFF"].includes(String(b.chatSoundMode))) throw new TeamError("Choose a valid chat sound preference.");
+    data.chatSoundMode = String(b.chatSoundMode);
+  }
   await prisma.user.update({ where: { id: u.id }, data });
   return { ok: true };
 });

@@ -61,14 +61,14 @@ export default function PushSettings() {
         throw error;
       }
       setEnabled(true);
-      setMessage("Announcement alerts enabled on this device.");
+      setMessage("Announcement and team chat alerts enabled on this device.");
     });
   }
   return (
     <section className="admin-panel p-5 space-y-3">
       <h2 className="font-semibold">Device notifications</h2>
       <p className="text-sm text-foreground/60">
-        Optional alerts for new announcements when this site is closed. In-app
+        Optional alerts for announcements and team messages when this site is closed. Your phone controls notification sounds and silent mode. In-app
         notifications work without this setting.
       </p>
       <ErrorNotice error={error || action.error} />

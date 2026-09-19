@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ChatAlerts from "./team/ChatAlerts";
 import NotificationBell from "./team/NotificationBell";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -72,6 +73,7 @@ export default function AppHeader({
           </button>
         </div>
       </div>
+      <ChatAlerts root={tabs.some(t => t.href === "/admin") ? "/admin" : "/employee"} />
       <nav className="max-w-6xl mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto">
         {tabs.map((tab) => {
           const active = pathname === tab.href;

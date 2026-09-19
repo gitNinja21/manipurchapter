@@ -1,0 +1,23 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import webpush from "web-push";
+import { prisma } from "./prisma";
+test("chat push uses private payloads, sound preferences, safe destinations and expiry cleanup", async (t) => {
+  const names=["JWT_SECRET","VAPID_PUBLIC_KEY","VAPID_PRIVATE_KEY","VAPID_SUBJECT"];
+  const saved=Object.fromEntries(names.map(k=>[k,process.env[k]]));
+  process.env.JWT_SECRET="test-only-chat-push";
+  process.env.VAPID_PUBLIC_KEY="test-only";process.env.VAPID_PRIVATE_KEY="test-only";process.env.VAPID_SUBJECT="mailto:test@example.test";
+  const find=prisma.pushSubscription.findMany, remove=prisma.pushSubscription.deleteMany, send=webpush.sendNotification;
+  t.after(()=>{prisma.pushSubscription.findMany=find;prisma.pushSubscription.deleteMany=remove;webpush.sendNotification=send;for(const k of names){if(saved[k]===undefined)delete process.env[k];else process.env[k]=saved[k];}});
+  let filter:unknown;const deleted:unknown[]=[];const payloads:{kind:string;body:string;url:string;silent:boolean}[]=[];
+  prisma.pushSubscription.findMany=(async (args:unknown)=>{filter=args;return ["ADMIN","ALL","OFF"].map((mode,i)=>({id:String(i),createdAt:new Date(),userId:String(i),endpoint:`https://fcm.googleapis.com/${i}`,auth:"test",p256dh:"test",user:{id:String(i),role:"EMPLOYEE",chatSoundMode:mode}}));}) as typeof find;
+  prisma.pushSubscription.deleteMany=(async (args:unknown)=>{deleted.push(args);return {count:1};}) as typeof remove;
+  webpush.sendNotification=(async (subscription,payload)=>{if(subscription.endpoint.endsWith("/2"))throw {statusCode:410};payloads.push(JSON.parse(String(payload)));return {statusCode:201,body:"",headers:{}};}) as typeof send;
+  const {sendChatPush}=await import("./push");
+  await sendChatPush("message","sender","EMPLOYEE");
+  assert.match(JSON.stringify(filter),/"muteChat":false/);assert.match(JSON.stringify(filter),/"not":"sender"/);
+  assert.equal(payloads.length,2);assert.equal(payloads[0].silent,true);assert.equal(payloads[1].silent,false);
+  assert.equal(payloads[0].url,"/employee/team?view=chat");assert.equal(payloads[0].body,"A new team message is available. Sign in to read it.");
+  assert.deepEqual(deleted,[{where:{id:"2"}}]);
+  payloads.length=0;await sendChatPush("message2","sender","ADMIN");assert.ok(payloads.every(p=>!p.silent));
+});

@@ -1,3 +1,4 @@
+import { sendChatPush } from "@/lib/push";
 import { prisma } from "@/lib/prisma";
 import {
   teamRoute,
@@ -99,6 +100,7 @@ export const POST = teamRoute(async (u, req) => {
     );
     return msg;
   });
+  await sendChatPush(message.id, u.id, u.role).catch(() => console.warn("Chat push unavailable; message saved."));
   return { message };
 });
 export const PATCH = teamRoute(async (u, req) => {

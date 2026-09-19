@@ -53,6 +53,7 @@ model User {
   birthdayDay   Int?
   shareBirthday Boolean @default(false)
   muteChat      Boolean @default(false)
+  chatSoundMode String @default("ADMIN") // ADMIN | ALL | OFF
   chatReadAt    DateTime?
   messages      TeamMessage[]
   reactions     MessageReaction[]
