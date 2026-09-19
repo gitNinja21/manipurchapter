@@ -64,6 +64,10 @@ model User {
 
   // Recurring attendance rules apply from this IST date; null keeps legacy rules.
   attendancePolicyFrom String?
+  attendanceStartMinute Int @default(570)
+  attendanceLatestMinute Int @default(630)
+  attendanceEndMinute Int @default(1350)
+  attendanceAllowEarly Boolean @default(false)
 
   attendance    AttendanceRecord[]
   announcements Announcement[]     @relation("AnnouncementAuthor")

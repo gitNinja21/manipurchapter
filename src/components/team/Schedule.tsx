@@ -1,4 +1,5 @@
 "use client";
+import { scheduleLabels, type PolicySchedule } from "@/lib/workPolicy";
 import { useState } from "react";
 import { api, useAction, useTeamData } from "./useTeamData";
 import { ErrorNotice } from "./TeamCommon";
@@ -10,7 +11,7 @@ function plus(date: string, n: number) {
   return d.toISOString().slice(0, 10);
 }
 type ScheduleData = {
-  recurring: {id: string; name: string; employeeCode: string; attendancePolicyFrom: string}[];
+  recurring: ({id: string; name: string; employeeCode: string; attendancePolicyFrom: string} & PolicySchedule)[];
   shifts: {
     id: string;
     userId: string;
@@ -42,6 +43,11 @@ export default function Schedule({ admin }: { admin: boolean }) {
     30000,
   );
   const action = useAction(reload);
+  const recurringForDay = (day: string) => (data?.recurring ?? []).filter(person =>
+    day >= person.attendancePolicyFrom &&
+    !data?.shifts.some(shift => shift.userId === person.id && shift.workDate === day) &&
+    !data?.leave.some(leave => leave.userId === person.id && leave.fromDate <= day && leave.toDate >= day)
+  );
   return (
     <div className="space-y-5">
       <div>
@@ -55,10 +61,11 @@ export default function Schedule({ admin }: { admin: boolean }) {
       </div>
       {!!data?.recurring?.length && <section className="admin-panel p-5 space-y-3">
         <h3 className="font-semibold">Daily attendance rules</h3>
-        <p className="text-sm">9:30–10:30 am arrival window · 1-hour unpaid break · actual clock-out time. Late arrivals require approval; time after 10:30 pm requires a reason and approval.</p>
+        <p className="text-sm">1-hour unpaid break · actual clock-out time. Late arrivals require approval; time after each employee’s scheduled finish requires a reason and approval.</p>
         {data.recurring.map(person => <div key={person.id} className="text-sm border-t border-border pt-2">
           <strong>{person.name}</strong> · from {formatWorkDate(person.attendancePolicyFrom)}
-          <p className="text-foreground/60">Usual departure: {person.employeeCode === "NIJULI" ? "7–7:30 pm" : person.employeeCode === "RONYAMZ" ? "8–8:30 pm" : "closing, around 10:30 pm"}. This is guidance; actual clock-out determines hours.</p>
+          <p>{scheduleLabels(person).fixed ? "Start" : "Arrival window"}: {scheduleLabels(person).arrival} · Finish: {scheduleLabels(person).finish} IST.</p>
+          <p className="text-foreground/60">{person.employeeCode === "NIJULI" ? "Usual departure: 7–7:30 pm. " : person.employeeCode === "RONYAMZ" ? "Usual departure: 8–8:30 pm. " : ""}Actual clock-out determines hours. {person.attendanceAllowEarly ? "Early clock-in is allowed." : "Clock-in opens at the start time."}</p>
         </div>)}
         <p className="text-xs text-foreground/60">These recurring clock rules apply daily. Monday remains a paid off-day under the existing payroll rule. Date-specific schedule entries below do not override these clock rules.</p>
       </section>}
@@ -225,6 +232,13 @@ export default function Schedule({ admin }: { admin: boolean }) {
                   )}
                 </div>
               ))}
+            {recurringForDay(day).map(person => (
+              <div key={`daily-${person.id}`} className="rounded-lg bg-surface-muted p-3 text-sm">
+                <strong>{person.name}</strong>
+                <p>{scheduleLabels(person).fixed ? "Start" : "Arrival"}: {scheduleLabels(person).arrival} · Finish: {scheduleLabels(person).finish}</p>
+                <p className="text-xs text-foreground/60">Recurring schedule · 1-hour unpaid break</p>
+              </div>
+            ))}
             {data?.leave
               .filter((l) => l.fromDate <= day && l.toDate >= day)
               .map((l) => (
@@ -233,6 +247,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
                 </p>
               ))}
             {data &&
+              !recurringForDay(day).length &&
               !data.shifts.some((s) => s.workDate === day) &&
               !data.leave.some((l) => l.fromDate <= day && l.toDate >= day) && (
                 <p className="text-sm text-foreground/50">No shift assigned</p>

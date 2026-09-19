@@ -1,4 +1,4 @@
-import { policyApplies, policyTimes, arrivalState } from "@/lib/workPolicy";
+import { policyApplies, policyTimes, arrivalState, scheduleLabels } from "@/lib/workPolicy";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -37,13 +37,13 @@ export async function POST(req: NextRequest) {
   const governed = policyApplies(user, workDate);
   let lateArrivalRequestId: string | null = null;
   if (governed) {
-    const state = arrivalState(now, workDate);
-    if (state === "EARLY") return NextResponse.json({ error: "Your clock-in window opens at 9:30 am IST." }, { status: 403 });
+    const state = arrivalState(now, workDate, user);
+    if (state === "EARLY") return NextResponse.json({ error: `Your clock-in window opens at ${scheduleLabels(user).opening} IST.` }, { status: 403 });
     if (state === "LATE") {
       const approval = await prisma.staffRequest.findFirst({ where: {
         userId: user.id, kind: "LATE_ARRIVAL", fromDate: workDate, toDate: workDate, status: "APPROVED",
       }});
-      if (!approval) return NextResponse.json({ error: "The 10:30 am arrival window has ended. Submit a late-arrival reason in Team → Requests and wait for admin approval before clocking in.", code: "LATE_APPROVAL_REQUIRED" }, { status: 403 });
+      if (!approval) return NextResponse.json({ error: `Your ${scheduleLabels(user).latest} arrival deadline has passed. Submit a late-arrival reason in Team → Requests and wait for admin approval before clocking in.`, code: "LATE_APPROVAL_REQUIRED" }, { status: 403 });
       lateArrivalRequestId = approval.id;
     }
   }
@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       workDate,
       clockInAt: now,
       unpaidBreakMinutes: governed ? 60 : 0,
-      extraTimeCutoff: governed ? policyTimes(workDate).closesAt : null,
+      extraTimeCutoff: governed ? policyTimes(workDate, user).closesAt : null,
       extraTimeStatus: "NOT_REQUIRED",
       lateArrivalRequestId,
       approvalStatus: "PENDING",
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
     update: {
       clockInAt: now,
       unpaidBreakMinutes: governed ? 60 : 0,
-      extraTimeCutoff: governed ? policyTimes(workDate).closesAt : null,
+      extraTimeCutoff: governed ? policyTimes(workDate, user).closesAt : null,
       extraTimeStatus: "NOT_REQUIRED",
       lateArrivalRequestId,
       approvalStatus: "PENDING",

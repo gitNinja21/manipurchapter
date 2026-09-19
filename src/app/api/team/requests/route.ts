@@ -33,7 +33,12 @@ export const GET = teamRoute(async (u, req) => {
     }),
     prisma.staffRequest.count({ where }),
   ]);
-  return { requests, total, admin: u.role === "ADMIN" };
+  const records = await prisma.attendanceRecord.findMany({
+    where: {id: {in: requests.filter(r => r.kind === "EXTRA_TIME" && r.expectedRecordId).map(r => r.expectedRecordId!)}},
+    select: {id: true, extraTimeCutoff: true},
+  });
+  const cutoffs = new Map(records.map(r => [r.id, r.extraTimeCutoff]));
+  return { requests: requests.map(r => ({...r, extraTimeCutoff: r.expectedRecordId ? cutoffs.get(r.expectedRecordId) ?? null : null})), total, admin: u.role === "ADMIN" };
 });
 export const POST = teamRoute(async (u, req) => {
   if (u.role !== "EMPLOYEE")

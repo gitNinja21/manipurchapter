@@ -16,5 +16,5 @@ export async function requestExtraTime(tx: Prisma.TransactionClient, record: {
     expectedRecordId: record.id, expectedUpdatedAt: record.updatedAt,
   }});
   const admins = await tx.user.findMany({where: {...memberWhere, role: "ADMIN"}, select: {id: true, role: true}});
-  await notify(tx, admins, "REQUEST", request.id, `${name}: time after 10:30 pm needs review`, "team?view=requests");
+  await notify(tx, admins, "REQUEST", request.id, `${name}: time after scheduled finish needs review`, "team?view=requests");
 }

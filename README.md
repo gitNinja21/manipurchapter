@@ -386,3 +386,32 @@ Then run `node scripts/test-work-rules.mjs` for isolated end-to-end checks. It
 creates its own temporary SQLite database, uploads and a test-only process clock,
 starts a localhost server on port 3104, and stops it on completion. No real staff
 records or production data are used.
+
+
+## Additional employee schedules (19 September 2026 IST)
+
+Migration `20260919130000_employee_schedules` assigns these existing account IDs
+from the administrator's team list, without fuzzy name matching:
+
+| Employee | Scheduled start | Scheduled finish | Break | Net hours at these times |
+| --- | --- | --- | --- | --- |
+| Angai | 1:00 pm | 10:30 pm | 1 hour | 8.5 |
+| Chetan | 1:00 pm | 10:30 pm | 1 hour | 8.5 |
+| Dinjana | 11:30 am | 8:30 pm | 1 hour | 8 |
+| Joyshree | 10:00 am | 7:00 pm | 1 hour | 8 |
+| Sagar | 1:00 pm | 10:30 pm | 1 hour | 8.5 |
+| Vicky | 12:30 pm | 10:30 pm | 1 hour | 9 |
+
+Early clock-in is allowed for these six; actual approved working time is paid.
+The complete scheduled-start minute is on time; the following minute requires
+an approved late-arrival request for that date. A clock-out after the employee's
+own scheduled finish needs a reason and separate extra-time approval. The first
+four employees retain their 9:30–10:30 am arrival window and 10:30 pm review cutoff.
+
+The recurring policy is stored per account in IST minutes, shown in Team →
+Schedule and the employee home page. Existing attendance retains its saved break
+and finish cutoff. Other employees and Monday's paid-off-day policy are unchanged.
+The six account IDs are deliberately exact. Verify all ten people are shown in
+Daily attendance rules on the live database after deployment; if an account has
+been recreated, its ID must be mapped before applying a rule. The development
+sample database does not contain these live employee accounts.

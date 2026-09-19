@@ -26,6 +26,10 @@ export const PATCH = teamRoute(async (u, req) => {
             active: true,
             approved: true,
             attendancePolicyFrom: true,
+            attendanceStartMinute: true,
+            attendanceLatestMinute: true,
+            attendanceEndMinute: true,
+            attendanceAllowEarly: true,
           },
         },
       },
@@ -74,7 +78,7 @@ export const PATCH = teamRoute(async (u, req) => {
           409,
         );
       const governed = policyApplies(r.user, r.fromDate);
-      const extraTimeCutoff = record ? record.extraTimeCutoff : governed ? policyTimes(r.fromDate).closesAt : null;
+      const extraTimeCutoff = record ? record.extraTimeCutoff : governed ? policyTimes(r.fromDate, r.user).closesAt : null;
       const needsExtra = !!extraTimeCutoff && !!r.proposedOut && r.proposedOut > extraTimeCutoff;
       const workRules = {
         unpaidBreakMinutes: record ? record.unpaidBreakMinutes : governed ? 60 : 0,

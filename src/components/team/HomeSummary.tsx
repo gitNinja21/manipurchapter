@@ -6,6 +6,7 @@ import { ErrorNotice } from "./TeamCommon";
 type Home = {
   today: string;
   attendancePolicyFrom: string | null;
+  schedule: {arrival: string; finish: string; fixed: boolean} | null;
   month: string;
   birthdayToday: boolean;
   requests: number;
@@ -49,7 +50,7 @@ export default function HomeSummary({ admin = false }: { admin?: boolean }) {
                   </p>
                 </>
               ) : data.attendancePolicyFrom ? (
-                <p className="text-sm text-foreground/60 mt-2">Daily arrival window: 9:30–10:30 am IST, from {formatWorkDate(data.attendancePolicyFrom)}. Clock out when you actually leave.</p>
+                <p className="text-sm text-foreground/60 mt-2">{data.schedule?.fixed ? "Scheduled start" : "Arrival window"}: {data.schedule?.arrival} IST, from {formatWorkDate(data.attendancePolicyFrom)}. Scheduled finish: {data.schedule?.finish}. Clock out when you actually leave.</p>
               ) : (
                 <p className="text-sm text-foreground/60 mt-2">
                   No upcoming shift assigned.

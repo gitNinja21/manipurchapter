@@ -12,6 +12,7 @@ type RequestItem = {
   reason: string;
   status: string;
   proposedIn: string | null;
+  extraTimeCutoff: string | null;
   proposedOut: string | null;
   reviewNote: string | null;
   reviewedBy: string | null;
@@ -197,7 +198,7 @@ function RequestCard({
       <div className="flex justify-between gap-3">
         <div>
           <h3 className="font-semibold">
-            {r.kind === "LEAVE" ? "Leave" : r.kind === "LATE_ARRIVAL" ? "Late arrival" : r.kind === "EXTRA_TIME" ? "Time after 10:30 pm" : "Attendance correction"}
+            {r.kind === "LEAVE" ? "Leave" : r.kind === "LATE_ARRIVAL" ? "Late arrival" : r.kind === "EXTRA_TIME" ? "Time after scheduled finish" : "Attendance correction"}
             {admin ? ` · ${r.user.name}` : ""}
           </h3>
           <p className="text-xs text-foreground/60 mt-1">
@@ -220,7 +221,8 @@ function RequestCard({
           {r.reviewNote ? `: ${r.reviewNote}` : ""}
         </p>
       )}
-      {r.kind === "EXTRA_TIME" && <p className="text-sm text-foreground/60">{admin ? "Approve to count time after 10:30 pm. Reject to cap payable time at 10:30 pm while keeping the actual clock-out. The 1-hour break still applies. Review and approve attendance separately afterwards." : "Time after 10:30 pm counts only if your admin approves it. Your actual clock-out is kept. The 1-hour break still applies, and attendance needs separate approval."}</p>}
+      {r.kind === "EXTRA_TIME" && r.extraTimeCutoff && <p className="text-sm font-medium">Scheduled finish: {formatIstDateTime(new Date(r.extraTimeCutoff))}</p>}
+      {r.kind === "EXTRA_TIME" && <p className="text-sm text-foreground/60">{admin ? "Approve to count time after the scheduled finish. Reject to cap payable time at that finish while keeping the actual clock-out. The 1-hour break still applies. Review and approve attendance separately afterwards." : "Time after the scheduled finish counts only if your admin approves it. Your actual clock-out is kept. The 1-hour break still applies, and attendance needs separate approval."}</p>}
       <ErrorNotice error={action.error} />
       {r.status === "PENDING" &&
         (admin ? (

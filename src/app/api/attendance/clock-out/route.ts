@@ -1,3 +1,4 @@
+import { formatIstTime } from "@/lib/time";
 import { requestExtraTime } from "@/lib/workPolicyServer";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
   const needsExtraReview = !!existing.extraTimeCutoff && now > existing.extraTimeCutoff;
   const extraTimeReason = typeof body.extraTimeReason === "string" ? body.extraTimeReason.trim() : "";
   if (needsExtraReview && (extraTimeReason.length < 3 || extraTimeReason.length > 1000)) {
-    return NextResponse.json({error: "You are clocking out after 10:30 pm. Explain why you worked later (3–1000 characters). This extra time needs admin approval.", code: "EXTRA_TIME_REASON_REQUIRED"}, {status: 400});
+    return NextResponse.json({error: `You are clocking out after your scheduled finish (${formatIstTime(existing.extraTimeCutoff)} IST). Explain why you worked later (3–1000 characters). This extra time needs admin approval.`, code: "EXTRA_TIME_REASON_REQUIRED"}, {status: 400});
   }
 
   // Location gate — a no-op unless RESTAURANT_LAT/RESTAURANT_LNG are set.

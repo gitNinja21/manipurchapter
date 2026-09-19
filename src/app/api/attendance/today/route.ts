@@ -1,4 +1,4 @@
-import { policyApplies, arrivalState } from "@/lib/workPolicy";
+import { policyApplies, arrivalState, scheduleLabels } from "@/lib/workPolicy";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -16,5 +16,5 @@ export async function GET() {
 
   const policy = policyApplies(user, workDate);
   const lateRequest = policy ? await prisma.staffRequest.findFirst({where: {userId: user.id, kind: "LATE_ARRIVAL", fromDate: workDate}, orderBy: {createdAt: "desc"}, select: {status: true, reason: true}}) : null;
-  return NextResponse.json({ record, policy, arrivalState: policy ? arrivalState(new Date(), workDate) : null, lateRequest, serverTime: new Date().toISOString() });
+  return NextResponse.json({ record, policy, schedule: policy ? scheduleLabels(user) : null, arrivalState: policy ? arrivalState(new Date(), workDate, user) : null, lateRequest, serverTime: new Date().toISOString() });
 }

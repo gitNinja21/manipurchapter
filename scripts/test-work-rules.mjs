@@ -23,6 +23,14 @@ const db = new PrismaClient({datasources:{db:{url}}});
 let server;
 let logs='';
 const base='http://127.0.0.1:3104';
+const additional = [
+ ['cmu5ag8ce000395shnlmls7ln','ANGAI','13:00','22:30',8.5],
+ ['cmu5adpin000295shn82n6p47','RCHETAN','13:00','22:30',8.5],
+ ['cmu5cokep000495shpehjvqai','DINJANA','11:30','20:30',8],
+ ['cmu5ctlgj000795sh8a4rawn1','JOYSHREE CHANU','10:00','19:00',8],
+ ['cmu5abali000095sh62r5yttk','SAGAR12/12/25','13:00','22:30',8.5],
+ ['cmu5acmqw000195sht77e1cok','VICKY','12:30','22:30',9],
+];
 const request=async(cookie,route,method='GET',body)=>{
  const r=await fetch(base+route,{method,headers:{cookie,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'manual'});
  const data=await r.json();return {status:r.status,data};
@@ -39,6 +47,11 @@ try {
  await db.$executeRawUnsafe(sql.slice(sql.indexOf('UPDATE "User"')));
  assert.equal(await db.user.count({where:{attendancePolicyFrom:'2026-09-19'}}),4);
  assert.equal((await db.user.findUnique({where:{id:'other'}})).attendancePolicyFrom,null);
+ for (const [id, code] of additional) await db.user.create({data:{id,employeeCode:code,name:`Test ${code}`,role:'EMPLOYEE',passwordHash,active:true,approved:true,mustChangePassword:false,faceDescriptor:JSON.stringify(photo.descriptor),createdAt:new Date('2026-09-01T00:00:00Z')}});
+ const scheduleSql=await readFile('prisma/migrations/20260919130000_employee_schedules/migration.sql','utf8');
+ for (const update of scheduleSql.split('\n').filter(line=>line.startsWith('UPDATE "User"'))) await db.$executeRawUnsafe(update);
+ assert.equal(await db.user.count({where:{attendancePolicyFrom:'2026-09-19'}}),10);
+
  server=spawn(process.execPath,['--require',preload,'node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','3104'],{env,stdio:['ignore','pipe','pipe']});
  server.stdout.on('data',b=>logs+=b);server.stderr.on('data',b=>logs+=b);
  for(let i=0;i<60;i++){
@@ -67,6 +80,28 @@ try {
  const legacy=(await ok(other,'/api/attendance/clock-in','POST',photo)).record;
  assert.equal(legacy.unpaidBreakMinutes,0);assert.equal(legacy.extraTimeCutoff,null);
  assert.equal((await request(other,'/api/team/requests','POST',{kind:'LATE_ARRIVAL',fromDate:'2026-09-20',reason:'Not covered'})).status,400);
+ for (const [id,code,start,end,net] of additional) {
+   const cookie=await login(code);
+   const startDate=new Date(`2026-09-19T${start}:00+05:30`);
+   await setTime(new Date(+startDate+60000).toISOString());
+   assert.equal((await request(cookie,'/api/attendance/clock-in','POST',photo)).data.code,'LATE_APPROVAL_REQUIRED');
+   await setTime(startDate.toISOString());
+   const status=await ok(cookie,'/api/attendance/today');
+   assert.equal(status.arrivalState,'ON_TIME');assert.equal(status.schedule.fixed,true);assert.equal(status.schedule.allowEarly,true);
+   const clocked=(await ok(cookie,'/api/attendance/clock-in','POST',photo)).record;
+   assert.equal(clocked.unpaidBreakMinutes,60);
+   const endDate=new Date(`2026-09-19T${end}:00+05:30`);
+   assert.equal(clocked.extraTimeCutoff,endDate.toISOString());
+   await setTime(new Date(+endDate+1000).toISOString());
+   const blocked=await request(cookie,'/api/attendance/clock-out','POST',photo);
+   assert.equal(blocked.data.code,'EXTRA_TIME_REASON_REQUIRED');
+   await setTime(endDate.toISOString());
+   await ok(cookie,'/api/attendance/clock-out','POST',photo);
+   await ok(admin,`/api/admin/attendance/${clocked.id}`,'PATCH',{approvalStatus:'APPROVED'});
+   const earned=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats.find(s=>s.userId===id);
+   assert.equal(earned.totalHours,net);assert.equal(earned.regularPayRs,net*100);assert.equal(earned.overtimeHours,0);
+ }
+
  await setTime('2026-09-19T19:00:00+05:30');
  const nr=(await ok(n,'/api/attendance/clock-out','POST',photo)).record;
  assert.equal(nr.extraTimeStatus,'NOT_REQUIRED');
@@ -108,11 +143,11 @@ try {
  assert.equal(corrected.unpaidBreakMinutes,60);assert.equal(corrected.extraTimeStatus,'PENDING');assert.equal(corrected.approvalStatus,'PENDING');
  assert.equal(await db.staffRequest.count({where:{userId:'n',kind:'EXTRA_TIME',status:'PENDING'}}),1);
  const recurrence=await ok(g,'/api/team/schedule?from=2026-09-19&to=2026-09-20');assert.equal(recurrence.recurring.length,1);assert.equal(recurrence.recurring[0].id,'g');
- assert.equal((await ok(admin,'/api/team/schedule?from=2026-09-19&to=2026-09-20')).recurring.length,4);
+ assert.equal((await ok(admin,'/api/team/schedule?from=2026-09-19&to=2026-09-20')).recurring.length,10);
  await setTime('2026-09-20T11:00:00+05:30');
  assert.equal((await request(g,'/api/attendance/clock-in','POST',photo)).status,403); // no previous-day approval reuse
  assert.equal((await request(r,'/api/attendance/clock-out','POST',{...photo,extraTimeReason:'Forgot yesterday'})).status,409); // >24h needs correction
- console.log('PASS: exact four-person rollout; arrival window; late reasons/approval and date scope; unchanged other employees; break-adjusted payroll; extra-time reason enforcement and review; overnight clock-out; correction safeguards; audit; employee privacy.');
+ console.log('PASS: all ten schedules and exact account targeting; six fixed deadlines and individual finish cutoffs; arrival window; late reasons/approval and date scope; unchanged other employees; break-adjusted payroll; extra-time reason enforcement and review; overnight clock-out; correction safeguards; audit; employee privacy.');
  console.log('Disposable test files:',dir);
 } catch(e) {console.error(logs.slice(-5000));throw e;}
 finally {if(server)server.kill('SIGTERM');await db.$disconnect();}
