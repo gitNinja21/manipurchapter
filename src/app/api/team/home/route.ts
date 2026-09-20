@@ -19,6 +19,7 @@ export const GET = teamRoute(async (u) => {
       prisma.staffRequest.count({
         where: {
           status: "PENDING",
+          kind: {not:"EXTRA_TIME"},
           ...(u.role === "ADMIN" ? {} : { userId: u.id }),
         },
       }),

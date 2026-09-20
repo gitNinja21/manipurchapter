@@ -1,3 +1,4 @@
+import { attendanceStreaks } from "./attendanceStreaks";
 import { countsForPayroll } from "./attendanceApproval";
 import type { Prisma, User } from "@prisma/client";
 import { prisma } from "./prisma";
@@ -141,64 +142,11 @@ export async function syncMeetings(
     db.scheduledShift.findMany({ where: { userId } }),
     db.managerMeeting.findMany({ where: { userId } }),
   ]);
-  const byDay = new Map(records.map((r) => [r.workDate, r]));
-  const triggers = new Set<string>();
-  if (records.length) {
-    const first = records[0].workDate;
-    const days: string[] = [];
-    for (let t = Date.parse(first); t < Date.parse(today); t += 86400000)
-      days.push(new Date(t).toISOString().slice(0, 10));
-    for (const kind of ["LATE", "EARLY"]) {
-      let streak = 0;
-      let awaiting = false;
-      for (const day of days) {
-        const clears = meetings.filter(
-          (m) =>
-            m.kind === kind && m.status === "CLEARED" && m.clearedDate === day,
-        );
-        if (clears.length) {
-          streak = 0;
-          awaiting = false;
-        }
-        if (
-          offDay(day) ||
-          (user.weeklyScheduleJson && !recurringRule(user, day) && !shifts.some(s => s.workDate === day)) ||
-          leave.some((l) => l.fromDate <= day && l.toDate >= day)
-        )
-          continue;
-        const r = byDay.get(day);
-        if (
-          !r?.scheduledStartAt &&
-          !policyApplies(user, day) &&
-          !shifts.some((s) => s.workDate === day)
-        )
-          continue;
-        const afterMeeting = meetings.some(
-          (m) =>
-            m.kind === kind &&
-            m.status === "CLEARED" &&
-            m.clearedDate &&
-            m.clearedDate < day &&
-            m.clearedDate.slice(0, 7) === day.slice(0, 7),
-        );
-        if (afterMeeting) {
-          streak = 0;
-          continue;
-        }
-        if (awaiting) continue;
-        const d = r ? deviations(r) : { lateMs: 0, earlyMs: 0 };
-        const incident =
-          r &&
-          r.approvalStatus !== "REJECTED" &&
-          (kind === "LATE" ? d.lateMs > 15 * 60000 : d.earlyMs > 0);
-        streak = incident ? streak + 1 : 0;
-        if (streak === 3) {
-          triggers.add(`${kind}:${day}`);
-          awaiting = true;
-        }
-      }
-    }
-  }
+  const {triggers} = attendanceStreaks({
+    user,records,leave,shifts,meetings,
+    from:records[0]?.workDate ?? today,
+    to:new Date(Date.parse(today)-86400000).toISOString().slice(0,10),today,
+  });
   for (const m of meetings.filter((m) => m.status === "PENDING")) {
     if (!triggers.has(`${m.kind}:${m.triggerDate}`)) {
       await db.managerMeeting.update({

@@ -201,7 +201,7 @@ function RequestCard({
       <div className="flex justify-between gap-3">
         <div>
           <h3 className="font-semibold">
-            {r.kind === "LEAVE" ? "Leave" : r.kind === "LATE_ARRIVAL" ? "Late arrival" : r.kind === "SHIFT_CHANGE" ? "Temporary shift change" : r.kind === "EARLY_DEPARTURE" ? "Excused early departure" : r.kind === "EXTRA_TIME" ? "Extra time review" : "Attendance correction"}
+            {r.kind === "LEAVE" ? "Leave" : r.kind === "LATE_ARRIVAL" ? "Late arrival" : r.kind === "SHIFT_CHANGE" ? "Temporary shift change" : r.kind === "EARLY_DEPARTURE" ? "Excused early departure" : r.kind === "EXTRA_TIME" ? "Past extra-time request" : "Attendance correction"}
             {admin ? ` · ${r.user.name}` : ""}
           </h3>
           <p className="text-xs text-foreground/60 mt-1">
@@ -209,7 +209,7 @@ function RequestCard({
             {r.toDate !== r.fromDate ? ` – ${formatWorkDate(r.toDate)}` : ""}
           </p>
         </div>
-        <span className="admin-badge self-start">{r.status}</span>
+        <span className="admin-badge self-start">{r.kind === "EXTRA_TIME" && r.status === "PENDING" ? "RETIRED" : r.status}</span>
       </div>
       <p className="text-sm whitespace-pre-wrap break-words">{r.reason}</p>
       {r.proposedIn && r.proposedOut && (
@@ -225,9 +225,9 @@ function RequestCard({
         </p>
       )}
       {r.kind === "EXTRA_TIME" && r.extraTimeCutoff && <p className="text-sm font-medium">Extra-time threshold: {formatIstDateTime(new Date(r.extraTimeCutoff))}</p>}
-      {r.kind === "EXTRA_TIME" && <p className="text-sm text-foreground/60">{admin ? "Approve to count time after the review threshold. Reject to cap payable time at that threshold while keeping the actual clock-out. The 1-hour break still applies. Review and approve attendance separately afterwards." : "Time after the review threshold counts only if your admin approves it. Your actual clock-out is kept. The 1-hour break still applies, and attendance needs separate approval."}</p>}
+      {r.kind === "EXTRA_TIME" && <p className="text-sm text-foreground/60">Extra-time review has been retired. Eligible extra hours count automatically. Past rejections remain in effect unless attendance is corrected.</p>}
       <ErrorNotice error={action.error} />
-      {r.status === "PENDING" &&
+      {r.status === "PENDING" && r.kind !== "EXTRA_TIME" &&
         (admin ? (
           <div className="space-y-2">
             <label className="block text-sm">

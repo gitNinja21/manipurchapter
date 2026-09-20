@@ -22,6 +22,7 @@ export const GET = teamRoute(async (u, req) => {
   const where = {
     ...(u.role === "ADMIN" ? {} : { userId: u.id }),
     ...(status ? { status } : {}),
+    ...(status === "PENDING" ? {kind:{not:"EXTRA_TIME"}} : {}),
   };
   const [requests, total] = await prisma.$transaction([
     prisma.staffRequest.findMany({

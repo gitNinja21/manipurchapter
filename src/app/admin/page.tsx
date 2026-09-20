@@ -16,9 +16,7 @@ export default async function AdminOverviewPage() {
   const [
     employees,
     stats,
-    pendingCount,
     incompleteCount,
-    pending,
     incomplete,
     signups,
   ] = await Promise.all([
@@ -38,29 +36,10 @@ export default async function AdminOverviewPage() {
     computeStatsForRange(month, today),
     prisma.attendanceRecord.count({
       where: {
-        workDate: { lte: today },
-        clockInAt: { not: null },
-        clockOutAt: { not: null },
-        extraTimeStatus: "PENDING",
-      },
-    }),
-    prisma.attendanceRecord.count({
-      where: {
         workDate: { lt: today },
         clockInAt: { not: null },
         clockOutAt: null,
       },
-    }),
-    prisma.attendanceRecord.findMany({
-      where: {
-        workDate: { lte: today },
-        clockInAt: { not: null },
-        clockOutAt: { not: null },
-        extraTimeStatus: "PENDING",
-      },
-      include: { user: { select: { name: true } } },
-      orderBy: { workDate: "asc" },
-      take: 4,
     }),
     prisma.attendanceRecord.findMany({
       where: {
@@ -127,10 +106,10 @@ export default async function AdminOverviewPage() {
           href="#today-team"
         />
         <MetricCard
-          label="Extra time to review"
-          value={pendingCount}
-          detail="Completed shifts · all dates"
-          href="/admin/team?view=requests"
+          label="Missing clock-outs"
+          value={incompleteCount}
+          detail="Open shifts · past days"
+          href={attendanceLink("INCOMPLETE")}
         />
         <MetricCard
           label="Salary this month"
@@ -143,25 +122,14 @@ export default async function AdminOverviewPage() {
         <div className="flex justify-between gap-3 items-center">
           <h2 className="text-lg font-semibold">Needs attention</h2>
           <span className="admin-badge">
-            {pendingCount + incompleteCount + signups.length} items
+            {incompleteCount + signups.length} items
           </span>
         </div>
         <p className="text-sm text-foreground/60 mt-1 mb-5">
           Review outstanding items before finalising payroll.
         </p>
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 gap-6">
           {[
-            {
-              title: "Extra time to review",
-              count: pendingCount,
-              href: "/admin/team?view=requests",
-              items: pending.map((r) => ({
-                id: r.id,
-                label: r.user.name,
-                detail: formatWorkDate(r.workDate),
-                href: "/admin/team?view=requests",
-              })),
-            },
             {
               title: "Missing clock-outs",
               count: incompleteCount,

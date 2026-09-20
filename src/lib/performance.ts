@@ -36,7 +36,7 @@ export function salaryCredit(r: PolicyRecord) {
     return Math.min(9, actual);
   const { lateMs, earlyMs } = deviations(r);
   const coveredEnd =
-    r.extraTimeCutoff && r.extraTimeStatus !== "APPROVED"
+    r.extraTimeCutoff && r.extraTimeStatus === "REJECTED"
       ? Math.min(+new Date(r.clockOutAt), +new Date(r.extraTimeCutoff))
       : +new Date(r.clockOutAt);
   const endUnapproved = coveredEnd < +new Date(r.scheduledEndAt) && !earlyMs;
@@ -69,8 +69,8 @@ export function attendancePoints(r: PolicyRecord) {
     salaryCredit(r) >= (r.policyVersion === 2 ? regularTarget(r) : 9)
   )
     result.push({ kind: "On-time full shift", points: 0.5 });
-  if ((netWorkMs(r) ?? 0) > 10.5 * HOUR && r.extraTimeStatus === "APPROVED")
-    result.push({ kind: "Approved extra shift", points: 1 });
+  if ((netWorkMs(r) ?? 0) > 10.5 * HOUR && r.extraTimeStatus !== "REJECTED")
+    result.push({ kind: "Extra shift", points: 1 });
   if (
     (r.latePenaltyActive && lateMs > 0) ||
     (r.earlyPenaltyActive && earlyMs > 0)

@@ -2,11 +2,14 @@
 
 Completed shifts now count toward salary and attendance points automatically.
 This includes existing completed PENDING records. Short-hour pay, meeting rules,
-penalties, breaks and extra-time calculations are unchanged. Extra time still
-requires its own review; pending or rejected extra time cannot earn bonus hours.
+penalties, breaks and bonus thresholds are unchanged. Eligible extra time counts
+without review, including previously pending extra time. The clock-out reason is
+optional. Historical rejected extra time remains excluded until attendance is corrected.
 Previously rejected attendance remains excluded. Admins can correct records or
-explicitly exclude/restore a shift with an audited salary preview. No database
-migration is needed; the legacy status column remains for exclusions and history.
+explicitly exclude/restore a shift with an audited salary preview. The extra-time retirement migration archives old
+pending requests and marks their review notifications read, preserving rejected
+and approved decisions and attendance timestamps. It runs through the normal
+`prisma migrate deploy` deployment step. The legacy status columns remain for history.
 
 ## Reminder defaults (Asia/Kolkata)
 

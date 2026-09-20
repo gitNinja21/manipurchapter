@@ -7,7 +7,7 @@ import { APPROVAL_STATUS, countsForPayroll } from "./attendanceApproval";
 // --- Payroll rules ---
 // Version 2 uses actual clocked time including paid breaks, capped at the
 // shift's regular target. Version 0/1 records retain historical calculations.
-// Every eight approved bonus hours earns one nine-hour day; remainders carry.
+// Every eight eligible bonus hours earns one nine-hour day; remainders carry.
 const FULL_DAY_HOURS = 9;
 const OVERTIME_CHUNK_HOURS = 8;
 
@@ -137,7 +137,7 @@ export async function computeStatsForRange(
       (r) => r.approvalStatus === APPROVAL_STATUS.REJECTED,
     ).length;
 
-    // Completion automatically enables regular pay; extra time retains its own gate.
+    // Completion automatically enables regular pay; eligible extra time counts automatically.
     const totalHours = complete
       .filter(countsForPayroll)
       .reduce(

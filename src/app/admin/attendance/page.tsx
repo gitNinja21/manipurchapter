@@ -227,7 +227,7 @@ export default function AdminAttendancePage() {
                       {r.clockOutAt && !offDay(r.workDate) && <p className="text-xs font-normal">{salaryCredit(r).toFixed(2)} salary hours {r.approvalStatus === "REJECTED" ? "excluded" : "credited"}</p>}
                       {!!r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">{r.unpaidBreakMinutes}m break deducted</p>}
                         {r.policyVersion === 2 && !r.unpaidBreakMinutes && <p className="text-xs font-normal">60m paid break · included in pay</p>}
-                      {r.extraTimeStatus !== "NOT_REQUIRED" && r.extraTimeCutoff && <a className="text-xs text-brand underline block" href="/admin/team?view=requests">Extra time: {r.extraTimeStatus}</a>}
+                      {r.extraTimeCutoff && r.clockOutAt && new Date(r.clockOutAt) > new Date(r.extraTimeCutoff) && <p className="text-xs">{r.extraTimeStatus === "REJECTED" ? "Previously rejected extra time excluded" : "Eligible extra hours counted automatically"}</p>}
                       {r.extraTimeReason && <p className="text-xs max-w-48 whitespace-pre-wrap">{r.extraTimeReason}</p>}
                     </td>
                     <td className="px-4 py-4">
@@ -305,7 +305,7 @@ export default function AdminAttendancePage() {
         </div>
       </div>
       <p className="text-xs text-foreground/60">
-        Completed shifts count automatically toward hours and salary, unless explicitly excluded. Extra time still needs review.
+        Completed shifts count automatically toward hours and salary, unless explicitly excluded. Eligible extra hours count automatically.
         Attendance decisions and deletions are recorded in Audit history.
       </p>
       {lightbox && (

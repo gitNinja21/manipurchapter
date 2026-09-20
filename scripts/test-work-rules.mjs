@@ -90,7 +90,7 @@ try {
  const legacy=(await ok(other,'/api/attendance/clock-in','POST',photo)).record;
  assert.equal(legacy.unpaidBreakMinutes,0);assert.equal(legacy.extraTimeCutoff,new Date('2026-09-19T19:31:00+05:30').toISOString());
  assert.equal((await request(other,'/api/team/requests','POST',{kind:'LATE_ARRIVAL',fromDate:'2026-09-20',reason:'Not covered'})).status,400);
- for (const [id,code,start,end,net] of additional) {
+ for (const [id,code,start] of additional) {
    const cookie=await login(code);
    const startDate=new Date(`2026-09-19T${start}:00+05:30`);
    await setTime(new Date(+startDate+60000).toISOString());
@@ -101,9 +101,6 @@ try {
    assert.equal(clocked.unpaidBreakMinutes,0);
    const endDate=new Date(+startDate + 9*3600000);
    assert.equal(clocked.extraTimeCutoff,endDate.toISOString());
-   await setTime(new Date(+endDate+1000).toISOString());
-   const blocked=await request(cookie,'/api/attendance/clock-out','POST',photo);
-   assert.equal(blocked.data.code,'EXTRA_TIME_REASON_REQUIRED');
    await setTime(endDate.toISOString());
    await ok(cookie,'/api/attendance/clock-out','POST',photo);
    await ok(admin,`/api/admin/attendance/${clocked.id}`,'PATCH',{approvalStatus:'APPROVED'});
@@ -118,39 +115,38 @@ try {
  let stats=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats;
  assert.equal(stats.find(s=>s.userId==='n').totalHours,8);
  assert.equal(stats.find(s=>s.userId==='n').regularPayRs,900);
- await setTime('2026-09-19T22:30:01+05:30');
- assert.equal((await request(g,'/api/attendance/clock-out','POST',photo)).data.code,'EXTRA_TIME_REASON_REQUIRED');
- assert.equal((await db.attendanceRecord.findUnique({where:{id:gr.id}})).clockOutAt,null);
  await setTime('2026-09-19T23:30:00+05:30');
- await ok(g,'/api/attendance/clock-out','POST',{...photo,extraTimeReason:'Served the last table'});
- let extra=await db.staffRequest.findFirst({where:{userId:'g',kind:'EXTRA_TIME',status:'PENDING'}});
- assert.ok(extra);
- assert.equal((await request(g,`/api/team/requests/${extra.id}`,'PATCH',{status:'CANCELLED'})).status,409);
- assert.equal((await request(admin,`/api/admin/attendance/${gr.id}`,'PATCH',{approvalStatus:'APPROVED'})).status,200);
- assert.equal((await request(admin,`/api/admin/attendance/${gr.id}/preview?status=APPROVED`)).status,200);
- await ok(admin,`/api/team/requests/${extra.id}`,'PATCH',{status:'REJECTED',reviewNote:'Extra time not authorised'});
- await ok(admin,`/api/admin/attendance/${gr.id}`,'PATCH',{approvalStatus:'APPROVED'});
+ assert.equal((await request(g,'/api/attendance/clock-out','POST',{...photo,extraTimeReason:'x'.repeat(1001)})).status,400);
+ const automatic=(await ok(g,'/api/attendance/clock-out','POST',{...photo,extraTimeReason:'   '})).record;
+ assert.equal(automatic.extraTimeReason,null);
+ assert.equal(automatic.extraTimeStatus,'AUTOMATIC');
+ assert.equal(await db.staffRequest.count({where:{userId:'g',kind:'EXTRA_TIME'}}),0);
+ const retired=await db.staffRequest.create({data:{userId:'g',kind:'EXTRA_TIME',fromDate:'2026-09-19',toDate:'2026-09-19',reason:'Old pending review',expectedRecordId:gr.id}});
+ assert.equal((await request(admin,`/api/team/requests/${retired.id}`,'PATCH',{status:'APPROVED'})).status,410);
+ assert.equal((await request(g,`/api/team/requests/${retired.id}`,'PATCH',{status:'CANCELLED'})).status,410);
+ assert.ok(!(await ok(admin,'/api/team/requests?status=PENDING')).requests.some(r=>r.id===retired.id));
  stats=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats;
- assert.equal(stats.find(s=>s.userId==='g').totalHours,8);
- assert.equal(stats.find(s=>s.userId==='g').overtimeHours,0);
+ assert.equal(stats.find(s=>s.userId==='g').totalHours,13);
+ assert.equal(stats.find(s=>s.userId==='g').overtimeHours,5);
  assert.equal((await db.attendanceRecord.findUnique({where:{id:gr.id}})).clockOutAt.toISOString(),new Date('2026-09-19T23:30:00+05:30').toISOString());
  // Overnight clock-out remains attached to the original work date.
  await setTime('2026-09-20T00:30:00+05:30');
  assert.equal((await ok(h,'/api/attendance/today')).record.workDate,'2026-09-19');
- const hr=(await ok(h,'/api/attendance/clock-out','POST',{...photo,extraTimeReason:'Closing and cleaning after late guests'})).record;
- extra=await db.staffRequest.findFirst({where:{userId:'h',kind:'EXTRA_TIME',status:'PENDING'}});
- await ok(admin,`/api/team/requests/${extra.id}`,'PATCH',{status:'APPROVED'});
+ const hr=(await ok(h,'/api/attendance/clock-out','POST',{...photo,extraTimeReason:' x '})).record;
+ assert.equal(hr.extraTimeReason,'x');
+ assert.equal(hr.extraTimeStatus,'AUTOMATIC');
  await ok(admin,`/api/admin/attendance/${hr.id}`,'PATCH',{approvalStatus:'APPROVED'});
  stats=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats;
  assert.equal(stats.find(s=>s.userId==='h').totalHours,14);
  assert.equal(stats.find(s=>s.userId==='h').overtimeHours,6);
- assert.equal(await db.attendanceAudit.count({where:{action:{in:['EXTRA_TIME_APPROVED','EXTRA_TIME_REJECTED']}}}),2);
- // Corrections cannot silently bypass break and after-hours review.
+ assert.equal(await db.attendanceAudit.count({where:{action:{in:['EXTRA_TIME_APPROVED','EXTRA_TIME_REJECTED']}}}),0);
+ // Corrections retain breaks and recalculate extra time automatically.
+ await db.staffRequest.create({data:{userId:'n',kind:'EXTRA_TIME',fromDate:'2026-09-19',toDate:'2026-09-19',reason:'Obsolete pending review',expectedRecordId:nr.id}});
  const correction=(await ok(n,'/api/team/requests','POST',{kind:'CORRECTION',fromDate:'2026-09-19',reason:'Actual leaving time was later',proposedIn:'2026-09-19T09:30:00+05:30',proposedOut:'2026-09-19T23:00:00+05:30'})).request;
  await ok(admin,`/api/team/requests/${correction.id}`,'PATCH',{status:'APPROVED'});
  const corrected=await db.attendanceRecord.findUnique({where:{id:nr.id}});
- assert.equal(corrected.unpaidBreakMinutes,0);assert.equal(corrected.extraTimeStatus,'PENDING');assert.equal(corrected.approvalStatus,'PENDING');
- assert.equal(await db.staffRequest.count({where:{userId:'n',kind:'EXTRA_TIME',status:'PENDING'}}),1);
+ assert.equal(corrected.unpaidBreakMinutes,0);assert.equal(corrected.extraTimeStatus,'AUTOMATIC');assert.equal(corrected.approvalStatus,'PENDING');
+ assert.equal(await db.staffRequest.count({where:{userId:'n',kind:'EXTRA_TIME',status:'PENDING'}}),0);
  const recurrence=await ok(g,'/api/team/schedule?from=2026-09-19&to=2026-09-20');assert.equal(recurrence.recurring.length,1);assert.equal(recurrence.recurring[0].id,'g');
  assert.equal((await ok(admin,'/api/team/schedule?from=2026-09-19&to=2026-09-20')).recurring.length,13);
  await setTime('2026-09-20T11:00:00+05:30');
@@ -188,12 +184,7 @@ try {
    const rec=(await ok(toki,'/api/attendance/clock-in','POST',photo)).record;
    assert.equal(rec.shiftDurationMinutes,duration);assert.equal(rec.unpaidBreakMinutes,breakMin);
    await setTime(`${day}T${end}:00+05:30`);
-   if(bonus) assert.equal((await request(toki,'/api/attendance/clock-out','POST',photo)).data.code,'EXTRA_TIME_REASON_REQUIRED');
-   await ok(toki,'/api/attendance/clock-out','POST',{...photo,extraTimeReason:'Serving additional guests'});
-   if(bonus) {
-     const review=await db.staffRequest.findFirst({where:{userId:tokiId,kind:'EXTRA_TIME',fromDate:day,status:'PENDING'}});
-     await ok(admin,`/api/team/requests/${review.id}`,'PATCH',{status:'APPROVED'});
-   }
+   await ok(toki,'/api/attendance/clock-out','POST',photo);
    await ok(admin,`/api/admin/attendance/${rec.id}`,'PATCH',{approvalStatus:'APPROVED'});
    const earnings=(await ok(admin,`/api/admin/stats?from=${day}&to=${day}`)).stats.find(x=>x.userId===tokiId);
    assert.equal(earnings.regularPayRs,pay);assert.equal(earnings.overtimeHours,bonus);
@@ -203,7 +194,7 @@ try {
  assert.ok(tokiPerf.entries.some(x=>x.date==='2026-09-25' && x.points===0.5));
  const tokiStats=(await ok(admin,'/api/admin/stats?from=2026-09-21&to=2026-09-27')).stats.find(x=>x.userId===tokiId);
  assert.equal(tokiStats.offDaysPayRs,0);assert.equal(tokiStats.missedDays,0);
- console.log('PASS: all thirteen schedules and exact account targeting; rolling finishes; arrival window; late reasons/approval and date scope; paid breaks and prorated clock-time payroll; Tokili Friday/weekend pay, points and early departures; extra-time reason enforcement and review; overnight clock-out; correction safeguards; audit; employee privacy.');
+ console.log('PASS: all thirteen schedules and exact account targeting; rolling finishes; arrival window; late reasons/approval and date scope; paid breaks and prorated clock-time payroll; Tokili Friday/weekend pay, points and early departures; automatic extra-time accounting without reasons or review; overnight clock-out; correction safeguards; audit; employee privacy.');
  console.log('Disposable test files:',dir);
 } catch(e) {console.error(logs.slice(-5000));throw e;}
 finally {if(server)server.kill('SIGTERM');await db.$disconnect();}

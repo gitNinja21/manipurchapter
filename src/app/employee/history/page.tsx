@@ -74,7 +74,8 @@ export default function HistoryPage() {
                         {r.clockOutAt && !offDay(r.workDate) && <p className="text-xs font-normal">{salaryCredit(r).toFixed(2)} salary hours {r.approvalStatus === "REJECTED" ? "excluded" : "credited"}</p>}
                         {!!r.unpaidBreakMinutes && <p className="text-xs font-normal">{r.unpaidBreakMinutes}m break deducted</p>}
                         {r.policyVersion === 2 && !r.unpaidBreakMinutes && <p className="text-xs font-normal">60m paid break · included in pay</p>}
-                        {r.extraTimeStatus !== "NOT_REQUIRED" && r.extraTimeCutoff && <p className="text-xs font-normal">Extra time: {r.extraTimeStatus}</p>}
+                        {r.extraTimeCutoff && r.clockOutAt && new Date(r.clockOutAt) > new Date(r.extraTimeCutoff) && <p className="text-xs">{r.extraTimeStatus === "REJECTED" ? "Previously rejected extra time excluded" : "Eligible extra hours counted automatically"}</p>}
+                        {r.extraTimeReason && <p className="text-xs whitespace-pre-wrap">Reason: {r.extraTimeReason}</p>}
                       </td>
                       <td className="px-4 py-2.5">
                         <ApprovalStatusBadge status={outAt ? r.approvalStatus : null} />
@@ -86,7 +87,7 @@ export default function HistoryPage() {
             </table>
           </div>
           <p className="text-xs text-foreground/40">
-            Completed shifts count toward pay automatically. Short hours still reduce pay; extra time counts after review.
+            Completed shifts count toward pay automatically. Short hours still reduce pay; eligible extra hours count automatically.
           </p>
         </>
       )}

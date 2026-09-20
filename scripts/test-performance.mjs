@@ -219,9 +219,8 @@ try {
     const rec = (await ok(cookie, "/api/attendance/clock-in", "POST", photo))
       .record;
     await setTime(at(day, end));
-    const out = (await ok(cookie, "/api/attendance/clock-out", "POST", {...photo,extraTimeReason:"Approved additional service"}))
+    const out = (await ok(cookie, "/api/attendance/clock-out", "POST", photo))
       .record;
-    if(out.extraTimeStatus === "PENDING") { const review=await db.staffRequest.findFirst({where:{userId:out.userId,kind:"EXTRA_TIME",fromDate:day,status:"PENDING"}}); await ok(admin,`/api/team/requests/${review.id}`,"PATCH",{status:"APPROVED"}); }
     // No separate approval: completed attendance already pays and earns points.
     assert.ok(rec.id);
     return out;
@@ -254,6 +253,21 @@ try {
   );
   assert.equal(late.kind, "LATE");
   assert.equal(early.kind, "EARLY");
+  // Date-wise tracking is admin-only, keeps streak lookback across the selected range,
+  // and shows arrival attempts held for a manager meeting without calling them absent.
+  assert.equal((await request(angai,"/api/team/attendance-tracking?from=2026-09-22&to=2026-09-23")).status,403);
+  assert.equal((await request(admin,"/api/team/attendance-tracking?from=2020-01-01&to=2026-09-23")).status,400);
+  const tracking=await ok(admin,"/api/team/attendance-tracking?from=2026-09-22&to=2026-09-23");
+  const lateRow=tracking.rows.find(r=>r.userId===additional[0][0] && r.date==="2026-09-22");
+  const earlyRow=tracking.rows.find(r=>r.userId===additional[1][0] && r.date==="2026-09-22");
+  assert.equal(lateRow.lateStreak,3);assert.equal(lateRow.lateTalk,"PENDING");
+  assert.equal(earlyRow.earlyStreak,3);assert.equal(earlyRow.earlyTalk,"PENDING");
+  const heldArrival=tracking.rows.find(r=>r.userId===additional[0][0] && r.date==="2026-09-23");
+  assert.equal(heldArrival.status,"Awaiting manager clearance");assert.ok(heldArrival.arrivalAt);
+  assert.ok(tracking.pendingMeetings.some(m=>m.id===late.id));
+  assert.ok(tracking.rows.every(r=>r.date>="2026-09-22" && r.date<="2026-09-23"));
+  assert.ok(tracking.employees.every(e=>!("passwordHash" in e)));assert.ok(tracking.rows.every(r=>!("clockInPhoto" in r)));
+
   assert.equal(
     (
       await request(angai, "/api/team/performance", "PATCH", {
@@ -403,35 +417,10 @@ try {
     extra.extraTimeCutoff,
     new Date(at("2026-09-26", "18:30")).toISOString(),
   );
-  await setTime(at("2026-09-26", "21:01"));
-  assert.equal(
-    (await request(g, "/api/attendance/clock-out", "POST", photo)).data.code,
-    "EXTRA_TIME_REASON_REQUIRED",
-  );
   await setTime(at("2026-09-26", "22:30"));
-  await ok(g, "/api/attendance/clock-out", "POST", {
-    ...photo,
-    extraTimeReason: "Closing tables and cleaning",
-  });
-  assert.equal(
-    (
-      await request(admin, `/api/admin/attendance/${extra.id}`, "PATCH", {
-        approvalStatus: "APPROVED",
-      })
-    ).status,
-    200,
-  );
-  const extraReq = await db.staffRequest.findFirst({
-    where: {
-      expectedRecordId: extra.id,
-      kind: "EXTRA_TIME",
-      status: "PENDING",
-    },
-  });
-  await ok(admin, `/api/team/requests/${extraReq.id}`, "PATCH", {
-    status: "APPROVED",
-  });
-  await approve(extra.id);
+  const automaticExtra=(await ok(g,"/api/attendance/clock-out","POST",photo)).record;
+  assert.equal(automaticExtra.extraTimeStatus,"AUTOMATIC");
+  assert.equal(await db.staffRequest.count({where:{expectedRecordId:extra.id,kind:"EXTRA_TIME"}}),0);
   const extraPoints = (await ok(g, "/api/team/performance?month=2026-09"))
     .entries;
   assert.equal(
@@ -565,7 +554,7 @@ try {
     badRecord.scheduledEndAt.toISOString(),
   );
   assert.equal(corrected.approvalStatus, "PENDING");
-  assert.equal(corrected.extraTimeStatus, "PENDING");
+  assert.equal(corrected.extraTimeStatus, "AUTOMATIC");
   assert.equal(
     (await db.managerMeeting.findUnique({ where: { id: falseFlag.id } }))
       .status,
@@ -629,7 +618,7 @@ try {
   assert.equal((await request(admin,manualPath,"POST",close)).status,409);
   const current=(await ok(admin,`${manualPath}?userId=${targetId}&workDate=2026-10-01`)).record;
   const overtime=(await ok(admin,manualPath,"POST",{...close,expectedUpdatedAt:current.updatedAt,clockOutAt:at("2026-10-01","21:00"),reason:"Correct leaving time; stayed to finish serving a table"})).record;
-  assert.equal(overtime.extraTimeStatus,"PENDING");assert.equal(overtime.approvalStatus,"PENDING");
+  assert.equal(overtime.extraTimeStatus,"AUTOMATIC");assert.equal(overtime.approvalStatus,"PENDING");
   assert.equal((await request(admin,`/api/admin/attendance/${overtime.id}`,"PATCH",{approvalStatus:"APPROVED"})).status,200);
   const audit = await db.attendanceAudit.findMany({where:{recordId:entered.id,action:{in:["ADMIN_TIME_ENTRY","ADMIN_TIME_CORRECTION"]}}});
   assert.equal(audit.length,3);assert.ok(audit.every(a=>JSON.parse(a.afterJson).correctionReason));

@@ -4,6 +4,7 @@ import Chat from "./Chat";
 import Birthdays from "./Birthdays";
 import Schedule from "./Schedule";
 import Requests from "./Requests";
+import AttendanceTracking from "./AttendanceTracking";
 import Performance from "./Performance";
 export default function TeamWorkspace({ admin }: { admin: boolean }) {
   const params = useSearchParams(),
@@ -11,7 +12,7 @@ export default function TeamWorkspace({ admin }: { admin: boolean }) {
     path = usePathname();
   const view = params.get("view") || "chat";
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-semibold">Team space</h1>
         <p className="text-sm text-foreground/60 mt-2">
@@ -25,6 +26,7 @@ export default function TeamWorkspace({ admin }: { admin: boolean }) {
           ["schedule", "Schedule"],
           ["requests", "Requests"],
           ["performance", "Points & attendance"],
+          ...(admin ? [["attendance", "Attendance tracking"]] : []),
         ].map(([id, label]) => (
           <button
             key={id}
@@ -36,7 +38,7 @@ export default function TeamWorkspace({ admin }: { admin: boolean }) {
           </button>
         ))}
       </nav>
-      {view === "performance" ? (<Performance admin={admin}/>) : view === "birthdays" ? (
+      {view === "attendance" && admin ? (<AttendanceTracking />) : view === "performance" ? (<Performance admin={admin}/>) : view === "birthdays" ? (
         <Birthdays />
       ) : view === "schedule" ? (
         <Schedule admin={admin} />

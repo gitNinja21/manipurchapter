@@ -1,4 +1,5 @@
 "use client";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { api, useAction, useTeamData } from "./useTeamData";
 import { ErrorNotice } from "./TeamCommon";
@@ -76,7 +77,8 @@ export default function Performance({ admin }: { admin: boolean }) {
     `/api/team/performance?month=${month}`,
     30000,
   );
-  const [employeeId, setEmployeeId] = useState("");
+  const params = useSearchParams();
+  const [employeeId, setEmployeeId] = useState(params.get("employeeId") || "");
   const visible = (id: string) => !employeeId || id === employeeId;
   const action = useAction(reload);
   const name = (id: string) =>
@@ -87,7 +89,7 @@ export default function Performance({ admin }: { admin: boolean }) {
         <h2 className="text-xl font-semibold">Attendance & monthly points</h2>
         <p className="text-sm text-foreground/60 mt-1">
           Pay follows actual clocked time. Time beyond the required shift becomes
-          bonus hours after review. Attendance points update automatically on completion; referrals still need approval.
+          bonus hours automatically. Attendance points update automatically on completion; referrals still need approval.
         </p>
       </div>
       <label className="block text-sm max-w-xs">
@@ -169,7 +171,7 @@ export default function Performance({ admin }: { admin: boolean }) {
             Pay follows actual clocked time, including the paid break, up to 9 hours.
             Complete 9 hours from actual clock-in to avoid early departure.
             Friday part-time shifts require 7 clock hours and pay 6 hours after the break.
-            Approved time beyond the required duration becomes bonus hours.
+            Eligible time beyond the required duration becomes bonus hours.
           </p>
           <p>
             Three consecutive working days more than 15 minutes late, or three
@@ -184,9 +186,8 @@ export default function Performance({ admin }: { admin: boolean }) {
             must be approved.
           </p>
           <p>
-            +0.5 for an on-time completed shift; +1 for approved actual work
-            exceeding 10½ hours; +3 for an approved customer referral. Overtime
-            needs a reason after completing the required clock hours. Every 8 approved bonus hours earns another
+            +0.5 for an on-time completed shift; +1 for actual work
+            exceeding 10½ hours; +3 for an approved customer referral. Eligible overtime counts automatically after clock-out. Every 8 bonus hours earns another
             9-hour day’s pay.
           </p>
           <p>

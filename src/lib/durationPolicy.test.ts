@@ -32,10 +32,10 @@ test("Friday part-time: seven clock hours, six paid, bonus after seven; points f
   assert.equal(deviations({...r,clockOutAt:at("19:00")}).earlyMs,HOUR);
   assert.equal(overtimeMs({...r,clockOutAt:at("21:00")}),HOUR);
 });
-test("pending/rejected overtime stays excluded; corrections recalculate finish from snapshot", () => {
+test("pending overtime counts automatically; historical rejections remain excluded; corrections preserve duration", () => {
   const r=record("10:00","20:00");
   for (const status of ["PENDING","REJECTED"]) {
-    assert.equal(overtimeMs({...r,extraTimeStatus:status}),0);
+    assert.equal(overtimeMs({...r,extraTimeStatus:status}),status === "REJECTED" ? 0 : HOUR);
     assert.equal(salaryCredit({...r,extraTimeStatus:status}),9);
   }
   const corrected=durationSnapshot(at("11:00"),{...schedule,durationMinutes:420},r);
@@ -47,4 +47,17 @@ test("weekly rules skip unassigned days and preserve Friday duration", () => {
   assert.equal(recurringRule(u,"2026-09-18")?.duration,420);
   assert.equal(recurringRule(u,"2026-09-19")?.duration,540);
   assert.equal(recurringRule(u,"2026-09-20"),null);
+});
+
+test("automatic extra-time points retain the 10.5 net-hour threshold and never double count",()=>{
+  for(const status of ["PENDING","AUTOMATIC","APPROVED","NOT_REQUIRED"]) {
+    const r={...record("10:00","21:30"),extraTimeStatus:status};
+    assert.equal(attendancePoints(r).filter(p=>p.kind==="Extra shift").length,0);
+    const longer={...r,clockOutAt:new Date(+at("21:30")+1000)};
+    assert.equal(attendancePoints(longer).filter(p=>p.kind==="Extra shift").length,1);
+    assert.equal(attendancePoints(longer).find(p=>p.kind==="Extra shift")?.points,1);
+    assert.equal(salaryCredit(longer),9);
+    assert.ok(overtimeMs(longer)>2.5*HOUR);
+    assert.deepEqual(attendancePoints({...longer,approvalStatus:"REJECTED"}),[]);
+  }
 });

@@ -104,7 +104,7 @@ model AttendanceRecord {
   // Snapshots prevent future policy changes from rewriting historical payroll.
   unpaidBreakMinutes Int @default(60)
   extraTimeCutoff DateTime?
-  extraTimeStatus String @default("NOT_REQUIRED")
+  extraTimeStatus String @default("NOT_REQUIRED") // AUTOMATIC for new extra time; legacy REJECTED remains excluded
   extraTimeReason String?
   lateArrivalRequestId String?
   policyVersion Int @default(0)

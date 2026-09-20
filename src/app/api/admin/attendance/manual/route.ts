@@ -16,7 +16,7 @@ import {
   policyAudit,
 } from "@/lib/performanceServer";
 import { extraCutoff, durationSnapshot } from "@/lib/performance";
-import { requestExtraTime } from "@/lib/workPolicyServer";
+import { retireExtraTimeRequests } from "@/lib/workPolicyServer";
 import { auditData } from "@/lib/attendanceAudit";
 
 export const GET = teamRoute(async (u, req) => {
@@ -185,7 +185,7 @@ export const POST = teamRoute(async (u, req) => {
         exceptions.some((r) => r.kind === "EARLY_DEPARTURE"),
       ...(v2 ?? {}),
       extraTimeCutoff: cutoff,
-      extraTimeStatus: needsExtra ? "PENDING" : "NOT_REQUIRED",
+      extraTimeStatus: needsExtra ? "AUTOMATIC" : "NOT_REQUIRED",
       extraTimeReason: needsExtra ? reason : null,
       approvalStatus: "PENDING",
     };
@@ -218,20 +218,7 @@ export const POST = teamRoute(async (u, req) => {
         }),
       },
     });
-    if (needsExtra) await requestExtraTime(tx, after, employee.name, reason);
-    else
-      await tx.staffRequest.updateMany({
-        where: {
-          userId,
-          kind: "EXTRA_TIME",
-          fromDate: workDate,
-          status: "PENDING",
-        },
-        data: {
-          status: "CANCELLED",
-          reviewNote: "Superseded by administrator time correction.",
-        },
-      });
+    await retireExtraTimeRequests(tx, userId, workDate);
     await syncMeetings(tx, userId);
     await notify(
       tx,

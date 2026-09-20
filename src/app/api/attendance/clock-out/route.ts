@@ -1,5 +1,3 @@
-import { formatIstTime } from "@/lib/time";
-import { requestExtraTime } from "@/lib/workPolicyServer";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -53,11 +51,11 @@ export async function POST(req: NextRequest) {
   if (+now - +existing.clockInAt > 24 * 3600000) {
     return NextResponse.json({error: "This shift is over 24 hours old. Submit an attendance correction with your actual leaving time."}, {status: 409});
   }
-  const needsExtraReview = !!existing.extraTimeCutoff && now > existing.extraTimeCutoff;
-  const extraTimeReason = typeof body.extraTimeReason === "string" ? body.extraTimeReason.trim() : "";
-  if (needsExtraReview && (extraTimeReason.length < 3 || extraTimeReason.length > 1000)) {
-    return NextResponse.json({error: `You are clocking out after your extra-time review threshold (${formatIstTime(existing.extraTimeCutoff)} IST). Explain why you worked later (3–1000 characters). This extra time needs admin approval.`, code: "EXTRA_TIME_REASON_REQUIRED"}, {status: 400});
+  if (body.extraTimeReason !== undefined && (typeof body.extraTimeReason !== "string" || body.extraTimeReason.trim().length > 1000)) {
+    return NextResponse.json({error:"The optional reason must be text, up to 1000 characters."},{status:400});
   }
+  const extraTimeReason = body.extraTimeReason?.trim() || null;
+  const hasExtraTime = !!existing.extraTimeCutoff && now > existing.extraTimeCutoff;
 
   // Location gate — a no-op unless RESTAURANT_LAT/RESTAURANT_LNG are set.
   // Checked before the face match so an off-site clock-out gets a clear,
@@ -119,14 +117,13 @@ export async function POST(req: NextRequest) {
         clockOutPhoto: photoKey,
         clockOutFaceMatch: faceMatch,
         clockOutFaceDistance: faceDistance,
-        extraTimeReason: needsExtraReview ? extraTimeReason : null,
-        extraTimeStatus: needsExtraReview ? "PENDING" : "NOT_REQUIRED",
+        extraTimeReason,
+        extraTimeStatus: hasExtraTime ? "AUTOMATIC" : "NOT_REQUIRED",
         approvalStatus: "PENDING",
       },
     });
     if (!changed.count) return null;
     const result = await tx.attendanceRecord.findUniqueOrThrow({where: {id: existing.id}});
-    if (needsExtraReview) await requestExtraTime(tx, result, user.name, extraTimeReason);
     return result;
   });
   if (!record) return NextResponse.json({error: "This shift changed. Refresh before trying again."}, {status: 409});

@@ -155,11 +155,11 @@ test("payroll uses net hours, keeps old records unchanged and awards exact bonus
   assert.equal(s.overtimeHours, 4);
 });
 
-test("duration policy pays clock hours, carries approved bonus blocks, and preserves old records", async (t) => {
+test("duration policy pays clock hours, carries automatic bonus blocks, and preserves old records", async (t) => {
   const users = prisma.user.findMany, attendance = prisma.attendanceRecord.findMany;
   t.after(() => { prisma.user.findMany = users; prisma.attendanceRecord.findMany = attendance; });
   prisma.user.findMany = (async () => [{id:"v2",name:"Test",employeeCode:"TEST",hourlyRateRs:100,active:true,createdAt:new Date("2020-01-01T00:00:00Z")} as User]) as typeof prisma.user.findMany;
-  const row = (date: string, end: string, extraTimeStatus="APPROVED") => ({
+  const row = (date: string, end: string, extraTimeStatus="AUTOMATIC") => ({
     id:date,userId:"v2",workDate:date,clockInAt:new Date(`${date}T10:00:00+05:30`),clockOutAt:new Date(`${date}T${end}:00+05:30`),
     policyVersion:2,shiftDurationMinutes:540,unpaidBreakMinutes:0,
     extraTimeCutoff:new Date(`${date}T19:00:00+05:30`),extraTimeStatus,approvalStatus:"APPROVED",
@@ -172,7 +172,7 @@ test("duration policy pays clock hours, carries approved bonus blocks, and prese
   assert.equal(s.regularPayRs,900);assert.equal(s.overtimeHours,0);assert.equal(s.totalHours,8);
 });
 
-test("completed pending shifts pay automatically, retain short-hour deductions, and never include pending extra time", async t => {
+test("completed pending shifts and extra hours count automatically, retaining short-hour deductions and exclusions", async t => {
   const users=prisma.user.findMany, attendance=prisma.attendanceRecord.findMany;
   t.after(()=>{prisma.user.findMany=users;prisma.attendanceRecord.findMany=attendance;});
   prisma.user.findMany=(async()=>[{id:"a",name:"Employee",employeeCode:"A",createdAt:new Date("2020-01-01"),hourlyRateRs:100,active:true} as User]) as typeof users;
@@ -184,7 +184,7 @@ test("completed pending shifts pay automatically, retain short-hour deductions, 
   assert.equal(s.regularPayRs,850);assert.equal(s.pendingApprovalDays,0);
   records=[{...record,clockOutAt:at("01","22:00"),extraTimeStatus:"PENDING"}];
   [s]=await computeStatsForRange("2020-09-01","2020-09-01");
-  assert.equal(s.regularPayRs,900);assert.equal(s.overtimeHours,0);
+  assert.equal(s.regularPayRs,900);assert.equal(s.overtimeHours,3);
   records=[{...records[0],extraTimeStatus:"APPROVED"}];
   [s]=await computeStatsForRange("2020-09-01","2020-09-01");assert.equal(s.overtimeHours,3);
   records=[{...record,approvalStatus:"REJECTED"}];

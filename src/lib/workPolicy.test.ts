@@ -12,7 +12,7 @@ test("arrival window uses IST and includes the whole 10:30 minute", () => {
   assert.equal(policyApplies({attendancePolicyFrom: "2026-09-19"}, "2026-09-19"), true);
   assert.equal(policyApplies({}, "2026-09-19"), false);
 });
-test("net hours deduct a break exactly once, cap unapproved extra time and handle midnight", () => {
+test("net hours deduct a break exactly once, preserve rejected extra-time caps and handle midnight", () => {
   const shift = {clockInAt: new Date("2026-09-19T09:30:00+05:30"), clockOutAt: new Date("2026-09-19T19:00:00+05:30"), unpaidBreakMinutes: 60};
   assert.equal(netWorkHours(shift), 8.5);
   assert.equal(netWorkHours({...shift, clockOutAt: new Date("2026-09-19T19:30:00+05:30")}), 9);
@@ -20,7 +20,7 @@ test("net hours deduct a break exactly once, cap unapproved extra time and handl
   assert.equal(netWorkHours({...shift, clockOutAt: new Date("2026-09-19T10:00:00+05:30")}), 0);
   assert.equal(netWorkHours({...shift, clockOutAt: null}), null);
   const overnight = {...shift, clockOutAt: new Date("2026-09-20T00:30:00+05:30"), extraTimeCutoff: policyTimes("2026-09-19").closesAt};
-  assert.equal(netWorkHours({...overnight, extraTimeStatus: "PENDING"}), 12);
+  assert.equal(netWorkHours({...overnight, extraTimeStatus: "PENDING"}), 14);
   assert.equal(netWorkHours({...overnight, extraTimeStatus: "REJECTED"}), 12);
   assert.equal(netWorkHours({...overnight, extraTimeStatus: "APPROVED"}), 14);
   assert.equal(netWorkMs({...shift, clockOutAt: new Date("2026-09-19T19:29:59+05:30")}), 9*3600000-1000);

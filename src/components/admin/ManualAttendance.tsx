@@ -123,7 +123,7 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
               });
               setLoaded(false);
               setMessage(
-                "Attendance saved. Completed shifts count automatically; review extra time if requested. An open shift can be clocked out normally by the employee.",
+                "Attendance saved. Completed shifts and eligible extra hours count automatically. An open shift can be clocked out normally by the employee.",
               );
               onSaved();
             });
@@ -190,7 +190,7 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
           </label>
           <p className="text-sm text-foreground/60">
             Saving updates payroll automatically. Breaks, scheduled hours
-            and extra-time review still apply.
+            and the usual bonus-hour rules still apply.
           </p>
           <button className="admin-button" disabled={action.busy}>
             Save actual attendance times

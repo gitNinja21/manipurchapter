@@ -143,7 +143,7 @@ export default function EmployeeClockPage() {
           descriptor,
           lat: coordsRef.current?.lat,
           lng: coordsRef.current?.lng,
-          extraTimeReason,
+          ...(action === "out" ? {extraTimeReason} : {}),
         }),
       });
       const data = await res.json();
@@ -160,6 +160,7 @@ export default function EmployeeClockPage() {
       );
       setMode("idle");
       setAction(null);
+      setExtraTimeReason("");
       refresh();
     } catch {
       setError("Could not reach the server. Please try again.");
@@ -183,13 +184,13 @@ export default function EmployeeClockPage() {
       </div>
 
       <Link className="text-brand underline block" href="/employee/team?view=performance">My points, attendance incidents and manager clearance</Link>
-      {!policy && <p className="text-sm text-foreground/60">{arrival === "OFF" ? "No shift is scheduled today. Ask your admin to assign a shift if you are working." : "Complete 9 hours from clock-in, including a one-hour paid break. Approved time beyond 9 hours goes to your bonus balance."}</p>}
-      {record && record.policyVersion !== 2 && <p className="text-sm text-accent">This attendance record uses the previous pay policy. Its saved break and extra-time cutoff still apply. The updated duration policy applies to new shifts.</p>}
+      {!policy && <p className="text-sm text-foreground/60">{arrival === "OFF" ? "No shift is scheduled today. Ask your admin to assign a shift if you are working." : "Complete 9 hours from clock-in, including a one-hour paid break. Eligible time beyond 9 hours goes to your bonus balance."}</p>}
+      {record && record.policyVersion !== 2 && <p className="text-sm text-accent">This attendance record uses the previous pay policy. Its saved break still applies. Previously rejected extra time remains excluded. The updated duration policy applies to new shifts.</p>}
       {policy && (!record || record.policyVersion === 2) && (
         <section className="admin-panel p-4 space-y-2 text-sm">
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>
           <p>{schedule?.fixed ? "Scheduled start:" : "Clock-in window:"} {schedule?.arrival} IST. Complete {schedule?.durationHours} hours from actual clock-in, including a 1-hour {schedule?.unpaidBreakMinutes ? "unpaid" : "paid"} break. Pay follows recorded time; missing hours are not topped up.</p>
-          <p>Clock out when you actually leave. Required finish: {schedule?.finish}. Leaving before completing the shift is an early departure. Staying longer requires a reason and admin approval for bonus hours.</p>
+          <p>Clock out when you actually leave. Required finish: {schedule?.finish}. Leaving before completing the shift is an early departure. Eligible time beyond your required finish adds to bonus hours automatically.</p>
           {schedule?.allowEarly && <p>You may clock in early. Your required finish moves with your actual clock-in.</p>}
           {!hasClockedIn && arrival === "EARLY" && <p>Clock-in opens at {schedule?.opening}.</p>}
           {!hasClockedIn && lateStatus && <p>Today’s late-arrival request: <strong>{lateStatus}</strong>.</p>}
@@ -197,14 +198,13 @@ export default function EmployeeClockPage() {
           {!hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Clock in when you arrive. More than 15 minutes late is an incident; after three consecutive incidents, manager clearance is required. After that meeting, further late arrivals receive negative points. Pay follows clocked time without a second deduction.</p>}
         </section>
       )}
-      {record?.clockInAt && !record.clockOutAt && record.extraTimeCutoff && mode !== "submitting" && (
+      {record?.clockInAt && !record.clockOutAt && mode !== "submitting" && (
         <label className="admin-panel p-4 block text-sm">
-          Extra-time reason after {formatIstTime(new Date(record.extraTimeCutoff))} (required for a late clock-out)
-          <textarea className="input mt-2" rows={3} maxLength={1000} value={extraTimeReason} onChange={e => setExtraTimeReason(e.target.value)} placeholder="For example: finishing a late table’s service" />
-          <span className="block text-xs text-foreground/60 mt-2">Applies to your shift starting {record.workDate}. Time after that threshold stays excluded until admin approval.</span>
+          Reason (optional)
+          <textarea className="input mt-2" rows={3} maxLength={1000} value={extraTimeReason} onChange={e => setExtraTimeReason(e.target.value)} placeholder="Add a note about your clock-out, if needed" />
+          <span className="block text-xs text-foreground/60 mt-2">You can leave this blank. Eligible extra hours and points count automatically.</span>
         </label>
       )}
-      {record?.extraTimeStatus === "PENDING" && <p className="text-sm text-accent">Clock-out saved. Your extra-time reason is awaiting admin review in Team → Requests.</p>}
       {loading ? (
         <div className="bg-surface border border-border rounded-2xl p-8 text-center text-sm text-foreground/50">
           Loading…
