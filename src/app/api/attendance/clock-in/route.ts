@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   const workDate = todayWorkDate();
   const schedule = await effectiveSchedule(prisma, user, workDate);
   if (user.weeklyScheduleJson && !schedule) return NextResponse.json({error: "You have no scheduled shift today. Ask your admin to assign one."}, {status: 403});
-  if (schedule && now < schedule.opens) return NextResponse.json({error: "Your arrival window has not opened yet."}, {status: 403});
+  if (schedule && now < schedule.opens) return NextResponse.json({error: "Clock-in opens 15 minutes before your scheduled start. For an earlier start, submit a shift-change request at least the previous day in IST and obtain approval."}, {status: 403});
   const leave = await prisma.staffRequest.findFirst({where: {userId: user.id, kind: "LEAVE", status: "APPROVED", fromDate: {lte: workDate}, toDate: {gte: workDate}}});
   if (leave) return NextResponse.json({error: "You have approved leave today. Ask your manager to resolve this before clock-in."}, {status: 409});
   const open = await prisma.attendanceRecord.findFirst({where: {userId: user.id, clockInAt: {not: null}, clockOutAt: null}});

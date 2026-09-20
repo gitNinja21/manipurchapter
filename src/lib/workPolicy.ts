@@ -20,16 +20,16 @@ export function scheduleLabels(schedule: PolicySchedule = {}) {
   return {
     arrival: start === latest ? minuteLabel(start) : `${minuteLabel(start)}–${minuteLabel(latest)}`,
     latest: minuteLabel(latest),
-    opening: minuteLabel(start),
+    opening: minuteLabel(Math.max(0, start - 15)),
     finish: minuteLabel(schedule.attendanceEndMinute ?? 1350),
     fixed: start === latest,
-    allowEarly: schedule.attendanceAllowEarly ?? false,
+    allowEarly: true,
   };
 }
 export function policyTimes(date: string, schedule: PolicySchedule = {}) {
   const midnight = +new Date(`${date}T00:00:00+05:30`);
   return {
-    opensAt: new Date(midnight + (schedule.attendanceAllowEarly ? 0 : schedule.attendanceStartMinute ?? 570) * 60000),
+    opensAt: new Date(midnight + Math.max(0, (schedule.attendanceStartMinute ?? 570) - 15) * 60000),
     // Include the entire displayed deadline minute.
     lateAt: new Date(midnight + ((schedule.attendanceLatestMinute ?? 630) + 1) * 60000),
     closesAt: new Date(midnight + (schedule.attendanceEndMinute ?? 1350) * 60000),

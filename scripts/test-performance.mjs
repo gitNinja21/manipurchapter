@@ -684,6 +684,41 @@ try {
   assert.ok(!html.includes("faceDescriptor"));
   assert.deepEqual(await snapshot(), beforePreview);
   console.log("PASS: admin dashboard parity, employee isolation, admin-only access, invalid targets, no credential/photo exposure, GET-only preview and unchanged employee state/session.");
+  // Clock-in opens exactly 15 minutes early, including approved dated shifts.
+  await db.user.create({data:{id:"early-window",employeeCode:"EARLYWINDOW",name:"Test Early Window",role:"EMPLOYEE",passwordHash,active:true,approved:true,mustChangePassword:false,faceDescriptor:JSON.stringify(photo.descriptor),attendancePolicyFrom:"2026-10-01",attendanceStartMinute:780,attendanceLatestMinute:780,attendanceAllowEarly:true,createdAt:new Date("2026-09-01T00:00:00Z")}});
+  const earlyCookie = await login("EARLYWINDOW");
+  await setTime("2026-10-01T12:44:59.999+05:30");
+  assert.equal((await request(earlyCookie,"/api/attendance/clock-in","POST",photo)).status,403);
+  assert.equal((await ok(earlyCookie,"/api/attendance/today")).schedule.opening,"12:45 pm");
+  const earlyRequest = day => ({kind:"SHIFT_CHANGE",fromDate:day,proposedIn:at(day,"12:00"),proposedOut:at(day,"21:00"),reason:"Preparing for a booked group"});
+  await setTime(at("2026-10-01","09:00"));
+  assert.equal((await request(earlyCookie,"/api/team/requests","POST",earlyRequest("2026-10-01"))).status,400);
+  // A pre-existing same-day request also cannot be approved to bypass the notice rule.
+  const oldRequest = await db.staffRequest.create({data:{userId:"early-window",...earlyRequest("2026-10-01"),toDate:"2026-10-01",proposedIn:new Date(at("2026-10-01","12:00")),proposedOut:new Date(at("2026-10-01","21:00")),createdAt:new Date(at("2026-10-01","08:00"))}});
+  assert.equal((await request(admin,`/api/team/requests/${oldRequest.id}`,"PATCH",{status:"APPROVED"})).status,400);
+  await setTime(at("2026-10-01","12:45"));
+  const earlyRecord = (await ok(earlyCookie,"/api/attendance/clock-in","POST",photo)).record;
+  assert.equal(earlyRecord.scheduledEndAt,new Date(at("2026-10-01","21:45")).toISOString());
+  await setTime(at("2026-10-01","21:45"));
+  await ok(earlyCookie,"/api/attendance/clock-out","POST",photo);
+  await setTime("2026-10-01T23:59:00+05:30");
+  const advance = (await ok(earlyCookie,"/api/team/requests","POST",earlyRequest("2026-10-02"))).request;
+  await setTime(at("2026-10-02","11:45"));
+  assert.equal((await request(earlyCookie,"/api/attendance/clock-in","POST",photo)).status,403); // pending is not permission
+  assert.equal((await request(earlyCookie,`/api/team/requests/${advance.id}`,"PATCH",{status:"APPROVED"})).status,403);
+  await ok(admin,`/api/team/requests/${advance.id}`,"PATCH",{status:"APPROVED"});
+  assert.equal((await ok(earlyCookie,"/api/attendance/today")).schedule.opening,"11:45 am");
+  await setTime("2026-10-02T11:44:59.999+05:30");
+  assert.equal((await request(earlyCookie,"/api/attendance/clock-in","POST",photo)).status,403);
+  await setTime(at("2026-10-02","11:45"));
+  await ok(earlyCookie,"/api/attendance/clock-in","POST",photo);
+  await setTime(at("2026-10-02","20:45"));
+  await ok(earlyCookie,"/api/attendance/clock-out","POST",photo);
+  const rejectedEarly = (await ok(earlyCookie,"/api/team/requests","POST",earlyRequest("2026-10-03"))).request;
+  await ok(admin,`/api/team/requests/${rejectedEarly.id}`,"PATCH",{status:"REJECTED"});
+  await setTime(at("2026-10-03","11:45"));
+  assert.equal((await request(earlyCookie,"/api/attendance/clock-in","POST",photo)).status,403);
+  console.log("PASS: exact 15-minute clock-in boundary, rolling finish, previous-IST-day early-start notice, approval-time revalidation, pending/rejected requests blocked, employee self-approval blocked and approved dated-shift boundary.");
   console.log("Disposable test files:", dir);
   if (process.env.KEEP_TEST_SERVER === "1") {
     console.log("Test server retained for browser checks at " + base);

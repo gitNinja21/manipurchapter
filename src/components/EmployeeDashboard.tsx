@@ -202,7 +202,8 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>
           <p>{schedule?.fixed ? "Scheduled start:" : "Clock-in window:"} {schedule?.arrival} IST. Complete {schedule?.durationHours} hours from actual clock-in, including a 1-hour {schedule?.unpaidBreakMinutes ? "unpaid" : "paid"} break. Pay follows recorded time; missing hours are not topped up.</p>
           <p>Clock out when you actually leave. Required finish: {schedule?.finish}. Leaving before completing the shift is an early departure. Eligible time beyond your required finish adds to bonus hours automatically.</p>
-          {schedule?.allowEarly && <p>You may clock in early. Your required finish moves with your actual clock-in.</p>}
+          <p>Clock-in opens at {schedule?.opening} IST, up to 15 minutes before your scheduled start (or the beginning of your arrival window). For an earlier start, submit a shift-change request at least the previous day in IST and get admin approval. Your required finish moves with your actual clock-in.</p>
+          {!preview && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=SHIFT_CHANGE">Request an earlier start / shift change</Link>}
           {!hasClockedIn && arrival === "EARLY" && <p>Clock-in opens at {schedule?.opening}.</p>}
           {!hasClockedIn && lateStatus && <p>Today’s late-arrival request: <strong>{lateStatus}</strong>.</p>}
           {!hasClockedIn && !preview && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request an excused late arrival</Link>}

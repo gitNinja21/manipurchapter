@@ -22,7 +22,7 @@ export default function Requests({ admin }: { admin: boolean }) {
   const params = useSearchParams();
   const [page, setPage] = useState(1),
     [filter, setFilter] = useState(admin ? "PENDING" : ""),
-    [kind, setKind] = useState(params.get("kind") === "LATE_ARRIVAL" ? "LATE_ARRIVAL" : "LEAVE"),
+    [kind, setKind] = useState(["LATE_ARRIVAL", "SHIFT_CHANGE"].includes(params.get("kind") ?? "") ? params.get("kind")! : "LEAVE"),
     [from, setFrom] = useState(todayWorkDate()),
     [to, setTo] = useState(todayWorkDate()),
     [reason, setReason] = useState(""),
@@ -41,11 +41,11 @@ export default function Requests({ admin }: { admin: boolean }) {
         </h2>
         <p className="text-sm text-foreground/60 mt-1">
           Leave approvals update the calendar, not pay. Accepted corrections
-          return the shift to attendance review.
+          recalculate attendance and pay automatically.
         </p>
       </div>
       {!admin && (
-        <details className="admin-panel p-5" open={params.get("kind") === "LATE_ARRIVAL" || undefined}>
+        <details className="admin-panel p-5" open={["LATE_ARRIVAL", "SHIFT_CHANGE"].includes(params.get("kind") ?? "") || undefined}>
           <summary className="font-medium cursor-pointer">
             Submit a request
           </summary>
@@ -82,7 +82,7 @@ export default function Requests({ admin }: { admin: boolean }) {
                 <option value="CORRECTION">Attendance correction</option>
                 <option value="LATE_ARRIVAL">Excused late arrival</option>
                 <option value="EARLY_DEPARTURE">Excused early departure</option>
-                <option value="SHIFT_CHANGE">Temporary shift change (one day)</option>
+                <option value="SHIFT_CHANGE">Earlier start / temporary shift change (one day)</option>
               </select>
             </label>
             <div className="grid sm:grid-cols-2 gap-3">
@@ -134,7 +134,7 @@ export default function Requests({ admin }: { admin: boolean }) {
                 </label>
               </div>
             )}
-            {kind === "SHIFT_CHANGE" && <p className="text-sm text-foreground/60">Only an approved request changes your shift for this date. Approval must happen before the new start and before any arrival is recorded. Use a 9-hour interval including the paid break, or 7 hours for Tokili on Friday. Required finish is measured from actual clock-in.</p>}
+            {kind === "SHIFT_CHANGE" && <p className="text-sm text-foreground/60">Normal clock-in opens 15 minutes before your start. To start earlier, submit this request at least the previous calendar day in IST. Only an approved request changes your shift for this date. Approval must happen before the new start and before any arrival is recorded. Use a 9-hour interval including the paid break, or 7 hours for Tokili on Friday. Required finish is measured from actual clock-in.</p>}
             {kind === "LATE_ARRIVAL" && <p className="text-sm text-foreground/60">Explain why you will be late or are late. Approval excuses the lateness for the selected date only. You must still clock in with your location and selfie; submitting this request does not start paid time.</p>}
             <label className="block text-sm">
               Reason

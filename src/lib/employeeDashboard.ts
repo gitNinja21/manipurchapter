@@ -23,7 +23,7 @@ export async function getAttendanceToday(user: User) {
     arrival: !override && rule && rule.start !== rule.latest ? `${minuteLabel(rule.start)}–${minuteLabel(rule.latest)}` : formatIstTime(schedule.start),
     latest: formatIstTime(schedule.start), opening: formatIstTime(schedule.opens),
     finish: record?.scheduledEndAt ? formatIstTime(record.scheduledEndAt) : `${schedule.durationMinutes / 60} hours after clock-in`,
-    fixed: !!override || rule?.start === rule?.latest, allowEarly: !!override || user.attendanceAllowEarly,
+    fixed: !!override || rule?.start === rule?.latest, allowEarly: true,
     durationHours: schedule.durationMinutes / 60, unpaidBreakMinutes: schedule.breakMinutes,
   } : null;
   return {record, policy: !!schedule, schedule: labels,

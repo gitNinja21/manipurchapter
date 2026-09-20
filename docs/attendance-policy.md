@@ -151,3 +151,7 @@ check salary hours/regular pay rather than changing times to inflate net hours.
 Dinjana's weekend entry deadline is noon. Required finish remains nine hours from
 actual clock-in (12:00 → 21:00). Weekdays retain 11:30 entry. Paid Monday status is
 stored separately from weekday-specific schedules so her paid off-day remains.
+
+## Early clock-in
+
+Clock-in opens 15 minutes before the scheduled start (or the beginning of a recurring arrival window), never before midnight of the work date. This applies to recurring and dated shifts, regardless of the legacy `attendanceAllowEarly` flag. Earlier starts require an employee shift-change request submitted on a previous IST calendar day and approved before arrival. Approval changes that day's scheduled start; the same 15-minute window applies to the approved schedule. Admins retain authority to assign shifts directly. Existing recorded times and rolling required finishes are unchanged.

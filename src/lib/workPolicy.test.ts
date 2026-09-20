@@ -4,8 +4,8 @@ import { arrivalState, netWorkHours, netWorkMs, policyApplies, policyTimes, sche
 
 test("arrival window uses IST and includes the whole 10:30 minute", () => {
   const at = (time: string) => new Date(`2026-09-19T${time}+05:30`);
-  assert.equal(arrivalState(at("09:29:59")), "EARLY");
-  assert.equal(arrivalState(at("09:30:00")), "ON_TIME");
+  assert.equal(arrivalState(at("09:14:59")), "EARLY");
+  assert.equal(arrivalState(at("09:15:00")), "ON_TIME");
   assert.equal(arrivalState(at("10:30:59")), "ON_TIME");
   assert.equal(arrivalState(at("10:31:00")), "LATE");
   assert.equal(policyApplies({attendancePolicyFrom: "2026-09-19"}, "2026-09-18"), false);
@@ -37,7 +37,10 @@ test("six fixed schedules keep their own arrival deadlines, finish and net pay h
     assert.equal(arrivalState(new Date(+startAt+60000), "2026-09-19", schedule), "LATE");
     assert.equal(netWorkHours({clockInAt: startAt, clockOutAt: times.closesAt, unpaidBreakMinutes: 60}), hours);
     assert.equal(scheduleLabels(schedule).fixed, true);
-    assert.equal(arrivalState(new Date(+startAt-1000), "2026-09-19", {...schedule, attendanceAllowEarly: false}), "EARLY");
+    for (const attendanceAllowEarly of [true, false]) {
+      assert.equal(arrivalState(new Date(+startAt - 15 * 60000), "2026-09-19", {...schedule, attendanceAllowEarly}), "ON_TIME");
+      assert.equal(arrivalState(new Date(+startAt - 15 * 60000 - 1), "2026-09-19", {...schedule, attendanceAllowEarly}), "EARLY");
+    }
   }
   assert.equal(scheduleLabels({attendanceStartMinute: 750, attendanceLatestMinute: 750}).arrival, "12:30 pm");
 });

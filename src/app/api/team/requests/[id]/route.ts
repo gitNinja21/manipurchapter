@@ -1,4 +1,4 @@
-import { effectiveSchedule, validateShift, policyAudit, penaltyContext, syncMeetings } from "@/lib/performanceServer";
+import { effectiveSchedule, validateShift, assertEarlyStartNotice, policyAudit, penaltyContext, syncMeetings } from "@/lib/performanceServer";
 import { extraCutoff, durationSnapshot } from "@/lib/performance";
 import { retireExtraTimeRequests } from "@/lib/workPolicyServer";
 import { prisma } from "@/lib/prisma";
@@ -61,6 +61,7 @@ export const PATCH = teamRoute(async (u, req) => {
       );
     if (status === "APPROVED" && r.kind === "SHIFT_CHANGE") {
       if (!r.proposedIn || !r.proposedOut) throw new TeamError("Shift times are missing.");
+      await assertEarlyStartNotice(tx, r.userId, r.fromDate, r.proposedIn, r.createdAt);
       await validateShift(tx, r.userId, r.fromDate, r.proposedIn, r.proposedOut);
       const before = await tx.scheduledShift.findUnique({where: {userId_workDate: {userId: r.userId, workDate: r.fromDate}}});
       const after = await tx.scheduledShift.upsert({where: {userId_workDate: {userId: r.userId, workDate: r.fromDate}},
