@@ -646,6 +646,44 @@ try {
   console.log(
     "PASS: full-shift pay, late/early streaks, Monday skip, manager authority, arrival protection, monthly reset, pending rollover, exact deductions, temporary shifts, actual overtime, approval idempotency, referral dedup/reversal, correction/rejection cleanup, audit and privacy.",
   );
+  // Admin preview uses the same employee data, without impersonation or write effects.
+  const previewPath = `/api/admin/employee-dashboard?employeeId=${targetId}`;
+  assert.equal((await request(dinjana, previewPath)).status, 403);
+  assert.equal((await request("", previewPath)).status, 403);
+  assert.equal((await request(admin, "/api/admin/employee-dashboard")).status, 400);
+  assert.equal((await request(admin, previewPath + "&section=invalid")).status, 400);
+  assert.equal((await request(admin, "/api/admin/employee-dashboard?employeeId=missing")).status, 404);
+  assert.equal((await request(admin, "/api/admin/employee-dashboard?employeeId=admin")).status, 404);
+  const snapshot = async () => ({
+    user: await db.user.findUnique({where:{id:targetId}}),
+    attendance: await db.attendanceRecord.findMany({where:{userId:targetId},orderBy:{id:"asc"}}),
+    notifications: await db.notification.findMany({where:{userId:targetId},orderBy:{id:"asc"}}),
+    requests: await db.staffRequest.findMany({where:{userId:targetId},orderBy:{id:"asc"}}),
+  });
+  const beforePreview = await snapshot();
+  const employeeToday = await ok(dinjana, "/api/attendance/today");
+  const previewToday = await ok(admin, previewPath);
+  for (const field of ["clockInAt", "clockOutAt", "workDate", "extraTimeStatus"])
+    assert.equal(previewToday.record[field], employeeToday.record[field]);
+  assert.deepEqual(previewToday.schedule, employeeToday.schedule);
+  assert.equal(previewToday.arrivalState, employeeToday.arrivalState);
+  assert.deepEqual(await ok(admin, previewPath + "&section=home"), await ok(dinjana, "/api/team/home"));
+  const otherPreview = await ok(admin, "/api/admin/employee-dashboard?employeeId=h");
+  assert.notEqual(otherPreview.record.clockInAt, previewToday.record.clockInAt);
+  const serializedPreview = JSON.stringify(previewToday);
+  for (const field of ["passwordHash", "faceDescriptor", "clockInPhoto", "clockInLat"])
+    assert.ok(!serializedPreview.includes(field));
+  const response = await fetch(base + previewPath, {headers:{cookie:admin}});
+  assert.equal(response.headers.get("set-cookie"), null);
+  assert.equal((await fetch(base + previewPath, {method:"POST",headers:{cookie:admin}})).status, 405);
+  const previewPage = await fetch(base + `/admin/employee-dashboard?employeeId=${targetId}`, {headers:{cookie:admin}});
+  assert.equal(previewPage.status, 200);
+  const html = await previewPage.text();
+  assert.ok(html.includes("Read only"));
+  assert.ok(html.includes("Test DINJANA"));
+  assert.ok(!html.includes("faceDescriptor"));
+  assert.deepEqual(await snapshot(), beforePreview);
+  console.log("PASS: admin dashboard parity, employee isolation, admin-only access, invalid targets, no credential/photo exposure, GET-only preview and unchanged employee state/session.");
   console.log("Disposable test files:", dir);
   if (process.env.KEEP_TEST_SERVER === "1") {
     console.log("Test server retained for browser checks at " + base);

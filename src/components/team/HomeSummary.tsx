@@ -23,9 +23,9 @@ type Home = {
   nextShift: null | { startsAt: string; endsAt: string; note: string };
   birthdays: { id: string; name: string; nextDate: string; shared: boolean }[];
 };
-export default function HomeSummary({ admin = false }: { admin?: boolean }) {
-  const { data, error } = useTeamData<Home>("/api/team/home", 30000);
-  const root = admin ? "/admin" : "/employee";
+export default function HomeSummary({ admin = false, previewEmployeeId }: { admin?: boolean; previewEmployeeId?: string }) {
+  const { data, error } = useTeamData<Home>(previewEmployeeId ? `/api/admin/employee-dashboard?employeeId=${encodeURIComponent(previewEmployeeId)}&section=home` : "/api/team/home", 30000);
+  const root = admin || previewEmployeeId ? "/admin" : "/employee";
   return (
     <div className="space-y-4">
       <ErrorNotice error={error} />
