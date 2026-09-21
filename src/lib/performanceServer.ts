@@ -226,7 +226,7 @@ export async function penaltyContext(db: Db, userId: string, date: string) {
 }
 export async function monthlyPerformance(month: string, userId?: string) {
   const where = userId ? { userId } : {};
-  const [records, referrals] = await Promise.all([
+  const [records, referrals, customerReviews] = await Promise.all([
     prisma.attendanceRecord.findMany({
       where: { ...where, workDate: { startsWith: month } },
       orderBy: { workDate: "desc" },
@@ -234,6 +234,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
     prisma.referralClaim.findMany({
       where: { ...where, billDate: { startsWith: month }, status: "APPROVED" },
     }),
+    prisma.customerReview.findMany({where:{...where,workDate:{startsWith:month}}}),
   ]);
   const entries = records.flatMap((r) =>
     attendancePoints(r).map((p, i) => ({
@@ -252,6 +253,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
       points: 3,
     })),
   );
+  entries.push(...customerReviews.map(r => ({id:`review:${r.id}`,userId:r.userId,date:r.workDate,kind:`Customer review · ${r.totalStars}/25 stars`,points:r.points})));
   const totals = new Map<
     string,
     { points: number; eligibleShifts: number; pointsPerShift: number }
@@ -282,10 +284,12 @@ export async function monthlyPerformance(month: string, userId?: string) {
     t.points += e.points;
     totals.set(e.userId, t);
   }
-  for (const t of totals.values())
+  for (const t of totals.values()) {
+    t.points = Math.round(t.points * 100) / 100;
     t.pointsPerShift = t.eligibleShifts
       ? Math.round((t.points / t.eligibleShifts) * 100) / 100
       : 0;
+  }
   return {
     entries,
     totals,

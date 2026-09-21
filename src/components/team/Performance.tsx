@@ -89,7 +89,7 @@ export default function Performance({ admin }: { admin: boolean }) {
         <h2 className="text-xl font-semibold">Attendance & monthly points</h2>
         <p className="text-sm text-foreground/60 mt-1">
           Pay follows actual clocked time. Time beyond the required shift becomes
-          bonus hours automatically. Attendance points update automatically on completion; referrals still need approval.
+          bonus hours automatically. Attendance points update automatically on completion; customer reviews add points immediately and referrals still need approval.
         </p>
       </div>
       <label className="block text-sm max-w-xs">

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import Link from "next/link";
 import LoginForm from "@/components/LoginForm";
 
 export default async function LandingPage() {
@@ -56,6 +57,7 @@ export default async function LandingPage() {
             </div>
             <div className="bg-surface rounded-2xl border border-border shadow-sm p-6 sm:p-7">
               <LoginForm />
+              <Link className="block text-center text-brand underline text-sm mt-6" href="/review">Customer? Rate your service</Link>
             </div>
           </div>
         </div>
