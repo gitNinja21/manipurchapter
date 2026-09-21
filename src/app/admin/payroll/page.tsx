@@ -1,4 +1,5 @@
 "use client";
+import { durationLabel } from "@/lib/attendanceTime";
 import { Fragment, useEffect, useState } from "react";
 import Link from "next/link";
 import type { EmployeeStats } from "@/lib/stats";
@@ -260,7 +261,7 @@ export default function PayrollPage() {
                     </td>
                     <td className="px-5 py-4 tabular-nums">{paidDays(s)}</td>
                     <td className="px-5 py-4 tabular-nums">
-                      {s.overtimeHours.toFixed(2)} h
+                      {durationLabel(s.overtimeHours*3600000)}
                       <span className="block text-xs text-foreground/55">
                         In this period
                       </span>
@@ -268,7 +269,7 @@ export default function PayrollPage() {
                     <td className="px-5 py-4">
                       <span className="font-medium">{s.bonusDays} earned</span>
                       <span className="block text-xs text-foreground/60 mt-1">
-                        {s.overtimeBalanceHours.toFixed(2)} / 8 h toward next
+                        {durationLabel(s.overtimeBalanceHours*3600000)} / 8h toward next
                       </span>
                       <progress
                         className="w-28 h-1.5 accent-brand"
@@ -323,7 +324,7 @@ export default function PayrollPage() {
                               {money(s.dailyRateRs)}/day
                             </p>
                             <p>
-                              {s.totalHours.toFixed(2)} counted hours ·{" "}
+                              {durationLabel(s.totalHours*3600000)} counted time ·{" "}
                               {s.fullDaysWorked} full shifts
                             </p>
                             <p>
@@ -332,7 +333,7 @@ export default function PayrollPage() {
                             </p>
                             <p>
                               At the period end:{" "}
-                              {s.overtimeBalanceHours.toFixed(2)} hours carried
+                              {durationLabel(s.overtimeBalanceHours*3600000)} carried
                               toward the next bonus day.
                             </p>
                             <Link

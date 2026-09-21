@@ -108,6 +108,8 @@ model AttendanceRecord {
   unpaidBreakMinutes Int @default(60)
   extraTimeCutoff DateTime?
   extraTimeStatus String @default("NOT_REQUIRED") // AUTOMATIC for new extra time; legacy REJECTED remains excluded
+  lateClockOutCutoff DateTime?
+  lateClockOutStatus String @default("NOT_REQUIRED") // PENDING or REJECTED caps only time after 22:45 IST
   extraTimeReason String?
   lateArrivalRequestId String?
   policyVersion Int @default(0)

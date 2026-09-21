@@ -12,14 +12,7 @@ type Home = {
   requests: number;
   unread: number;
   chatUnread: number;
-  summary: null | {
-    totalHours: number;
-    overtimeHours: number;
-    bonusDays: number;
-    overtimeBalanceHours: number;
-    pendingApprovalDays: number;
-    fullDaysWorked: number;
-  };
+  summary: null | {clockedMinutes: number; completedShifts: number};
   nextShift: null | { startsAt: string; endsAt: string; note: string };
   birthdays: { id: string; name: string; nextDate: string; shared: boolean }[];
 };
@@ -85,31 +78,8 @@ export default function HomeSummary({ admin = false, previewEmployeeId }: { admi
           {data.summary && (
             <div className="admin-panel p-5 space-y-3">
               <h2 className="font-semibold">Your attendance this month</h2>
-              <p className="text-xs text-foreground/60">
-                {formatWorkDate(data.month)} – {formatWorkDate(data.today)} ·
-                completed work
-              </p>
-              <dl className="grid grid-cols-2 gap-4 text-sm">
-                {[
-                  ["Net hours worked", data.summary.totalHours],
-                  ["Extra hours this month", data.summary.overtimeHours],
-                  ["Bonus days earned", data.summary.bonusDays],
-                ].map(([label, value]) => (
-                  <div key={label}>
-                    <dt className="text-foreground/60">{label}</dt>
-                    <dd className="text-xl font-semibold mt-1">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="text-sm">
-                {data.summary.overtimeBalanceHours.toFixed(2)} / 8 hours toward
-                your next bonus day
-              </p>
-              <progress
-                className="w-full accent-brand"
-                max="8"
-                value={data.summary.overtimeBalanceHours}
-              />
+              <p className="text-xs text-foreground/60">{formatWorkDate(data.month)} – {formatWorkDate(data.today)}</p>
+              <p className="text-sm">{data.summary.completedShifts} completed shifts · {Math.floor(data.summary.clockedMinutes/60)}h {data.summary.clockedMinutes%60}m clocked</p>
             </div>
           )}
           <div className="admin-panel p-5">

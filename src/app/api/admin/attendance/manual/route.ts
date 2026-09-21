@@ -1,3 +1,4 @@
+import { lateClockOutRule } from "@/lib/attendanceTime";
 import { prisma } from "@/lib/prisma";
 import {
   teamRoute,
@@ -186,6 +187,7 @@ export const POST = teamRoute(async (u, req) => {
       ...(v2 ?? {}),
       extraTimeCutoff: cutoff,
       extraTimeStatus: needsExtra ? "AUTOMATIC" : "NOT_REQUIRED",
+      ...lateClockOutRule(workDate, clockOutAt, true),
       extraTimeReason: needsExtra ? reason : null,
       approvalStatus: "PENDING",
     };

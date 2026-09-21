@@ -14,6 +14,8 @@ export function auditData(
       unpaidBreakMinutes: r.unpaidBreakMinutes,
       extraTimeCutoff: r.extraTimeCutoff,
       extraTimeStatus: r.extraTimeStatus,
+      lateClockOutCutoff: r.lateClockOutCutoff,
+      lateClockOutStatus: r.lateClockOutStatus,
       extraTimeReason: r.extraTimeReason,
       lateArrivalRequestId: r.lateArrivalRequestId,
       policyVersion: r.policyVersion,

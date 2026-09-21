@@ -1,3 +1,5 @@
+import { lateClockOutRule } from "@/lib/attendanceTime";
+import { notify } from "@/lib/team";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -113,6 +115,7 @@ export async function POST(req: NextRequest) {
       where: { id: existing.id, clockOutAt: null, updatedAt: existing.updatedAt },
       data: {
         clockOutAt: now,
+        ...lateClockOutRule(existing.workDate, now),
         earlyExcused: existing.earlyExcused || !!exception,
         clockOutPhoto: photoKey,
         clockOutFaceMatch: faceMatch,
@@ -124,6 +127,11 @@ export async function POST(req: NextRequest) {
     });
     if (!changed.count) return null;
     const result = await tx.attendanceRecord.findUniqueOrThrow({where: {id: existing.id}});
+    if (result.lateClockOutStatus === "PENDING") {
+      const request = await tx.staffRequest.create({data:{userId:user.id,kind:"LATE_CLOCK_OUT",fromDate:existing.workDate,toDate:existing.workDate,reason:extraTimeReason || "Clocked out after 10:45 pm IST. Admin approval is required for the time after 10:45 pm.",proposedIn:existing.clockInAt,proposedOut:now,expectedRecordId:result.id,expectedUpdatedAt:result.updatedAt}});
+      const admins = await tx.user.findMany({where:{role:"ADMIN",active:true},select:{id:true,role:true}});
+      await notify(tx,admins,"REQUEST",request.id,`${user.name}: clock-out after 10:45 pm needs approval`,"team?view=requests");
+    }
     return result;
   });
   if (!record) return NextResponse.json({error: "This shift changed. Refresh before trying again."}, {status: 409});

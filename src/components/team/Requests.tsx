@@ -40,8 +40,7 @@ export default function Requests({ admin }: { admin: boolean }) {
           {admin ? "Team requests" : "My requests"}
         </h2>
         <p className="text-sm text-foreground/60 mt-1">
-          Leave approvals update the calendar, not pay. Accepted corrections
-          recalculate attendance and pay automatically.
+          Leave approvals update the calendar. Accepted corrections update attendance. Clock-outs after 10:45 pm need admin review.
         </p>
       </div>
       {!admin && (
@@ -201,7 +200,7 @@ function RequestCard({
       <div className="flex justify-between gap-3">
         <div>
           <h3 className="font-semibold">
-            {r.kind === "LEAVE" ? "Leave" : r.kind === "LATE_ARRIVAL" ? "Late arrival" : r.kind === "SHIFT_CHANGE" ? "Temporary shift change" : r.kind === "EARLY_DEPARTURE" ? "Excused early departure" : r.kind === "EXTRA_TIME" ? "Past extra-time request" : "Attendance correction"}
+            {r.kind === "LEAVE" ? "Leave" : r.kind === "LATE_ARRIVAL" ? "Late arrival" : r.kind === "SHIFT_CHANGE" ? "Temporary shift change" : r.kind === "EARLY_DEPARTURE" ? "Excused early departure" : r.kind === "LATE_CLOCK_OUT" ? "Clock-out after 10:45 pm" : r.kind === "EXTRA_TIME" ? "Past extra-time request" : "Attendance correction"}
             {admin ? ` · ${r.user.name}` : ""}
           </h3>
           <p className="text-xs text-foreground/60 mt-1">
@@ -218,6 +217,7 @@ function RequestCard({
           {formatIstDateTime(new Date(r.proposedOut))}
         </p>
       )}
+      {r.kind === "LATE_CLOCK_OUT" && <p className="text-sm text-foreground/60">Only time after 10:45 pm IST needs approval. The actual clock-out stays recorded. Earlier time is unaffected by this decision.</p>}
       {r.reviewedBy && (
         <p className="text-xs text-foreground/60">
           Reviewed by {r.reviewedBy}
@@ -265,7 +265,7 @@ function RequestCard({
               </p>
             )}
           </div>
-        ) : r.kind !== "EXTRA_TIME" ? (
+        ) : r.kind !== "EXTRA_TIME" && r.kind !== "LATE_CLOCK_OUT" ? (
           <button
             className="admin-button"
             disabled={action.busy}

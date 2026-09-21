@@ -719,6 +719,34 @@ try {
   await setTime(at("2026-10-03","11:45"));
   assert.equal((await request(earlyCookie,"/api/attendance/clock-in","POST",photo)).status,403);
   console.log("PASS: exact 15-minute clock-in boundary, rolling finish, previous-IST-day early-start notice, approval-time revalidation, pending/rejected requests blocked, employee self-approval blocked and approved dated-shift boundary.");
+  // Closing-time approval holds only the portion after 22:45, without losing actual times.
+  await setTime(at("2026-10-04","13:00"));
+  await ok(earlyCookie,"/api/attendance/clock-in","POST",photo);
+  await setTime(at("2026-10-04","22:45"));
+  assert.equal((await ok(earlyCookie,"/api/attendance/clock-out","POST",photo)).record.lateClockOutStatus,"NOT_REQUIRED");
+  await setTime(at("2026-10-06","13:00"));
+  await ok(earlyCookie,"/api/attendance/clock-in","POST",photo);
+  await setTime(at("2026-10-06","23:00"));
+  const lateOut=(await ok(earlyCookie,"/api/attendance/clock-out","POST",photo)).record;
+  assert.equal(lateOut.lateClockOutStatus,"PENDING");assert.equal(lateOut.clockOutAt,new Date(at("2026-10-06","23:00")).toISOString());
+  const pendingOut=await db.staffRequest.findFirst({where:{userId:"early-window",kind:"LATE_CLOCK_OUT",status:"PENDING"}});
+  const lateStats=async()=> (await ok(admin,"/api/admin/stats?from=2026-10-06&to=2026-10-06")).stats.find(x=>x.userId==="early-window");
+  assert.equal((await lateStats()).regularPayRs,900);assert.equal((await lateStats()).overtimeHours,.75);
+  assert.equal((await request(earlyCookie,`/api/team/requests/${pendingOut.id}`,"PATCH",{status:"APPROVED"})).status,403);
+  assert.equal((await request(earlyCookie,`/api/team/requests/${pendingOut.id}`,"PATCH",{status:"CANCELLED"})).status,403);
+  await ok(admin,`/api/team/requests/${pendingOut.id}`,"PATCH",{status:"REJECTED"});
+  await approve(lateOut.id); // Restoring a whole shift must not approve rejected closing-time minutes.
+  assert.equal((await lateStats()).overtimeHours,.75);
+  const correctionOut=(await ok(earlyCookie,"/api/team/requests","POST",{kind:"CORRECTION",fromDate:"2026-10-06",proposedIn:at("2026-10-06","13:00"),proposedOut:at("2026-10-06","23:00"),reason:"Manager verified the actual closing work"})).request;
+  await ok(admin,`/api/team/requests/${correctionOut.id}`,"PATCH",{status:"APPROVED"});
+  assert.equal((await lateStats()).overtimeHours,1);
+  const staffHome=(await ok(earlyCookie,"/api/team/home")).summary;
+  assert.deepEqual(Object.keys(staffHome).sort(),["clockedMinutes","completedShifts"]);
+  assert.equal((await request(earlyCookie,"/api/admin/stats")).status,403);
+  const employeePage=await (await fetch(base+"/employee",{headers:{cookie:earlyCookie}})).text();
+  for(const label of ["Pay follows", "salary hours", "bonus balance", "day’s pay"]) assert.ok(!employeePage.includes(label));
+  assert.equal(await db.attendanceAudit.count({where:{recordId:lateOut.id,action:"LATE_CLOCK_OUT_REJECTED"}}),1);
+  console.log("PASS: closing-time boundary, real departure preserved, only late minutes held, admin-only rejection, no bypass via whole-shift restore, corrected departure approval and employee payroll privacy.");
   console.log("Disposable test files:", dir);
   if (process.env.KEEP_TEST_SERVER === "1") {
     console.log("Test server retained for browser checks at " + base);

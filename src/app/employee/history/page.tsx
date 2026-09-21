@@ -1,6 +1,6 @@
 "use client";
-import { salaryCredit, offDay, type PolicyRecord } from "@/lib/performance";
-import { netWorkHours } from "@/lib/workPolicy";
+import { type PolicyRecord } from "@/lib/performance";
+import { clockedMs, durationLabel } from "@/lib/attendanceTime";
 
 import { useEffect, useState } from "react";
 import { formatWorkDate, formatIstTime } from "@/lib/time";
@@ -13,6 +13,7 @@ type Record = PolicyRecord & {
   shiftDurationMinutes: number;
   extraTimeCutoff: string | null;
   extraTimeStatus: string;
+  lateClockOutStatus: string;
   extraTimeReason: string | null;
   clockInAt: string | null;
   clockOutAt: string | null;
@@ -47,7 +48,7 @@ export default function HistoryPage() {
                   <th className="px-4 py-2.5 font-medium">Date</th>
                   <th className="px-4 py-2.5 font-medium">In</th>
                   <th className="px-4 py-2.5 font-medium">Out</th>
-                  <th className="px-4 py-2.5 font-medium text-right">Net hours</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Clocked time</th>
                   <th className="px-4 py-2.5 font-medium">Status</th>
                 </tr>
               </thead>
@@ -55,7 +56,7 @@ export default function HistoryPage() {
                 {records.map((r) => {
                   const inAt = r.clockInAt ? new Date(r.clockInAt) : null;
                   const outAt = r.clockOutAt ? new Date(r.clockOutAt) : null;
-                  const hours = netWorkHours(r);
+                  const hours = clockedMs(r);
                   return (
                     <tr key={r.id} className="border-t border-border">
                       <td className="px-4 py-2.5">{formatWorkDate(r.workDate)}</td>
@@ -70,11 +71,9 @@ export default function HistoryPage() {
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-right font-medium">
-                        {hours !== null ? hours.toFixed(2) : "—"}
-                        {r.clockOutAt && !offDay(r.workDate) && <p className="text-xs font-normal">{salaryCredit(r).toFixed(2)} salary hours {r.approvalStatus === "REJECTED" ? "excluded" : "credited"}</p>}
-                        {!!r.unpaidBreakMinutes && <p className="text-xs font-normal">{r.unpaidBreakMinutes}m break deducted</p>}
-                        {r.policyVersion === 2 && !r.unpaidBreakMinutes && <p className="text-xs font-normal">60m paid break · included in pay</p>}
-                        {r.extraTimeCutoff && r.clockOutAt && new Date(r.clockOutAt) > new Date(r.extraTimeCutoff) && <p className="text-xs">{r.extraTimeStatus === "REJECTED" ? "Previously rejected extra time excluded" : "Eligible extra hours counted automatically"}</p>}
+                        {durationLabel(hours)}
+                        {r.lateClockOutStatus === "PENDING" && <p className="text-xs text-accent">After 10:45 pm: awaiting approval</p>}
+                        {r.lateClockOutStatus === "REJECTED" && <p className="text-xs text-accent">After 10:45 pm: not approved</p>}
                         {r.extraTimeReason && <p className="text-xs whitespace-pre-wrap">Reason: {r.extraTimeReason}</p>}
                       </td>
                       <td className="px-4 py-2.5">
@@ -87,7 +86,7 @@ export default function HistoryPage() {
             </table>
           </div>
           <p className="text-xs text-foreground/40">
-            Completed shifts count toward pay automatically. Short hours still reduce pay; eligible extra hours count automatically.
+            Clocked time includes your break. Clock-outs after 10:45 pm require admin approval.
           </p>
         </>
       )}
@@ -97,6 +96,6 @@ export default function HistoryPage() {
 
 function ApprovalStatusBadge({ status }: { status: "PENDING" | "APPROVED" | "REJECTED" | null }) {
   if (!status) return null;
-  if (status === "REJECTED") return <span className="text-xs text-danger">Excluded from payroll</span>;
+  if (status === "REJECTED") return <span className="text-xs text-danger">Record excluded</span>;
   return <span className="text-xs text-success">✓ Completed</span>;
 }

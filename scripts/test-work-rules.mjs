@@ -105,7 +105,7 @@ try {
    await ok(cookie,'/api/attendance/clock-out','POST',photo);
    await ok(admin,`/api/admin/attendance/${clocked.id}`,'PATCH',{approvalStatus:'APPROVED'});
    const earned=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats.find(s=>s.userId===id);
-   assert.equal(earned.totalHours,8);assert.equal(earned.regularPayRs,900);assert.equal(earned.overtimeHours,0);
+   assert.equal(earned.totalHours,9);assert.equal(earned.regularPayRs,900);assert.equal(earned.overtimeHours,0);
  }
 
  await setTime('2026-09-19T18:30:00+05:30');
@@ -113,20 +113,27 @@ try {
  assert.equal(nr.extraTimeStatus,'NOT_REQUIRED');
  await ok(admin,`/api/admin/attendance/${nr.id}`,'PATCH',{approvalStatus:'APPROVED'});
  let stats=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats;
- assert.equal(stats.find(s=>s.userId==='n').totalHours,8);
+ assert.equal(stats.find(s=>s.userId==='n').totalHours,9);
  assert.equal(stats.find(s=>s.userId==='n').regularPayRs,900);
  await setTime('2026-09-19T23:30:00+05:30');
  assert.equal((await request(g,'/api/attendance/clock-out','POST',{...photo,extraTimeReason:'x'.repeat(1001)})).status,400);
  const automatic=(await ok(g,'/api/attendance/clock-out','POST',{...photo,extraTimeReason:'   '})).record;
  assert.equal(automatic.extraTimeReason,null);
  assert.equal(automatic.extraTimeStatus,'AUTOMATIC');
+ assert.equal(automatic.lateClockOutStatus,'PENDING');
+ const beforeLateApproval=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats.find(s=>s.userId==='g');
+ assert.equal(beforeLateApproval.overtimeHours,4.25);
+ const lateClockReview=await db.staffRequest.findFirst({where:{userId:'g',kind:'LATE_CLOCK_OUT',status:'PENDING'}});
+ assert.equal((await request(g,`/api/team/requests/${lateClockReview.id}`,'PATCH',{status:'APPROVED'})).status,403);
+ assert.equal((await request(g,`/api/team/requests/${lateClockReview.id}`,'PATCH',{status:'CANCELLED'})).status,403);
+ await ok(admin,`/api/team/requests/${lateClockReview.id}`,'PATCH',{status:'APPROVED'});
  assert.equal(await db.staffRequest.count({where:{userId:'g',kind:'EXTRA_TIME'}}),0);
  const retired=await db.staffRequest.create({data:{userId:'g',kind:'EXTRA_TIME',fromDate:'2026-09-19',toDate:'2026-09-19',reason:'Old pending review',expectedRecordId:gr.id}});
  assert.equal((await request(admin,`/api/team/requests/${retired.id}`,'PATCH',{status:'APPROVED'})).status,410);
  assert.equal((await request(g,`/api/team/requests/${retired.id}`,'PATCH',{status:'CANCELLED'})).status,410);
  assert.ok(!(await ok(admin,'/api/team/requests?status=PENDING')).requests.some(r=>r.id===retired.id));
  stats=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats;
- assert.equal(stats.find(s=>s.userId==='g').totalHours,13);
+ assert.equal(stats.find(s=>s.userId==='g').totalHours,14);
  assert.equal(stats.find(s=>s.userId==='g').overtimeHours,5);
  assert.equal((await db.attendanceRecord.findUnique({where:{id:gr.id}})).clockOutAt.toISOString(),new Date('2026-09-19T23:30:00+05:30').toISOString());
  // Overnight clock-out remains attached to the original work date.
@@ -135,9 +142,12 @@ try {
  const hr=(await ok(h,'/api/attendance/clock-out','POST',{...photo,extraTimeReason:' x '})).record;
  assert.equal(hr.extraTimeReason,'x');
  assert.equal(hr.extraTimeStatus,'AUTOMATIC');
+ assert.equal(hr.lateClockOutCutoff,new Date('2026-09-19T22:45:00+05:30').toISOString());
+ const overnightReview=await db.staffRequest.findFirst({where:{userId:'h',kind:'LATE_CLOCK_OUT',status:'PENDING'}});
+ await ok(admin,`/api/team/requests/${overnightReview.id}`,'PATCH',{status:'APPROVED'});
  await ok(admin,`/api/admin/attendance/${hr.id}`,'PATCH',{approvalStatus:'APPROVED'});
  stats=(await ok(admin,'/api/admin/stats?from=2026-09-19&to=2026-09-19')).stats;
- assert.equal(stats.find(s=>s.userId==='h').totalHours,14);
+ assert.equal(stats.find(s=>s.userId==='h').totalHours,15);
  assert.equal(stats.find(s=>s.userId==='h').overtimeHours,6);
  assert.equal(await db.attendanceAudit.count({where:{action:{in:['EXTRA_TIME_APPROVED','EXTRA_TIME_REJECTED']}}}),0);
  // Corrections retain breaks and recalculate extra time automatically.

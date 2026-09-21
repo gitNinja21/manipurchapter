@@ -1,7 +1,7 @@
 import { recurringDescription } from "@/lib/workPolicy";
 import { prisma } from "@/lib/prisma";
 import { memberWhere } from "@/lib/team";
-import { computeStatsForRange } from "@/lib/stats";
+import { clockedMs } from "@/lib/attendanceTime";
 import { todayWorkDate } from "@/lib/time";
 import { nextBirthday } from "@/lib/teamValidation";
 import type { User } from "@prisma/client";
@@ -9,10 +9,10 @@ import type { User } from "@prisma/client";
 export async function getHomeSummary(u: User) {
   const today = todayWorkDate(),
     month = `${today.slice(0, 7)}-01`;
-  const [stats, nextShift, requests, birthdays, unread, chatUnread] =
+  const [records, nextShift, requests, birthdays, unread, chatUnread] =
     await Promise.all([
       u.role === "EMPLOYEE"
-        ? computeStatsForRange(month, today, { userId: u.id })
+        ? prisma.attendanceRecord.findMany({where:{userId:u.id,workDate:{gte:month,lte:today},clockInAt:{not:null},clockOutAt:{not:null}},select:{clockInAt:true,clockOutAt:true}})
         : Promise.resolve([]),
       prisma.scheduledShift.findFirst({
         where: { userId: u.id, endsAt: { gte: new Date() } },
@@ -54,20 +54,10 @@ export async function getHomeSummary(u: User) {
         },
       }),
     ]);
-  const s = stats[0];
   return {
     today,
     month,
-    summary: s
-      ? {
-          totalHours: s.totalHours,
-          overtimeHours: s.overtimeHours,
-          bonusDays: s.bonusDays,
-          overtimeBalanceHours: s.overtimeBalanceHours,
-          pendingApprovalDays: s.pendingApprovalDays,
-          fullDaysWorked: s.fullDaysWorked,
-        }
-      : null,
+    summary: u.role === "EMPLOYEE" ? {clockedMinutes: Math.round(records.reduce((sum,r)=>sum+(clockedMs(r) ?? 0),0)/60000),completedShifts:records.length} : null,
     nextShift,
     attendancePolicyFrom: u.attendancePolicyFrom,
     scheduleDescription: u.attendancePolicyFrom ? recurringDescription(u) : null,

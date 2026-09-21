@@ -1,5 +1,5 @@
 import { salaryCredit, overtimeMs } from "./performance";
-import { netWorkHours, recurringRule } from "./workPolicy";
+import { paidTimeMs, recurringRule } from "./workPolicy";
 import { prisma } from "./prisma";
 import { todayWorkDate, workDateFor } from "./time";
 import { APPROVAL_STATUS, countsForPayroll } from "./attendanceApproval";
@@ -141,7 +141,7 @@ export async function computeStatsForRange(
     const totalHours = complete
       .filter(countsForPayroll)
       .reduce(
-        (sum, r) => sum + (netWorkHours(r) ?? 0),
+        (sum, r) => sum + (paidTimeMs(r) ?? 0) / 3600000,
         0,
       );
 

@@ -14,6 +14,7 @@ type TodayRecord = {
   policyVersion: number;
   extraTimeCutoff: string | null;
   extraTimeStatus: string;
+  lateClockOutStatus?: string;
 } | null;
 
 type Announcement = {
@@ -166,7 +167,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       setMessage(
         action === "in"
           ? "Clocked in! Have a great shift."
-          : "Clocked out. See you next time!",
+          : data.record?.lateClockOutStatus === "PENDING" ? "Clock-out recorded. Time after 10:45 pm is awaiting admin approval." : "Clocked out. See you next time!",
       );
       setMode("idle");
       setAction(null);
@@ -195,26 +196,26 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       </div>
 
       <Link className="text-brand underline block" href={preview ? `/admin/team?view=performance&employeeId=${employeeQuery}` : "/employee/team?view=performance"}>My points, attendance incidents and manager clearance</Link>
-      {!policy && <p className="text-sm text-foreground/60">{arrival === "OFF" ? "No shift is scheduled today. Ask your admin to assign a shift if you are working." : "Complete 9 hours from clock-in, including a one-hour paid break. Eligible time beyond 9 hours goes to your bonus balance."}</p>}
-      {record && record.policyVersion !== 2 && <p className="text-sm text-accent">This attendance record uses the previous pay policy. Its saved break still applies. Previously rejected extra time remains excluded. The updated duration policy applies to new shifts.</p>}
+      {!policy && <p className="text-sm text-foreground/60">{arrival === "OFF" ? "No shift is scheduled today. Ask your admin to assign a shift if you are working." : "Complete your scheduled hours from clock-in, including the one-hour break."}</p>}
+      {record && record.policyVersion !== 2 && <p className="text-sm text-accent">This record uses an earlier attendance policy. Ask your manager if its schedule needs correction.</p>}
       {policy && (!record || record.policyVersion === 2) && (
         <section className="admin-panel p-4 space-y-2 text-sm">
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>
-          <p>{schedule?.fixed ? "Scheduled start:" : "Clock-in window:"} {schedule?.arrival} IST. Complete {schedule?.durationHours} hours from actual clock-in, including a 1-hour {schedule?.unpaidBreakMinutes ? "unpaid" : "paid"} break. Pay follows recorded time; missing hours are not topped up.</p>
-          <p>Clock out when you actually leave. Required finish: {schedule?.finish}. Leaving before completing the shift is an early departure. Eligible time beyond your required finish adds to bonus hours automatically.</p>
+          <p>{schedule?.fixed ? "Scheduled start:" : "Clock-in window:"} {schedule?.arrival} IST. Complete {schedule?.durationHours} hours from actual clock-in, including a 1-hour break.</p>
+          <p>Clock out when you actually leave. Required finish: {schedule?.finish}. Leaving before completing the shift is an early departure. Plan to clock out by 10:30–10:45 pm IST. Clocking out after 10:45 pm requires admin approval. Always record your actual leaving time.</p>
           <p>Clock-in opens at {schedule?.opening} IST, up to 15 minutes before your scheduled start (or the beginning of your arrival window). For an earlier start, submit a shift-change request at least the previous day in IST and get admin approval. Your required finish moves with your actual clock-in.</p>
           {!preview && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=SHIFT_CHANGE">Request an earlier start / shift change</Link>}
           {!hasClockedIn && arrival === "EARLY" && <p>Clock-in opens at {schedule?.opening}.</p>}
           {!hasClockedIn && lateStatus && <p>Today’s late-arrival request: <strong>{lateStatus}</strong>.</p>}
           {!hasClockedIn && !preview && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request an excused late arrival</Link>}
-          {!hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Clock in when you arrive. More than 15 minutes late is an incident; after three consecutive incidents, manager clearance is required. After that meeting, further late arrivals receive negative points. Pay follows clocked time without a second deduction.</p>}
+          {!hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Clock in when you arrive. More than 15 minutes late is an incident; after three consecutive incidents, manager clearance is required. After that meeting, further late arrivals receive negative points.</p>}
         </section>
       )}
       {!preview && record?.clockInAt && !record.clockOutAt && mode !== "submitting" && (
         <label className="admin-panel p-4 block text-sm">
           Reason (optional)
           <textarea className="input mt-2" rows={3} maxLength={1000} value={extraTimeReason} onChange={e => setExtraTimeReason(e.target.value)} placeholder="Add a note about your clock-out, if needed" />
-          <span className="block text-xs text-foreground/60 mt-2">You can leave this blank. Eligible extra hours and points count automatically.</span>
+          <span className="block text-xs text-foreground/60 mt-2">You can leave this blank. If you leave after 10:45 pm, your clock-out will be sent for admin approval.</span>
         </label>
       )}
       {loading ? (
@@ -290,6 +291,8 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
         </div>
       )}
 
+      {record?.lateClockOutStatus === "PENDING" && <p className="admin-panel p-4 text-sm text-accent">Your clock-out after 10:45 pm is awaiting admin approval. See Team → Requests.</p>}
+      {record?.lateClockOutStatus === "REJECTED" && <p className="admin-panel p-4 text-sm text-accent">The time after 10:45 pm was not approved. See Team → Requests.</p>}
       {preview && meetings.length > 0 && (
         <div className="admin-panel p-4 text-sm text-accent">
           Manager clearance pending: {meetings.map(m => m.kind === "LATE" ? "Late arrivals" : "Early departures").join(", ")}. Open points and attendance above to review.

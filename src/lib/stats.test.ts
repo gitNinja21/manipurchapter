@@ -169,7 +169,7 @@ test("duration policy pays clock hours, carries automatic bonus blocks, and pres
   assert.equal(s.regularPayRs,900);assert.equal(s.bonusDays,1);assert.equal(s.bonusPayRs,900);assert.equal(s.overtimeBalanceHours,0);assert.equal(s.salaryRs,1800);
   prisma.attendanceRecord.findMany = (async () => [row("2020-10-01","23:00","REJECTED")]) as typeof prisma.attendanceRecord.findMany;
   [s] = await computeStatsForRange("2020-10-01","2020-10-01");
-  assert.equal(s.regularPayRs,900);assert.equal(s.overtimeHours,0);assert.equal(s.totalHours,8);
+  assert.equal(s.regularPayRs,900);assert.equal(s.overtimeHours,0);assert.equal(s.totalHours,9);
 });
 
 test("completed pending shifts and extra hours count automatically, retaining short-hour deductions and exclusions", async t => {

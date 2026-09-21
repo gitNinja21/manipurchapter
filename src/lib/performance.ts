@@ -29,6 +29,7 @@ export function deviations(r: PolicyRecord) {
 }
 /** Salary credit never becomes actual overtime. Each missing minute is deducted once. */
 export function salaryCredit(r: PolicyRecord) {
+  if (r.lateClockOutCutoff && ["PENDING", "REJECTED"].includes(r.lateClockOutStatus ?? "") && r.clockOutAt && +new Date(r.clockOutAt) > +new Date(r.lateClockOutCutoff)) return salaryCredit({...r,clockOutAt:r.lateClockOutCutoff,lateClockOutStatus:"APPROVED"});
   if (r.policyVersion === 2) return Math.min(regularTarget(r), (paidTimeMs(r) ?? 0) / HOUR);
   const actual = (netWorkMs(r) ?? 0) / HOUR;
   if (!r.clockInAt || !r.clockOutAt) return 0;

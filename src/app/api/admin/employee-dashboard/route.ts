@@ -20,7 +20,7 @@ export const GET = teamRoute(async (admin, req) => {
     record: r ? {
       clockInAt: r.clockInAt, clockOutAt: r.clockOutAt, workDate: r.workDate,
       unpaidBreakMinutes: r.unpaidBreakMinutes, policyVersion: r.policyVersion,
-      extraTimeCutoff: r.extraTimeCutoff, extraTimeStatus: r.extraTimeStatus,
+      extraTimeCutoff: r.extraTimeCutoff, extraTimeStatus: r.extraTimeStatus, lateClockOutStatus:r.lateClockOutStatus,
     } : null,
     meetings: data.meetings.map(m => ({ id: m.id, kind: m.kind })),
   };

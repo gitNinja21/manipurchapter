@@ -1,6 +1,7 @@
 "use client";
 import { salaryCredit, offDay, type PolicyRecord } from "@/lib/performance";
-import { netWorkHours } from "@/lib/workPolicy";
+import { clockedMs, durationLabel } from "@/lib/attendanceTime";
+import { overtimeMs } from "@/lib/performance";
 import { useEffect, useState } from "react";
 import {
   formatWorkDate,
@@ -19,6 +20,8 @@ type AttendanceRecord = PolicyRecord & {
   shiftDurationMinutes: number;
   extraTimeCutoff: string | null;
   extraTimeStatus: string;
+  lateClockOutStatus: string;
+  lateClockOutCutoff: string | null;
   extraTimeReason: string | null;
   clockInAt: string | null;
   clockOutAt: string | null;
@@ -186,7 +189,7 @@ export default function AdminAttendancePage() {
                   "Date",
                   "Clock-in",
                   "Clock-out",
-                  "Net hours",
+                  "Clocked time",
                   "Review",
                   "Photos",
                   "",
@@ -223,11 +226,16 @@ export default function AdminAttendancePage() {
                       <FaceMatchBadge match={r.clockOutFaceMatch} />
                     </td>
                     <td className="px-4 py-4 tabular-nums">
-                      {netWorkHours(r)?.toFixed(2) ?? "—"}
-                      {r.clockOutAt && !offDay(r.workDate) && <p className="text-xs font-normal">{salaryCredit(r).toFixed(2)} salary hours {r.approvalStatus === "REJECTED" ? "excluded" : "credited"}</p>}
-                      {!!r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">{r.unpaidBreakMinutes}m break deducted</p>}
-                        {r.policyVersion === 2 && !r.unpaidBreakMinutes && <p className="text-xs font-normal">60m paid break · included in pay</p>}
-                      {r.extraTimeCutoff && r.clockOutAt && new Date(r.clockOutAt) > new Date(r.extraTimeCutoff) && <p className="text-xs">{r.extraTimeStatus === "REJECTED" ? "Previously rejected extra time excluded" : "Eligible extra hours counted automatically"}</p>}
+                      <p className="font-medium">{durationLabel(clockedMs(r))} clocked</p>
+                      {r.clockOutAt && !offDay(r.workDate) && r.approvalStatus !== "REJECTED" && <>
+                        <p className="text-xs">Regular: {durationLabel(salaryCredit(r)*3600000)}</p>
+                        <p className="text-xs">Bonus: {durationLabel(overtimeMs(r))}</p>
+                      </>}
+                      {r.approvalStatus === "REJECTED" && <p className="text-xs text-danger">Regular and bonus time excluded</p>}
+                      {r.policyVersion === 2 && !r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">1-hour break included</p>}
+                      {!!r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">{r.unpaidBreakMinutes}m unpaid break</p>}
+                      {r.lateClockOutStatus === "PENDING" && <a className="text-xs text-accent underline" href="/admin/team?view=requests">Time after 10:45 pm awaiting approval</a>}
+                      {r.lateClockOutStatus === "REJECTED" && <p className="text-xs text-danger">Time after 10:45 pm excluded</p>}
                       {r.extraTimeReason && <p className="text-xs max-w-48 whitespace-pre-wrap">{r.extraTimeReason}</p>}
                     </td>
                     <td className="px-4 py-4">
@@ -305,7 +313,7 @@ export default function AdminAttendancePage() {
         </div>
       </div>
       <p className="text-xs text-foreground/60">
-        Completed shifts count automatically toward hours and salary, unless explicitly excluded. Eligible extra hours count automatically.
+        Completed shifts count automatically toward hours and salary, unless explicitly excluded. Time after 10:45 pm requires admin approval.
         Attendance decisions and deletions are recorded in Audit history.
       </p>
       {lightbox && (

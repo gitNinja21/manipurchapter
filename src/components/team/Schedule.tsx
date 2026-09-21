@@ -55,7 +55,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
           {admin ? "Team schedule" : "My schedule"}
         </h2>
         <p className="text-sm text-foreground/60 mt-1">
-          All times in IST. Approved dated shifts set attendance rules for that day. Attendance needs separate approval for payroll.
+          All times in IST. Approved dated shifts set attendance rules for that day. Clock-outs after 10:45 pm require admin approval.
         </p>
       </div>
       {!!data?.recurring?.length && <section className="admin-panel p-5 space-y-3">
@@ -66,7 +66,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
           <p>{recurringDescription(person)}</p>
           <p className="text-foreground/60">Actual clock-out determines hours. {person.attendanceAllowEarly ? "Early clock-in is allowed." : "Clock-in opens at the start time."}</p>
         </div>)}
-        <p className="text-xs text-foreground/60">Monday remains a paid off-day for regular staff. Part-time staff work only their listed days, without automatic Monday pay. Approved temporary shifts change the arrival time; required duration stays the same.</p>
+        <p className="text-xs text-foreground/60">Monday remains an off-day for regular staff. Part-time staff work only their listed days. Approved temporary shifts change the arrival time; required duration stays the same.</p>
       </section>}
       <div className="flex flex-wrap gap-2 items-center">
         <button

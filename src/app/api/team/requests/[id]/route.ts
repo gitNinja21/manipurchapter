@@ -1,3 +1,4 @@
+import { lateClockOutRule } from "@/lib/attendanceTime";
 import { effectiveSchedule, validateShift, assertEarlyStartNotice, policyAudit, penaltyContext, syncMeetings } from "@/lib/performanceServer";
 import { extraCutoff, durationSnapshot } from "@/lib/performance";
 import { retireExtraTimeRequests } from "@/lib/workPolicyServer";
@@ -39,6 +40,7 @@ export const PATCH = teamRoute(async (u, req) => {
     if (!r) throw new TeamError("Request not found.", 404);
     if (status === "CANCELLED" ? r.userId !== u.id : u.role !== "ADMIN")
       throw new TeamError("Not permitted.", 403);
+    if (r.kind === "LATE_CLOCK_OUT" && status === "CANCELLED") throw new TeamError("Only an admin may decide a late clock-out review.",403);
     if (r.kind === "EXTRA_TIME")
       throw new TeamError("Extra-time review has been removed. Eligible hours count automatically; use an attendance correction to fix recorded times.", 410);
     if (r.status !== "PENDING")
@@ -59,6 +61,13 @@ export const PATCH = teamRoute(async (u, req) => {
         "This employee has assigned shifts during the leave. Cancel or reassign those shifts before approving.",
         409,
       );
+    if (r.kind === "LATE_CLOCK_OUT") {
+      const record = r.expectedRecordId ? await tx.attendanceRecord.findUnique({where:{id:r.expectedRecordId}}) : null;
+      if (!record || record.userId !== r.userId || record.lateClockOutStatus !== "PENDING" || record.clockOutAt?.toISOString() !== r.proposedOut?.toISOString())
+        throw new TeamError("This attendance record changed. Review its current times in Attendance.",409);
+      const after = await tx.attendanceRecord.update({where:{id:record.id},data:{lateClockOutStatus:status}});
+      await tx.attendanceAudit.create({data:auditData(record,r.user,u,`LATE_CLOCK_OUT_${status}`,after)});
+    }
     if (status === "APPROVED" && r.kind === "SHIFT_CHANGE") {
       if (!r.proposedIn || !r.proposedOut) throw new TeamError("Shift times are missing.");
       await assertEarlyStartNotice(tx, r.userId, r.fromDate, r.proposedIn, r.createdAt);
@@ -106,6 +115,7 @@ export const PATCH = teamRoute(async (u, req) => {
         ...(v2 ?? {}),
         extraTimeCutoff,
         extraTimeStatus: needsExtra ? "AUTOMATIC" : "NOT_REQUIRED",
+        ...lateClockOutRule(r.fromDate, r.proposedOut, true),
         extraTimeReason: needsExtra ? r.reason : null,
       };
       const after = await tx.attendanceRecord.upsert({
@@ -159,7 +169,7 @@ export const PATCH = teamRoute(async (u, req) => {
       [r.user],
       "REQUEST_DECISION",
       `${id}:${status}`,
-      `Your ${r.kind === "LEAVE" ? "leave" : r.kind === "LATE_ARRIVAL" ? "late-arrival" : r.kind === "SHIFT_CHANGE" ? "shift change" : r.kind === "EARLY_DEPARTURE" ? "early departure" : r.kind === "EXTRA_TIME" ? "extra-time" : "correction"} request was ${status.toLowerCase()}`,
+      `Your ${r.kind === "LEAVE" ? "leave" : r.kind === "LATE_ARRIVAL" ? "late-arrival" : r.kind === "SHIFT_CHANGE" ? "shift change" : r.kind === "EARLY_DEPARTURE" ? "early departure" : r.kind === "LATE_CLOCK_OUT" ? "late clock-out" : r.kind === "EXTRA_TIME" ? "extra-time" : "correction"} request was ${status.toLowerCase()}`,
       "team?view=requests",
     );
   });

@@ -46,12 +46,16 @@ type WorkRecord = {
   unpaidBreakMinutes?: number;
   extraTimeCutoff?: Date | string | null;
   extraTimeStatus?: string;
+  lateClockOutCutoff?: Date | string | null;
+  lateClockOutStatus?: string;
 };
 /** Exact net time; only historically rejected extra time stays capped at the saved cutoff. */
 export function netWorkMs(record: WorkRecord): number | null {
   if (!record.clockInAt || !record.clockOutAt) return null;
   const start = +new Date(record.clockInAt);
   let end = +new Date(record.clockOutAt);
+  if (record.lateClockOutCutoff && ["PENDING", "REJECTED"].includes(record.lateClockOutStatus ?? ""))
+    end = Math.min(end, +new Date(record.lateClockOutCutoff));
   if (record.extraTimeCutoff && record.extraTimeStatus === "REJECTED") {
     end = Math.min(end, +new Date(record.extraTimeCutoff));
   }
@@ -81,6 +85,8 @@ export function recurringDescription(user: PolicySchedule) {
 export function paidTimeMs(record: WorkRecord): number | null {
   if (!record.clockInAt || !record.clockOutAt) return null;
   let end = +new Date(record.clockOutAt);
+  if (record.lateClockOutCutoff && ["PENDING", "REJECTED"].includes(record.lateClockOutStatus ?? ""))
+    end = Math.min(end, +new Date(record.lateClockOutCutoff));
   if (record.extraTimeCutoff && record.extraTimeStatus === "REJECTED") end = Math.min(end, +new Date(record.extraTimeCutoff));
   return Math.max(0, end - +new Date(record.clockInAt) - (record.unpaidBreakMinutes ?? 0) * 60000);
 }

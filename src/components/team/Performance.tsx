@@ -88,8 +88,7 @@ export default function Performance({ admin }: { admin: boolean }) {
       <div>
         <h2 className="text-xl font-semibold">Attendance & monthly points</h2>
         <p className="text-sm text-foreground/60 mt-1">
-          Pay follows actual clocked time. Time beyond the required shift becomes
-          bonus hours automatically. Attendance points update automatically on completion; customer reviews add points immediately and referrals still need approval.
+          Attendance points update on completion. Customer reviews add points immediately; referrals and clock-outs after 10:45 pm need admin approval.
         </p>
       </div>
       <label className="block text-sm max-w-xs">
@@ -163,38 +162,11 @@ export default function Performance({ admin }: { admin: boolean }) {
           ))}
       </div>
       <details className="admin-panel p-4">
-        <summary className="font-medium cursor-pointer">
-          How pay and points work
-        </summary>
+        <summary className="font-medium cursor-pointer">How attendance points work</summary>
         <div className="text-sm space-y-2 mt-3">
-          <p>
-            Pay follows actual clocked time, including the paid break, up to 9 hours.
-            Complete 9 hours from actual clock-in to avoid early departure.
-            Friday part-time shifts require 7 clock hours and pay 6 hours after the break.
-            Eligible time beyond the required duration becomes bonus hours.
-          </p>
-          <p>
-            Three consecutive working days more than 15 minutes late, or three
-            early departures, require a manager meeting before the next
-            clock-in. Mondays and approved leave are skipped. Late and early
-            patterns are separate.
-          </p>
-          <p>
-            After the relevant meeting, further late arrivals / early departures receive
-            −1.5 points once per day for the rest of that month. Pay follows recorded time; missed minutes are never deducted twice. An
-            unresolved meeting carries into the next month. Meeting-day arrival
-            must be approved.
-          </p>
-          <p>
-            +0.5 for an on-time completed shift; +1 for actual work
-            exceeding 10½ hours; +3 for an approved customer referral. Eligible overtime counts automatically after clock-out. Every 8 bonus hours earns another
-            9-hour day’s pay.
-          </p>
-          <p>
-            Regular staff retain paid Mondays; part-time staff have only their assigned working days. Historical attendance keeps
-            its previous payroll rules. Approved exceptions do not count as
-            incidents.
-          </p>
+          <p>+0.5 for an on-time completed shift; +1 for eligible work exceeding 10½ hours; +3 for an approved customer referral. Customer reviews add up to 1 point each.</p>
+          <p>Three consecutive working days more than 15 minutes late, or three early departures, require a manager meeting. After the meeting, further incidents receive −1.5 points once per day for the rest of the month.</p>
+          <p>Clock out by 10:30–10:45 pm. Time after 10:45 pm requires admin approval before it contributes to awards. Always record your actual leaving time.</p>
         </div>
       </details>
       <section className="space-y-3">
