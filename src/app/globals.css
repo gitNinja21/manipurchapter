@@ -67,7 +67,7 @@ body {
 }
 button, a, input, select, summary { outline-offset: 4px; }
 
-/* Customer review backdrop: the restaurant website's opening food photograph. */
+/* Shared landing and customer review backdrop: the restaurant website's opening food photograph. */
 .review-backdrop {
   position: relative;
   isolation: isolate;

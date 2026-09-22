@@ -163,3 +163,5 @@ New clock-outs strictly after 22:45:00 IST automatically create a late-clock-out
 Historical completed records keep their previous treatment; the migration does not retroactively withhold time. Standard paid-break shifts display elapsed clocked time, regular time and bonus time in hours/minutes. Payroll counted hours include the paid break. Existing part-time schedules and historical unpaid breaks remain unchanged.
 
 Employee pages show clocked duration, attendance status, requests and points only. Their home endpoint no longer calculates or exposes payroll summaries, bonus-day conversions or balances. Salary amounts, rates and payroll breakdowns remain in existing admin-only payroll tools; no new payroll-department role is introduced.
+
+From 23 September 2026 (IST work date), Lachit, Hingnam, Pankaj and Gokul have a total 150-minute unpaid break per working day. Their clock-in windows and shift duration are unchanged; a nine-hour shift pays 6.5 hours. Earlier attendance snapshots remain unchanged.

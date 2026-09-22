@@ -68,6 +68,8 @@ model User {
   customerReviews CustomerReview[]
 
   paidWeeklyOff Boolean @default(true) // independent of weekday-specific entry times
+  unpaidBreakFrom String? // IST work date for employee-specific unpaid break
+  scheduledUnpaidBreakMinutes Int?
   weeklyScheduleJson String? // weekday-keyed recurring rules; null uses standard daily rules
   attendancePolicyFrom String?
   attendanceStartMinute Int @default(570)

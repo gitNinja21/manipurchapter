@@ -60,7 +60,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
       </div>
       {!!data?.recurring?.length && <section className="admin-panel p-5 space-y-3">
         <h3 className="font-semibold">Daily attendance rules</h3>
-        <p className="text-sm">Complete 9 clock hours including the paid break; Friday part-time shifts require 7 hours with a one-hour unpaid break. The required finish moves with actual clock-in. Eligible extra time counts automatically. A clock-out reason is optional.</p>
+        <p className="text-sm">Complete 9 clock hours; employee-specific unpaid breaks are deducted from pay. Friday part-time shifts require 7 hours with a one-hour unpaid break. The required finish moves with actual clock-in. Eligible extra time counts automatically. A clock-out reason is optional.</p>
         {data.recurring.map(person => <div key={person.id} className="text-sm border-t border-border pt-2">
           <strong>{person.name}</strong> · from {formatWorkDate(person.attendancePolicyFrom)}
           <p>{recurringDescription(person)}</p>

@@ -2,7 +2,7 @@ import { attendanceStreaks } from "./attendanceStreaks";
 import { countsForPayroll } from "./attendanceApproval";
 import type { Prisma, User } from "@prisma/client";
 import { prisma } from "./prisma";
-import { policyApplies, policyTimes, recurringRule } from "./workPolicy";
+import { policyApplies, policyTimes, recurringRule, scheduledBreak } from "./workPolicy";
 import { attendancePoints, deviations, offDay } from "./performance";
 import { todayWorkDate } from "./time";
 import { TeamError, notify } from "./team";
@@ -10,6 +10,8 @@ type Db = Prisma.TransactionClient;
 type ScheduleUser = Pick<
   User,
   | "weeklyScheduleJson"
+  | "unpaidBreakFrom"
+  | "scheduledUnpaidBreakMinutes"
   | "id"
   | "attendancePolicyFrom"
   | "attendanceStartMinute"
@@ -26,7 +28,7 @@ export async function effectiveSchedule(db: Db, u: ScheduleUser, date: string) {
     start: shift.startsAt, end: new Date(+shift.startsAt + (rule?.duration ?? 540) * 60000),
     arrivalStart: shift.startsAt,
     opens: new Date(Math.max(+new Date(`${date}T00:00:00+05:30`), +shift.startsAt - 15 * 60000)),
-    durationMinutes: rule?.duration ?? 540, breakMinutes: rule?.unpaidBreak ?? 0,
+    durationMinutes: rule?.duration ?? 540, breakMinutes: scheduledBreak(u, date, rule?.unpaidBreak ?? 0),
   };
   if (!policyApplies(u, date) || !rule) return null;
   const t = policyTimes(date, { ...u, attendanceStartMinute: rule.start, attendanceLatestMinute: rule.latest });

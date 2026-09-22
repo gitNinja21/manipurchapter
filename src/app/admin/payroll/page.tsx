@@ -373,7 +373,7 @@ export default function PayrollPage() {
         </summary>
         <div className="mt-3 space-y-2 text-foreground/70">
           <p>
-            New shifts are paid for actual clocked time up to 9 hours, including the paid break. Friday part-time shifts require 7 clock hours and pay 6 after the unpaid break. Missing hours are not topped up or deducted twice. A bonus day is worth the hourly rate × 9.
+            Regular pay uses actual clocked time up to the scheduled duration, less the assigned unpaid break. From 23 September 2026, Lachit, Hingnam, Pankaj and Gokul have a 2½-hour unpaid break (6½ paid hours for a nine-hour shift). Friday part-time shifts require 7 clock hours and pay 6 after the unpaid break. Missing hours are not topped up or deducted twice. A bonus day is worth the hourly rate × 9.
           </p>
           <p>
             Billing starts at account creation in IST. Regular staff have paid Mondays; part-time staff are paid for their assigned shifts. Completed working-day shifts count automatically toward

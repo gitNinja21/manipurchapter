@@ -61,3 +61,21 @@ test("automatic extra-time points retain the 10.5 net-hour threshold and never d
     assert.deepEqual(attendancePoints({...longer,approvalStatus:"REJECTED"}),[]);
   }
 });
+
+test("dated 150-minute unpaid break preserves history and deducts exactly once", () => {
+  const user = {unpaidBreakFrom:"2026-09-23",scheduledUnpaidBreakMinutes:150};
+  assert.equal(recurringRule(user,"2026-09-22")?.unpaidBreak,0);
+  assert.equal(recurringRule(user,"2026-09-23")?.unpaidBreak,150);
+  assert.equal(recurringRule({},"2026-09-23")?.unpaidBreak,0);
+  const r = {...record("10:00","19:00"),...durationSnapshot(at("10:00"),{...schedule,breakMinutes:150})};
+  assert.equal(salaryCredit(r),6.5);
+  assert.equal(netWorkHours(r),6.5);
+  assert.equal(overtimeMs(r),0);
+  assert.equal(salaryCredit({...r,clockOutAt:at("11:00")}),0);
+  assert.equal(overtimeMs({...r,clockOutAt:at("20:00")}),HOUR);
+  const historical = record("10:00","19:00");
+  assert.equal(durationSnapshot(at("10:00"),{...schedule,breakMinutes:150},historical).unpaidBreakMinutes,0);
+  const weekly = {...user,weeklyScheduleJson:JSON.stringify({5:{start:780,latest:780,duration:420,unpaidBreak:60}})};
+  assert.equal(recurringRule(weekly,"2026-09-25")?.unpaidBreak,150);
+  assert.equal(recurringRule(weekly,"2026-09-24"),null);
+});

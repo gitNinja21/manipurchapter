@@ -1,9 +1,11 @@
-import { workDateFor } from "./time";
+import { todayWorkDate, workDateFor } from "./time";
 
 export function policyApplies(user: { attendancePolicyFrom?: string | null }, date: string) {
   return !!user.attendancePolicyFrom && date >= user.attendancePolicyFrom;
 }
 export type PolicySchedule = {
+  unpaidBreakFrom?: string | null;
+  scheduledUnpaidBreakMinutes?: number | null;
   weeklyScheduleJson?: string | null;
   attendanceStartMinute?: number;
   attendanceLatestMinute?: number;
@@ -59,7 +61,7 @@ export function netWorkMs(record: WorkRecord): number | null {
   if (record.extraTimeCutoff && record.extraTimeStatus === "REJECTED") {
     end = Math.min(end, +new Date(record.extraTimeCutoff));
   }
-  return Math.max(0, end - start - (record.policyVersion === 2 ? 60 : record.unpaidBreakMinutes ?? 0) * 60000);
+  return Math.max(0, end - start - (record.policyVersion === 2 ? Math.max(60, record.unpaidBreakMinutes ?? 0) : record.unpaidBreakMinutes ?? 0) * 60000);
 }
 export function netWorkHours(record: WorkRecord): number | null {
   const ms = netWorkMs(record);
@@ -67,19 +69,25 @@ export function netWorkHours(record: WorkRecord): number | null {
 }
 
 export type DayRule = { start: number; latest: number; duration: number; unpaidBreak: number };
+export function scheduledBreak(user: PolicySchedule, date: string, fallback = 0) {
+  return user.unpaidBreakFrom && date >= user.unpaidBreakFrom
+    ? user.scheduledUnpaidBreakMinutes ?? fallback : fallback;
+}
 /** Explicit weekly schedules have no implicit shifts on omitted weekdays. */
 export function recurringRule(user: PolicySchedule, date: string): DayRule | null {
   if (user.weeklyScheduleJson) {
     const rules = JSON.parse(user.weeklyScheduleJson) as Record<string, DayRule>;
-    return rules[String(new Date(`${date}T12:00:00+05:30`).getUTCDay())] ?? null;
+    const rule = rules[String(new Date(`${date}T12:00:00+05:30`).getUTCDay())];
+    return rule ? {...rule, unpaidBreak: scheduledBreak(user, date, rule.unpaidBreak)} : null;
   }
-  return { start: user.attendanceStartMinute ?? 570, latest: user.attendanceLatestMinute ?? 630, duration: 540, unpaidBreak: 0 };
+  return { start: user.attendanceStartMinute ?? 570, latest: user.attendanceLatestMinute ?? 630, duration: 540, unpaidBreak: scheduledBreak(user, date) };
 }
-export function recurringDescription(user: PolicySchedule) {
-  if (!user.weeklyScheduleJson) return `Arrival: ${scheduleLabels(user).arrival} IST · 9 hours from actual clock-in · 1-hour paid break`;
+export function recurringDescription(user: PolicySchedule, date = todayWorkDate()) {
+  const breakLabel = (fallback = 0) => { const minutes = scheduledBreak(user, date, fallback); return minutes ? `${minutes / 60}-hour unpaid break` : "1-hour paid break"; };
+  if (!user.weeklyScheduleJson) return `Arrival: ${scheduleLabels(user).arrival} IST · 9 hours from actual clock-in · ${breakLabel()}`;
   const names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   return Object.entries(JSON.parse(user.weeklyScheduleJson) as Record<string, DayRule>).map(([day, r]) =>
-    `${names[Number(day)]}: ${minuteLabel(r.start)}${r.latest !== r.start ? `–${minuteLabel(r.latest)}` : ""} · ${r.duration / 60} hours including a 1-hour ${r.unpaidBreak ? "unpaid" : "paid"} break`).join("; ");
+    `${names[Number(day)]}: ${minuteLabel(r.start)}${r.latest !== r.start ? `–${minuteLabel(r.latest)}` : ""} · ${r.duration / 60} hours including a ${breakLabel(r.unpaidBreak)}`).join("; ");
 }
 /** Payroll time includes the paid break under version 2; actual work does not. */
 export function paidTimeMs(record: WorkRecord): number | null {

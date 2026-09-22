@@ -10,17 +10,10 @@ export default async function LandingPage() {
   }
 
   return (
-    <main className="flex-1 flex flex-col">
+    <main className="review-backdrop flex flex-col">
       <div className="flex-1 grid lg:grid-cols-2">
         {/* Brand / hero side */}
-        <div className="relative bg-brand text-white flex flex-col justify-between px-8 py-12 lg:px-16 lg:py-16 overflow-hidden">
-          <div
-            className="absolute inset-0 opacity-15"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle at 20% 20%, white 0, transparent 45%), radial-gradient(circle at 85% 75%, white 0, transparent 40%)",
-            }}
-          />
+        <div className="relative text-white flex flex-col justify-between px-8 py-12 lg:px-16 lg:py-16 overflow-hidden">
           <div className="relative z-10">
             <div className="inline-flex items-center gap-2 text-accent-light/90 text-sm font-medium tracking-wide uppercase">
               <span className="inline-block w-8 h-px bg-accent-light/70" />
@@ -48,10 +41,10 @@ export default async function LandingPage() {
         <div className="flex items-center justify-center px-6 py-12 sm:px-12">
           <div className="w-full max-w-sm">
             <div className="mb-8">
-              <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold text-foreground">
+              <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold text-white">
                 Staff sign in
               </h2>
-              <p className="mt-1.5 text-sm text-foreground/60">
+              <p className="mt-1.5 text-sm text-white/85">
                 Sign in with your login ID and password.
               </p>
             </div>
@@ -63,7 +56,7 @@ export default async function LandingPage() {
         </div>
       </div>
 
-      <footer className="border-t border-border bg-surface-muted px-6 py-4 text-center text-xs text-foreground/50">
+      <footer className="border-t border-white/15 bg-black/20 px-6 py-4 text-center text-xs text-white/75">
         Manipur Chapter Attendance System · Internal staff tool
       </footer>
     </main>

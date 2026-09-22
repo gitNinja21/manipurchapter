@@ -27,7 +27,7 @@ export const PATCH = teamRoute(async (u, req) => {
             role: true,
             active: true,
             approved: true,
-            weeklyScheduleJson: true,
+            unpaidBreakFrom: true, scheduledUnpaidBreakMinutes: true, weeklyScheduleJson: true,
             attendancePolicyFrom: true,
             attendanceStartMinute: true,
             attendanceLatestMinute: true,

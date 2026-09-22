@@ -201,7 +201,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       {policy && (!record || record.policyVersion === 2) && (
         <section className="admin-panel p-4 space-y-2 text-sm">
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>
-          <p>{schedule?.fixed ? "Scheduled start:" : "Clock-in window:"} {schedule?.arrival} IST. Complete {schedule?.durationHours} hours from actual clock-in, including a 1-hour break.</p>
+          <p>{schedule?.fixed ? "Scheduled start:" : "Clock-in window:"} {schedule?.arrival} IST. Complete {schedule?.durationHours} hours from actual clock-in, including {schedule?.unpaidBreakMinutes ? `${schedule.unpaidBreakMinutes / 60}-hour unpaid` : "a 1-hour paid"} break.</p>
           <p>Clock out when you actually leave. Required finish: {schedule?.finish}. Leaving before completing the shift is an early departure. Plan to clock out by 10:30–10:45 pm IST. Clocking out after 10:45 pm requires admin approval. Always record your actual leaving time.</p>
           <p>Clock-in opens at {schedule?.opening} IST, up to 15 minutes before your scheduled start (or the beginning of your arrival window). For an earlier start, submit a shift-change request and get admin approval. Same-day requests are allowed. Your required finish moves with your actual clock-in.</p>
           {!preview && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=SHIFT_CHANGE">Request an earlier start / shift change</Link>}
