@@ -5,7 +5,8 @@ import { REVIEW_QUESTIONS, type Ratings } from "@/lib/customerReviews";
 import { api } from "@/components/team/useTeamData";
 
 type Session = { employeeName: string; submitted: boolean };
-export default function CustomerReviewForm() {
+export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUrl?: string }) {
+  const [finished, setFinished] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [code, setCode] = useState("");
@@ -22,7 +23,7 @@ export default function CustomerReviewForm() {
   }, []);
   async function enterCode(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError("");
-    try { setSession(await api<Session>("/api/reviews/code", "POST", {code})); setRatings({}); }
+    try { setSession(await api<Session>("/api/reviews/code", "POST", {code})); setRatings({}); setFinished(false); }
     catch(e) { setError(e instanceof Error ? e.message : "Could not check the code."); }
     finally { setBusy(false); }
   }
@@ -44,7 +45,13 @@ export default function CustomerReviewForm() {
         <p className="text-4xl text-brand" aria-hidden="true">✓</p>
         <h2 className="text-xl font-semibold">Thank you!</h2>
         <p>Your review for {session.employeeName} has been saved.</p>
-        <p className="text-sm text-foreground/60">You can close this page now.</p>
+        {googleReviewUrl && !finished ? <div className="pt-4 space-y-3">
+          <h3 className="font-semibold">Review Manipur Chapter on Google</h3>
+          <p className="text-sm text-foreground/60">Would you also like to share your restaurant experience? This is optional. Your employee review is already saved.</p>
+          <a className="admin-button block w-full" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">Review us on Google</a>
+          <p className="text-xs text-foreground/60">Opens Google in a new tab. You may need to sign in to your Google account. No need to return here.</p>
+          <button className="text-brand underline text-sm" onClick={() => setFinished(true)}>Done</button>
+        </div> : <p className="text-sm text-foreground/60">You’re all done. You can close this page now.</p>}
         <button className="text-brand underline text-sm" onClick={() => {setSession(null);setCode("");setRatings({});setError("");}}>Enter another code</button>
       </section> : !session ?
       <form onSubmit={enterCode} className="admin-panel p-6 space-y-5">

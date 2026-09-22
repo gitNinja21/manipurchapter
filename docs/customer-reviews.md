@@ -22,3 +22,9 @@ Code-only access does not verify a real customer or purchase. An employee can st
 The migration `20260920180000_customer_reviews` creates invitation, review and rate-limit tables. Run `prisma migrate deploy` before starting the updated app (the existing production start script already does this). No existing attendance or payroll rows are modified.
 
 Run `npm test`, `npm run lint`, `npm run build`, `node scripts/test-customer-reviews.mjs`, and `node scripts/test-performance.mjs`. Integration scripts use disposable SQLite databases and disable reminder/push delivery. To retain the review test server for local browser checks, set `KEEP_TEST_SERVER=1`; its generated code is printed in the test log.
+
+## Optional Google restaurant review
+
+The default link is the verified Manipur Chapter review link: `https://g.page/r/CX-VFZVmOSebEAE/review`. No environment setup is needed. To override it, set `GOOGLE_REVIEW_URL` to another HTTPS review link; set it to an empty value to hide the invitation. Invalid overrides also hide the button. Restart/redeploy after changing the environment.
+
+After the employee review is successfully saved, every customer sees the same optional **Review us on Google** invitation, regardless of their ratings. The link opens in a new tab; **Done** dismisses the invitation. Employee points are saved before this step and do not depend on opening Google or posting there. Google submission happens on Google and is not tracked or claimed as verified by this app. No database migration is required for this optional step.
