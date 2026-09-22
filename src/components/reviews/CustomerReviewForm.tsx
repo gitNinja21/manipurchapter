@@ -79,6 +79,7 @@ export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUr
           </div>
         </fieldset>)}
         {!session.submitted && <p role="status" className="text-center text-sm text-foreground/60">{busy ? "Saving your review…" : `${REVIEW_QUESTIONS.filter(q => ratings[q.key]).length} of 5 rated`}</p>}
+        {googleReviewUrl && <p className="text-center text-sm text-foreground/70">Your words help our little place grow 🌱</p>}
         {googleReviewUrl && (session.submitted ?
           <a className="admin-button block w-full text-center" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">Review us on Google</a> :
           <button type="button" className="admin-button w-full" disabled>Review us on Google</button>)}
