@@ -25,10 +25,10 @@ export function attendanceReminder(input: ReminderInput): AttendanceReminder | n
   if (open) {
     const stale = +now - +open.clockInAt > 24 * 3600000;
     const shiftDate = stale ? date : workDateFor(open.clockInAt);
-    const deadline = Math.max(+new Date(`${shiftDate}T22:30:00+05:30`), +(open.scheduledEndAt ?? open.clockInAt));
+    const deadline = +new Date(`${shiftDate}T22:30:00+05:30`);
     if (+now < deadline) return null;
     return { kind: "ATTENDANCE_OUT", key: `${workDateFor(new Date(deadline))}:${open.id}:${slot(deadline)}`,
-      message: stale ? "Your previous shift is still open. Submit a correction with your actual leaving time." : "You have not clocked out. If your shift has finished, clock out now.",
+      message: stale ? "Your previous shift is still open. Submit a correction with your actual leaving time." : "Please finish and clock out by 10:45 pm. Always record your actual leaving time; later clock-outs require admin approval.",
       href: stale ? "/employee/team?view=requests" : "/employee" };
   }
   if (input.onLeave || input.arrived || input.recordedToday || !scheduledStart || !scheduledEnd) return null;

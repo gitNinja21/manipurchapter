@@ -1,4 +1,4 @@
-import { validateShift, effectiveSchedule, assertEarlyStartNotice } from "@/lib/performanceServer";
+import { validateShift, effectiveSchedule } from "@/lib/performanceServer";
 import { prisma } from "@/lib/prisma";
 import {
   teamRoute,
@@ -85,7 +85,6 @@ export const POST = teamRoute(async (u, req) => {
   if (["SHIFT_CHANGE", "EARLY_DEPARTURE"].includes(kind) && (fromDate < todayWorkDate() || Date.parse(fromDate) - Date.parse(todayWorkDate()) > 365*86400000)) throw new TeamError("Choose today or a date within the next year.");
   const request = await prisma.$transaction(async (tx) => {
     if (kind === "SHIFT_CHANGE") {
-      await assertEarlyStartNotice(tx, u.id, fromDate, proposedIn!);
       await validateShift(tx, u.id, fromDate, proposedIn!, proposedOut!);
     }
     if (kind === "LATE_ARRIVAL" && await tx.attendanceRecord.findFirst({where: {userId: u.id, workDate: fromDate, clockInAt: {not: null}}}))

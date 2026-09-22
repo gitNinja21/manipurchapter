@@ -400,6 +400,10 @@ try {
     ).status,
     409,
   );
+  assert.equal(changed.lateClockOutStatus,"PENDING");
+  assert.equal((await ok(admin,"/api/admin/stats?from=2026-09-25&to=2026-09-25")).stats.find(x=>x.userId===additional[0][0]).regularPayRs,875);
+  const shiftedLate=await db.staffRequest.findFirst({where:{expectedRecordId:changed.id,kind:"LATE_CLOCK_OUT",status:"PENDING"}});
+  await ok(admin,`/api/team/requests/${shiftedLate.id}`,"PATCH",{status:"APPROVED"});
   stats = (await ok(admin, "/api/admin/stats?from=2026-09-25&to=2026-09-25"))
     .stats;
   assert.equal(
@@ -692,10 +696,10 @@ try {
   assert.equal((await ok(earlyCookie,"/api/attendance/today")).schedule.opening,"12:45 pm");
   const earlyRequest = day => ({kind:"SHIFT_CHANGE",fromDate:day,proposedIn:at(day,"12:00"),proposedOut:at(day,"21:00"),reason:"Preparing for a booked group"});
   await setTime(at("2026-10-01","09:00"));
-  assert.equal((await request(earlyCookie,"/api/team/requests","POST",earlyRequest("2026-10-01"))).status,400);
-  // A pre-existing same-day request also cannot be approved to bypass the notice rule.
-  const oldRequest = await db.staffRequest.create({data:{userId:"early-window",...earlyRequest("2026-10-01"),toDate:"2026-10-01",proposedIn:new Date(at("2026-10-01","12:00")),proposedOut:new Date(at("2026-10-01","21:00")),createdAt:new Date(at("2026-10-01","08:00"))}});
-  assert.equal((await request(admin,`/api/team/requests/${oldRequest.id}`,"PATCH",{status:"APPROVED"})).status,400);
+  const sameDayEarly=(await ok(earlyCookie,"/api/team/requests","POST",earlyRequest("2026-10-01"))).request;
+  assert.equal((await request(earlyCookie,`/api/team/requests/${sameDayEarly.id}`,"PATCH",{status:"APPROVED"})).status,403);
+  await ok(admin,`/api/team/requests/${sameDayEarly.id}`,"PATCH",{status:"APPROVED"});
+  assert.equal((await ok(earlyCookie,"/api/attendance/today")).schedule.opening,"11:45 am");
   await setTime(at("2026-10-01","12:45"));
   const earlyRecord = (await ok(earlyCookie,"/api/attendance/clock-in","POST",photo)).record;
   assert.equal(earlyRecord.scheduledEndAt,new Date(at("2026-10-01","21:45")).toISOString());
@@ -718,9 +722,10 @@ try {
   await ok(admin,`/api/team/requests/${rejectedEarly.id}`,"PATCH",{status:"REJECTED"});
   await setTime(at("2026-10-03","11:45"));
   assert.equal((await request(earlyCookie,"/api/attendance/clock-in","POST",photo)).status,403);
-  console.log("PASS: exact 15-minute clock-in boundary, rolling finish, previous-IST-day early-start notice, approval-time revalidation, pending/rejected requests blocked, employee self-approval blocked and approved dated-shift boundary.");
+  console.log("PASS: exact 15-minute clock-in boundary, rolling finish, same-day early-start approval, pending/rejected requests blocked, employee self-approval blocked and approved dated-shift boundary.");
   // Closing-time approval holds only the portion after 22:45, without losing actual times.
   await setTime(at("2026-10-04","13:00"));
+  const closingAdmin=await login("RULEADMIN");
   await ok(earlyCookie,"/api/attendance/clock-in","POST",photo);
   await setTime(at("2026-10-04","22:45"));
   assert.equal((await ok(earlyCookie,"/api/attendance/clock-out","POST",photo)).record.lateClockOutStatus,"NOT_REQUIRED");
@@ -730,15 +735,15 @@ try {
   const lateOut=(await ok(earlyCookie,"/api/attendance/clock-out","POST",photo)).record;
   assert.equal(lateOut.lateClockOutStatus,"PENDING");assert.equal(lateOut.clockOutAt,new Date(at("2026-10-06","23:00")).toISOString());
   const pendingOut=await db.staffRequest.findFirst({where:{userId:"early-window",kind:"LATE_CLOCK_OUT",status:"PENDING"}});
-  const lateStats=async()=> (await ok(admin,"/api/admin/stats?from=2026-10-06&to=2026-10-06")).stats.find(x=>x.userId==="early-window");
+  const lateStats=async()=> (await ok(closingAdmin,"/api/admin/stats?from=2026-10-06&to=2026-10-06")).stats.find(x=>x.userId==="early-window");
   assert.equal((await lateStats()).regularPayRs,900);assert.equal((await lateStats()).overtimeHours,.75);
   assert.equal((await request(earlyCookie,`/api/team/requests/${pendingOut.id}`,"PATCH",{status:"APPROVED"})).status,403);
   assert.equal((await request(earlyCookie,`/api/team/requests/${pendingOut.id}`,"PATCH",{status:"CANCELLED"})).status,403);
-  await ok(admin,`/api/team/requests/${pendingOut.id}`,"PATCH",{status:"REJECTED"});
-  await approve(lateOut.id); // Restoring a whole shift must not approve rejected closing-time minutes.
+  await ok(closingAdmin,`/api/team/requests/${pendingOut.id}`,"PATCH",{status:"REJECTED"});
+  await ok(closingAdmin,`/api/admin/attendance/${lateOut.id}`,"PATCH",{approvalStatus:"APPROVED"}); // Restoring a whole shift must not approve rejected closing-time minutes.
   assert.equal((await lateStats()).overtimeHours,.75);
   const correctionOut=(await ok(earlyCookie,"/api/team/requests","POST",{kind:"CORRECTION",fromDate:"2026-10-06",proposedIn:at("2026-10-06","13:00"),proposedOut:at("2026-10-06","23:00"),reason:"Manager verified the actual closing work"})).request;
-  await ok(admin,`/api/team/requests/${correctionOut.id}`,"PATCH",{status:"APPROVED"});
+  await ok(closingAdmin,`/api/team/requests/${correctionOut.id}`,"PATCH",{status:"APPROVED"});
   assert.equal((await lateStats()).overtimeHours,1);
   const staffHome=(await ok(earlyCookie,"/api/team/home")).summary;
   assert.deepEqual(Object.keys(staffHome).sort(),["clockedMinutes","completedShifts"]);
@@ -747,6 +752,11 @@ try {
   for(const label of ["Pay follows", "salary hours", "bonus balance", "day’s pay"]) assert.ok(!employeePage.includes(label));
   assert.equal(await db.attendanceAudit.count({where:{recordId:lateOut.id,action:"LATE_CLOCK_OUT_REJECTED"}}),1);
   console.log("PASS: closing-time boundary, real departure preserved, only late minutes held, admin-only rejection, no bypass via whole-shift restore, corrected departure approval and employee payroll privacy.");
+  // A sudden change after the original start is allowed if no arrival exists and the new start is still ahead.
+  await setTime(at("2026-10-08","13:15"));
+  const sudden=(await ok(earlyCookie,"/api/team/requests","POST",{...earlyRequest("2026-10-08"),proposedIn:at("2026-10-08","14:00"),proposedOut:at("2026-10-08","23:00")})).request;
+  await ok(closingAdmin,`/api/team/requests/${sudden.id}`,"PATCH",{status:"APPROVED"});
+  assert.equal((await ok(earlyCookie,"/api/attendance/today")).schedule.latest,"02:00 pm");
   console.log("Disposable test files:", dir);
   if (process.env.KEEP_TEST_SERVER === "1") {
     console.log("Test server retained for browser checks at " + base);

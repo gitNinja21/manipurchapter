@@ -10,6 +10,7 @@ export async function GET() {
     where: { userId: user.id },
     orderBy: { workDate: "desc" },
     take: 90,
+    select: {id:true,workDate:true,clockInAt:true,clockOutAt:true,approvalStatus:true,lateClockOutStatus:true,extraTimeReason:true},
   });
 
   return NextResponse.json({ records });

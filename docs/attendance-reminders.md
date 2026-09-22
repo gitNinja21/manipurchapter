@@ -16,7 +16,7 @@ and approved decisions and attendance timestamps. It runs through the normal
 - Missing clock-in: from 10:30 AM, or the scheduled arrival deadline if later,
   until the scheduled shift ends. Skip off-days, approved leave, employees who
   already clocked in, and employees whose arrival is recorded for manager clearance.
-- Missing clock-out: from 10:30 PM, or the recorded rolling finish if later. An
+- Missing clock-out: from 10:30 PM for every open shift, even if its rolling finish is later. An
   overnight shift retains its deadline across midnight. Shifts older than 24 hours
   receive an evening correction reminder because normal clock-out is unavailable.
 - Repeat every five minutes while missing. Set `ATTENDANCE_REMINDER_REPEAT_MINUTES`
@@ -53,3 +53,5 @@ required for the timer; sleeping/serverless hosting needs an external scheduler.
 
 Checks: `npm test`, `npm run lint`, `npm run build`, and the disposable-database
 work-rules/performance scripts. Never run tests against the restaurant database.
+
+Closing-time update: clock-out reminders start at 22:30 IST for every open shift, including shifts with a later rolling finish. Time after 22:45 requires admin approval. Overnight reminders retain the original work-date deadline.

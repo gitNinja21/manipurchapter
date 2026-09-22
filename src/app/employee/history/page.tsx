@@ -1,18 +1,12 @@
 "use client";
-import { type PolicyRecord } from "@/lib/performance";
 import { clockedMs, durationLabel } from "@/lib/attendanceTime";
 
 import { useEffect, useState } from "react";
 import { formatWorkDate, formatIstTime } from "@/lib/time";
 
-type Record = PolicyRecord & {
+type Record = {
   id: string;
   workDate: string;
-  unpaidBreakMinutes: number;
-  policyVersion: number;
-  shiftDurationMinutes: number;
-  extraTimeCutoff: string | null;
-  extraTimeStatus: string;
   lateClockOutStatus: string;
   extraTimeReason: string | null;
   clockInAt: string | null;

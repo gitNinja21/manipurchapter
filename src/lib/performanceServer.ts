@@ -4,7 +4,7 @@ import type { Prisma, User } from "@prisma/client";
 import { prisma } from "./prisma";
 import { policyApplies, policyTimes, recurringRule } from "./workPolicy";
 import { attendancePoints, deviations, offDay } from "./performance";
-import { todayWorkDate, workDateFor } from "./time";
+import { todayWorkDate } from "./time";
 import { TeamError, notify } from "./team";
 type Db = Prisma.TransactionClient;
 type ScheduleUser = Pick<
@@ -33,14 +33,6 @@ export async function effectiveSchedule(db: Db, u: ScheduleUser, date: string) {
   const start = new Date(+t.lateAt - 60000);
   return { start, arrivalStart: new Date(+new Date(`${date}T00:00:00+05:30`) + rule.start * 60000), end: new Date(+start + rule.duration * 60000), opens: t.opensAt,
     durationMinutes: rule.duration, breakMinutes: rule.unpaidBreak };
-}
-
-/** Employee-requested earlier shifts need notice on a previous IST calendar day. */
-export async function assertEarlyStartNotice(db: Db, userId: string, date: string, proposedStart: Date, submittedAt = new Date()) {
-  const employee = await db.user.findUniqueOrThrow({ where: { id: userId } });
-  const schedule = await effectiveSchedule(db, employee, date);
-  if (schedule && proposedStart < schedule.arrivalStart && workDateFor(submittedAt) >= date)
-    throw new TeamError("An earlier start must be requested at least the previous day in IST and approved before clock-in.");
 }
 
 export async function assertScheduleMutable(
@@ -75,14 +67,8 @@ export async function validateShift(
     );
   await assertScheduleMutable(db, userId, date);
   const employee = await db.user.findUniqueOrThrow({ where: { id: userId } });
-  const original = await effectiveSchedule(db, employee, date);
   const duration = recurringRule(employee, date)?.duration ?? 540;
   if (+end - +start !== duration * 60000) throw new TeamError(`Temporary shifts must span ${duration / 60} hours including the break. The actual finish moves with clock-in.`);
-  if (original && +original.start <= Date.now())
-    throw new TeamError(
-      "The original shift has already started. Use an attendance exception or correction instead.",
-      409,
-    );
   if (+start <= Date.now())
     throw new TeamError(
       "Request and approve the new shift before it starts.",

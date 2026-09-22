@@ -190,7 +190,7 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
           </label>
           <p className="text-sm text-foreground/60">
             Saving updates payroll automatically. Breaks, scheduled hours
-            and the usual bonus-hour rules still apply.
+            and the usual bonus-hour rules still apply. Saving a leaving time after 10:45 pm also approves that late time.
           </p>
           <button className="admin-button" disabled={action.busy}>
             Save actual attendance times
