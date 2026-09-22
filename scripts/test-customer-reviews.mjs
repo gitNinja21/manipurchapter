@@ -61,7 +61,8 @@ try {
  assert.equal((await ok(b,"/api/team/reviews?employeeId=review-a")).data.total,0);
  assert.equal((await ok(a,"/api/team/reviews")).data.total,1);
  const publicState=(await ok(claim.cookie,"/api/reviews/session")).data;
- assert.equal(publicState.submitted,true);assert.deepEqual(Object.keys(publicState).sort(),["employeeName","submitted"]);
+ assert.equal(publicState.submitted,true);assert.deepEqual(Object.keys(publicState).sort(),["employeeName","ratings","submitted"]);
+ assert.deepEqual(publicState.ratings,{friendliness:5,attentiveness:5,accuracy:5,speed:5,overall:5});
  // Reassigning a released short code cannot redirect an old customer's session.
  await ok(b,"/api/team/reviews","POST",{});
  await db.customerReviewInvite.update({where:{activeUserId:"review-b"},data:{code:ca}});
