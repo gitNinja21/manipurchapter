@@ -48,13 +48,13 @@ export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUr
     void saveReview(next);
   }
   const complete = REVIEW_QUESTIONS.every(q => ratings[q.key]);
-  return <main className="flex-1 w-full max-w-lg mx-auto px-4 py-8 sm:py-12 space-y-6">
-    <header className="text-center space-y-2">
+  return <div className="review-backdrop"><main className="flex-1 w-full max-w-lg mx-auto px-4 py-8 sm:py-12 space-y-6">
+    <header className="review-heading text-center space-y-2">
       <p className="text-brand text-sm font-semibold tracking-widest uppercase">Manipur Chapter</p>
       <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold">Rate your service</h1>
       <p className="text-foreground/60 text-sm">Five quick ratings. No account or written feedback needed.</p>
     </header>
-    {loading ? <p role="status" className="text-center">Loading…</p> : !session ?
+    {loading ? <p role="status" className="text-center text-white">Loading…</p> : !session ?
       <form onSubmit={enterCode} className="admin-panel p-6 space-y-5">
         <label className="block text-sm font-medium">Your server’s four-digit code
           <input autoComplete="off" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} required value={code} onChange={e => setCode(e.target.value.replace(/\D/g,"").slice(0,4))} className="input mt-3 text-center !text-3xl tracking-[0.4em] tabular-nums" placeholder="••••" />
@@ -78,15 +78,15 @@ export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUr
             </label>)}
           </div>
         </fieldset>)}
-        {!session.submitted && <p role="status" className="text-center text-sm text-foreground/60">{busy ? "Saving your review…" : `${REVIEW_QUESTIONS.filter(q => ratings[q.key]).length} of 5 rated`}</p>}
-        {googleReviewUrl && <p className="text-center text-sm text-foreground/70">Your words help our little place grow 🌱</p>}
+        {!session.submitted && <p role="status" className="text-center text-sm text-white/85">{busy ? "Saving your review…" : `${REVIEW_QUESTIONS.filter(q => ratings[q.key]).length} of 5 rated`}</p>}
+        {googleReviewUrl && <p className="text-center text-sm text-white">Your words help our little place grow 🌱</p>}
         {googleReviewUrl && (session.submitted ?
           <a className="admin-button block w-full text-center" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">Review us on Google</a> :
           <button type="button" className="admin-button w-full" disabled>Review us on Google</button>)}
         {error && complete && !busy && <button type="button" className="admin-button w-full" onClick={() => void saveReview(ratings)}>Retry saving</button>}
-        {!session.submitted && <button type="button" className="block mx-auto text-sm text-brand underline" disabled={busy} onClick={() => {setSession(null);setCode("");setError("");}}>Wrong server? Enter a different code</button>}
+        {!session.submitted && <button type="button" className="block mx-auto text-sm text-white underline" disabled={busy} onClick={() => {setSession(null);setCode("");setError("");}}>Wrong server? Enter a different code</button>}
       </section>}
     {error && <p role="alert" className="text-danger text-sm admin-panel p-4">{error}</p>}
-    {!session && <footer className="text-center text-xs text-foreground/50"><Link href="/">Staff sign in</Link></footer>}
-  </main>;
+    {!session && <footer className="text-center text-xs text-white/80"><Link href="/">Staff sign in</Link></footer>}
+  </main></div>;
 }

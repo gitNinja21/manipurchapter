@@ -66,3 +66,30 @@ body {
   .admin-table-scroll tbody tr:hover td { @apply bg-background; }
 }
 button, a, input, select, summary { outline-offset: 4px; }
+
+/* Customer review backdrop: the restaurant website's opening food photograph. */
+.review-backdrop {
+  position: relative;
+  isolation: isolate;
+  flex: 1;
+  min-height: 100svh;
+  background: #241c15;
+}
+.review-backdrop::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(rgba(0, 0, 0, .60), rgba(0, 0, 0, .72)),
+    url('/images/review-background.jpeg') center / cover no-repeat;
+}
+.review-heading h1 {
+  color: #fff;
+}
+.review-heading p:first-child {
+  color: #e7c579;
+}
+.review-heading p:last-child {
+  color: rgba(255, 255, 255, .85);
+}
