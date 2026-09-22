@@ -1,6 +1,6 @@
 # Customer reviews
 
-Staff open **Reviews → Generate 4-digit code** and share the `/review` page with a customer on the customer's own device. A public link also appears below staff sign-in. Customers enter the code, see their server's name, select 1–5 stars for each of five questions, and submit. There are no text feedback fields or customer accounts.
+Staff open **Reviews → Generate 4-digit code** and share the `/review` page with a customer on the customer's own device. A public link also appears below staff sign-in. Customers enter the code, see their server's name, select 1–5 stars for each of five questions, and the review saves automatically when the last unanswered question is rated. There is no Submit button. Ratings can be changed before all five are filled; while saving, controls are disabled. A failed save keeps the ratings and offers Retry saving. The Google review invitation appears only after a successful save. There are no text feedback fields or customer accounts.
 
 The questions cover friendliness, attentiveness, order accuracy, speed and overall service. Each review earns `total stars / 25` points: 25 stars = 1 point, 20 = 0.8 and 5 = 0.2. The server calculates and stores the award; client-supplied employee IDs and points are ignored. Reviews appear in monthly performance, staff review history and **Admin → Reviews**, with month and employee filters. Review points do not change recorded hours or salary calculations.
 

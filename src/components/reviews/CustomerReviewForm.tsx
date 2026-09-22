@@ -1,11 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { REVIEW_QUESTIONS, type Ratings } from "@/lib/customerReviews";
 import { api } from "@/components/team/useTeamData";
 
 type Session = { employeeName: string; submitted: boolean };
 export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUrl?: string }) {
+  const saving = useRef(false);
   const [finished, setFinished] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,11 +28,25 @@ export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUr
     catch(e) { setError(e instanceof Error ? e.message : "Could not check the code."); }
     finally { setBusy(false); }
   }
-  async function submit(e: React.FormEvent) {
-    e.preventDefault(); setBusy(true); setError("");
-    try { await api("/api/reviews/submit", "POST", ratings); setSession(s => s ? {...s,submitted:true} : s); }
-    catch(e) { setError(e instanceof Error ? e.message : "Could not submit your review."); }
-    finally { setBusy(false); }
+  async function saveReview(values: Partial<Ratings>) {
+    if (saving.current || !session || session.submitted || !REVIEW_QUESTIONS.every(q => values[q.key])) return;
+    saving.current = true;
+    setBusy(true); setError("");
+    try {
+      await api("/api/reviews/submit", "POST", values);
+      setSession(s => s ? {...s, submitted: true} : s);
+    } catch(e) {
+      setError(e instanceof Error ? e.message : "Could not save your review. Please try again.");
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
+  }
+  function rate(key: keyof Ratings, stars: number) {
+    if (saving.current || busy) return;
+    const next = {...ratings, [key]: stars};
+    setRatings(next);
+    void saveReview(next);
   }
   const complete = REVIEW_QUESTIONS.every(q => ratings[q.key]);
   return <main className="flex-1 w-full max-w-lg mx-auto px-4 py-8 sm:py-12 space-y-6">
@@ -61,24 +76,26 @@ export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUr
         <p className="text-sm text-foreground/60">Ask your waiter or waitress for a code. It is valid for five minutes and can be used once.</p>
         <button className="admin-button w-full" disabled={busy || code.length !== 4}>{busy ? "Checking…" : "Start review"}</button>
       </form> :
-      <form onSubmit={submit} className="space-y-4">
+      <section className="space-y-4" aria-busy={busy}>
         <section className="admin-panel p-4 text-center">
           <p className="text-sm text-foreground/60">You’re reviewing</p><h2 className="font-semibold text-xl">{session.employeeName}</h2>
           <p className="text-xs text-foreground/60 mt-2">1 = Poor · 5 = Excellent</p>
+          <p className="text-sm text-foreground/60 mt-2">Your review saves automatically as soon as all five questions are rated.</p>
         </section>
         {REVIEW_QUESTIONS.map((q,i) => <fieldset key={q.key} className="admin-panel p-4">
           <legend className="sr-only">{q.label}</legend>
           <p className="text-sm font-medium" aria-hidden="true">{i+1}. {q.label}</p>
           <div className="flex justify-between gap-1 mt-2">
             {[1,2,3,4,5].map(star => <label key={star} className="relative cursor-pointer p-1">
-              <input className="peer sr-only" type="radio" name={q.key} value={star} checked={ratings[q.key] === star} onChange={() => setRatings(r => ({...r,[q.key]:star}))} required disabled={busy} aria-label={`${star} ${star === 1 ? "star" : "stars"}`} />
+              <input className="peer sr-only" type="radio" name={q.key} value={star} checked={ratings[q.key] === star} onChange={() => rate(q.key, star)} required disabled={busy} aria-label={`${star} ${star === 1 ? "star" : "stars"}`} />
               <span aria-hidden="true" className={`block text-4xl rounded peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-brand ${star <= (ratings[q.key] ?? 0) ? "text-amber-500" : "text-foreground/25"}`}>★</span>
             </label>)}
           </div>
         </fieldset>)}
-        <button className="admin-button w-full" disabled={busy || !complete}>{busy ? "Submitting…" : "Submit review"}</button>
+        <p role="status" className="text-center text-sm text-foreground/60">{busy ? "Saving your review…" : `${REVIEW_QUESTIONS.filter(q => ratings[q.key]).length} of 5 rated`}</p>
+        {error && complete && !busy && <button type="button" className="admin-button w-full" onClick={() => void saveReview(ratings)}>Retry saving</button>}
         <button type="button" className="block mx-auto text-sm text-brand underline" disabled={busy} onClick={() => {setSession(null);setCode("");setError("");}}>Wrong server? Enter a different code</button>
-      </form>}
+      </section>}
     {error && <p role="alert" className="text-danger text-sm admin-panel p-4">{error}</p>}
     <footer className="text-center text-xs text-foreground/50"><Link href="/">Staff sign in</Link></footer>
   </main>;
