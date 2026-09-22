@@ -8,37 +8,58 @@ type Session = { employeeName: string; submitted: boolean; ratings?: Ratings | n
 export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUrl?: string }) {
   const saving = useRef(false);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const visit = useRef(0);
   const [code, setCode] = useState("");
   const [ratings, setRatings] = useState<Partial<Ratings>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
-    const controller = new AbortController();
-    api<Session>("/api/reviews/session", "GET", undefined, controller.signal)
-      .then(s => { if (!controller.signal.aborted) { setSession(s); setRatings(s.ratings ?? {}); } })
-      .catch(() => {})
-      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    return () => controller.abort();
+    // Never resume another server from the persistent review cookie.
+    // pagehide also clears state retained by the browser's Back/Forward cache.
+    function invalidateVisit() { visit.current++; }
+    function resetVisit() {
+      invalidateVisit();
+      saving.current = false;
+      setSession(null); setCode(""); setRatings({}); setBusy(false); setError("");
+    }
+    function restorePage(event: PageTransitionEvent) {
+      if (event.persisted) resetVisit();
+    }
+    window.addEventListener("pagehide", resetVisit);
+    window.addEventListener("pageshow", restorePage);
+    return () => {
+      invalidateVisit();
+      window.removeEventListener("pagehide", resetVisit);
+      window.removeEventListener("pageshow", restorePage);
+    };
   }, []);
   async function enterCode(e: React.FormEvent) {
     e.preventDefault(); setBusy(true); setError("");
-    try { setSession(await api<Session>("/api/reviews/code", "POST", {code})); setRatings({}); }
-    catch(e) { setError(e instanceof Error ? e.message : "Could not check the code."); }
-    finally { setBusy(false); }
+    const currentVisit = visit.current;
+    try {
+      const nextSession = await api<Session>("/api/reviews/code", "POST", {code});
+      if (currentVisit !== visit.current) return;
+      setSession(nextSession); setRatings({});
+    }
+    catch(e) { if (currentVisit === visit.current) setError(e instanceof Error ? e.message : "Could not check the code."); }
+    finally { if (currentVisit === visit.current) setBusy(false); }
   }
   async function saveReview(values: Partial<Ratings>) {
     if (saving.current || !session || session.submitted || !REVIEW_QUESTIONS.every(q => values[q.key])) return;
+    const currentVisit = visit.current;
     saving.current = true;
     setBusy(true); setError("");
     try {
       await api("/api/reviews/submit", "POST", values);
+      if (currentVisit !== visit.current) return;
       setSession(s => s ? {...s, submitted: true} : s);
     } catch(e) {
-      setError(e instanceof Error ? e.message : "Could not save your review. Please try again.");
+      if (currentVisit === visit.current) setError(e instanceof Error ? e.message : "Could not save your review. Please try again.");
     } finally {
-      saving.current = false;
-      setBusy(false);
+      if (currentVisit === visit.current) {
+        saving.current = false;
+        setBusy(false);
+      }
     }
   }
   function rate(key: keyof Ratings, stars: number) {
@@ -54,7 +75,7 @@ export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUr
       <h1 className="font-[family-name:var(--font-display)] text-3xl font-bold">Rate your service</h1>
       <p className="text-foreground/60 text-sm">Five quick ratings. No account or written feedback needed.</p>
     </header>
-    {loading ? <p role="status" className="text-center text-white">Loading…</p> : !session ?
+    {!session ?
       <form onSubmit={enterCode} className="admin-panel p-6 space-y-5">
         <label className="block text-sm font-medium">Your server’s four-digit code
           <input autoComplete="off" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} required value={code} onChange={e => setCode(e.target.value.replace(/\D/g,"").slice(0,4))} className="input mt-3 text-center !text-3xl tracking-[0.4em] tabular-nums" placeholder="••••" />
@@ -85,7 +106,7 @@ export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUr
           <a className="admin-button block w-full text-center" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">Review us on Google</a> :
           <button type="button" className="admin-button w-full" disabled>Review us on Google</button>)}
         {error && complete && !busy && <button type="button" className="admin-button w-full" onClick={() => void saveReview(ratings)}>Retry saving</button>}
-        {!session.submitted && <button type="button" className="block mx-auto text-sm text-white underline" disabled={busy} onClick={() => {setSession(null);setCode("");setError("");}}>Wrong server? Enter a different code</button>}
+        {!session.submitted && <button type="button" className="block mx-auto text-sm text-white underline" disabled={busy} onClick={() => {visit.current++;setSession(null);setCode("");setRatings({});setError("");}}>Wrong server? Enter a different code</button>}
       </section>}
     {error && <p role="alert" className="text-danger text-sm admin-panel p-4">{error}</p>}
     {!session && <footer className="text-center text-xs text-white/80"><Link href="/">Staff sign in</Link></footer>}
