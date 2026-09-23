@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import HomeSummary from "@/components/team/HomeSummary";
 import FaceCapture from "@/components/FaceCapture";
+import { locateDevice } from "@/lib/deviceLocation";
 import { formatIstTime } from "@/lib/time";
 
 type TodayRecord = {
@@ -103,15 +104,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
     if (typeof navigator !== "undefined" && navigator.geolocation) {
       setMode("locating");
       try {
-        const position = await new Promise<GeolocationPosition>(
-          (resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true,
-              timeout: 12000,
-              maximumAge: 0,
-            });
-          },
-        );
+        const position = await locateDevice(navigator.geolocation);
         coordsRef.current = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
@@ -130,7 +123,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
             : code === 2
               ? "Your phone couldn't find your location. Check that Location Services and Precise Location are on, then try again near a window or the entrance."
               : code === 3
-                ? "Finding your location took too long. Check that Location Services are on, then try again near a window or the entrance."
+                ? "Both location attempts timed out. Turn on Location Services and Precise Location, keep Wi-Fi or mobile data on, and retry near the entrance. If you opened this link inside WhatsApp or another app, open it directly in Chrome or Safari."
                 : "We couldn't check your location. Check your phone's Location Services and this website's location permission. If you opened the link inside another app, open it directly in Chrome or Safari.";
         setError(`${guidance} Then tap ${retryAction} to retry. Your attendance has not been saved.`);
         setMode("idle");
