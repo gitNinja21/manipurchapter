@@ -70,12 +70,24 @@ export const PATCH = teamRoute(async (u, req) => {
     }
     if (status === "APPROVED" && r.kind === "SHIFT_CHANGE") {
       if (!r.proposedIn || !r.proposedOut) throw new TeamError("Shift times are missing.");
-      await validateShift(tx, r.userId, r.fromDate, r.proposedIn, r.proposedOut);
+      await validateShift(tx, r.userId, r.fromDate, r.proposedIn, r.proposedOut, true);
       const before = await tx.scheduledShift.findUnique({where: {userId_workDate: {userId: r.userId, workDate: r.fromDate}}});
       const after = await tx.scheduledShift.upsert({where: {userId_workDate: {userId: r.userId, workDate: r.fromDate}},
         create: {userId: r.userId, workDate: r.fromDate, startsAt: r.proposedIn, endsAt: r.proposedOut, note: r.reason},
         update: {startsAt: r.proposedIn, endsAt: r.proposedOut, note: r.reason}});
       await policyAudit(tx, u, r.userId, after.id, "SHIFT_CHANGE_APPROVED", before, after);
+      const attendance = await tx.attendanceRecord.findUnique({
+        where: {userId_workDate: {userId: r.userId, workDate: r.fromDate}},
+      });
+      if (attendance) {
+        if (attendance.policyVersion !== 2)
+          throw new TeamError("Use an attendance correction for this legacy attendance record.", 409);
+        // Approve the replacement schedule, never invent an earlier clock-in.
+        // Duration, breaks, clock times and existing approval decisions stay intact.
+        const updated = await tx.attendanceRecord.update({where: {id: attendance.id},
+          data: {scheduledStartAt: r.proposedIn}});
+        await tx.attendanceAudit.create({data: auditData(attendance, r.user, u, "SHIFT_CHANGE_APPROVED", updated)});
+      }
     }
     if (status === "APPROVED" && ["LATE_ARRIVAL", "EARLY_DEPARTURE"].includes(r.kind)) {
       const record = await tx.attendanceRecord.findUnique({where: {userId_workDate: {userId: r.userId, workDate: r.fromDate}}});

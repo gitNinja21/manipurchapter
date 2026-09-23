@@ -165,3 +165,5 @@ Historical completed records keep their previous treatment; the migration does n
 Employee pages show clocked duration, attendance status, requests and points only. Their home endpoint no longer calculates or exposes payroll summaries, bonus-day conversions or balances. Salary amounts, rates and payroll breakdowns remain in existing admin-only payroll tools; no new payroll-department role is introduced.
 
 From 23 September 2026 (IST work date), Lachit, Hingnam, Pankaj and Gokul have a total 150-minute unpaid break per working day. Their clock-in windows and shift duration are unchanged; a nine-hour shift pays 6.5 hours. Earlier attendance snapshots remain unchanged.
+
+Same-day replacement shift requests can be submitted and approved after the proposed start or recorded arrival. Admin approval updates the assigned shift and the existing version-2 attendance scheduled start, with an attendance audit. Actual clock times, duration, breaks and prior decisions are preserved. Past-date shift changes remain blocked; missing or incorrect clock times need a separate attendance correction. Leave and overlap checks still apply.

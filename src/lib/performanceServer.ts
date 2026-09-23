@@ -62,16 +62,18 @@ export async function validateShift(
   date: string,
   start: Date,
   end: Date,
+  allowSameDayReplacement = false,
 ) {
+  const sameDayReplacement = allowSameDayReplacement && date === todayWorkDate();
   if (+end - +start <= 60 * 60000)
     throw new TeamError(
       "A scheduled shift must be longer than its one-hour unpaid break.",
     );
-  await assertScheduleMutable(db, userId, date);
+  if (!sameDayReplacement) await assertScheduleMutable(db, userId, date);
   const employee = await db.user.findUniqueOrThrow({ where: { id: userId } });
   const duration = recurringRule(employee, date)?.duration ?? 540;
   if (+end - +start !== duration * 60000) throw new TeamError(`Temporary shifts must span ${duration / 60} hours including the break. The actual finish moves with clock-in.`);
-  if (+start <= Date.now())
+  if (!sameDayReplacement && +start <= Date.now())
     throw new TeamError(
       "Request and approve the new shift before it starts.",
       409,
