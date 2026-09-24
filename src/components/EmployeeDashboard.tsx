@@ -49,6 +49,8 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
   const [message, setMessage] = useState<string | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(true);
+  const [gpsFailed, setGpsFailed] = useState<"in" | "out" | null>(null);
+  const [gpsFallback, setGpsFallback] = useState(false);
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const refresh = useCallback(async (quiet = false) => {
@@ -92,6 +94,8 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
 
   async function startCapture(which: "in" | "out") {
     if (preview) return;
+    setGpsFailed(null);
+    setGpsFallback(false);
     setError(null);
     setMessage(null);
     coordsRef.current = null;
@@ -126,9 +130,14 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
                 ? "Both location attempts timed out. Turn on Location Services and Precise Location, keep Wi-Fi or mobile data on, and retry near the entrance. If you opened this link inside WhatsApp or another app, open it directly in Chrome or Safari."
                 : "We couldn't check your location. Check your phone's Location Services and this website's location permission. If you opened the link inside another app, open it directly in Chrome or Safari.";
         setError(`${guidance} Then tap ${retryAction} to retry. Your attendance has not been saved.`);
+        setGpsFailed(which);
         setMode("idle");
         return;
       }
+    } else {
+      setGpsFailed(which);
+      setError("Location is unavailable in this browser. You can request manager verification.");
+      return;
     }
 
     setAction(which);
@@ -139,10 +148,11 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
     if (preview) return;
     setMode("submitting");
     try {
-      const res = await fetch(`/api/attendance/clock-${action}`, {
+      const res = await fetch(gpsFallback ? "/api/attendance/location-fallback" : `/api/attendance/clock-${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          ...(gpsFallback ? {action} : {}),
           photoDataUrl,
           descriptor,
           lat: coordsRef.current?.lat,
@@ -154,6 +164,11 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       if (!res.ok) {
         setError(data.error || "Something went wrong.");
         setMode("idle");
+        return;
+      }
+      if (gpsFallback) {
+        setMessage("Selfie sent. Attendance is pending admin review in Team → Requests. Your admin can approve later, even remotely. The submission time is recorded; approval will use that time.");
+        setMode("idle"); setAction(null); setGpsFailed(null); setGpsFallback(false);
         return;
       }
       window.dispatchEvent(new Event("attendance-updated"));
@@ -211,6 +226,11 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
           <span className="block text-xs text-foreground/60 mt-2">You can leave this blank. If you leave after 10:45 pm, your clock-out will be sent for admin approval.</span>
         </label>
       )}
+      {gpsFailed && mode === "idle" && !preview && <div className="admin-panel p-4 space-y-2">
+        <button className="admin-button" onClick={() => {setAction(gpsFailed);setGpsFallback(true);setError(null);setMode("capturing");}}>Can’t get location? Ask manager to verify</button>
+        <p className="text-sm text-foreground/60">Take a selfie. Your admin can review the request later, even remotely. Approval uses your saved submission time for clock-{gpsFailed}.</p>
+        <Link className="text-sm text-brand underline" href="/employee/team?view=requests">View my requests</Link>
+      </div>}
       {loading ? (
         <div className="bg-surface border border-border rounded-2xl p-8 text-center text-sm text-foreground/50">
           Loading…
@@ -226,7 +246,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       ) : mode === "capturing" ? (
         <div className="bg-surface border border-border rounded-2xl p-6">
           <p className="text-center text-sm font-medium text-foreground/70 mb-4">
-            {action === "in" ? "Clocking in" : "Clocking out"}
+            {gpsFallback ? "Selfie for manager verification" : action === "in" ? "Clocking in" : "Clocking out"}
           </p>
           <FaceCapture
             mode="verify"

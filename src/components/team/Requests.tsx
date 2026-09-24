@@ -5,6 +5,7 @@ import { api, useAction, useTeamData } from "./useTeamData";
 import { ErrorNotice, Pager } from "./TeamCommon";
 import { formatIstDateTime, formatWorkDate, todayWorkDate } from "@/lib/time";
 type RequestItem = {
+  verificationPhoto?: string | null;
   id: string;
   kind: string;
   fromDate: string;
@@ -194,13 +195,15 @@ function RequestCard({
   reload: () => void;
 }) {
   const [note, setNote] = useState("");
+  const [verified, setVerified] = useState(false);
+  const gps = r.kind === "GPS_CLOCK_IN" || r.kind === "GPS_CLOCK_OUT";
   const action = useAction(reload);
   return (
     <article className="admin-panel p-5 space-y-3">
       <div className="flex justify-between gap-3">
         <div>
           <h3 className="font-semibold">
-            {r.kind === "LEAVE" ? "Leave" : r.kind === "LATE_ARRIVAL" ? "Late arrival" : r.kind === "SHIFT_CHANGE" ? "Temporary shift change" : r.kind === "EARLY_DEPARTURE" ? "Excused early departure" : r.kind === "LATE_CLOCK_OUT" ? "Clock-out after 10:45 pm" : r.kind === "EXTRA_TIME" ? "Past extra-time request" : "Attendance correction"}
+            {gps ? (r.kind === "GPS_CLOCK_IN" ? "GPS fallback · Clock in" : "GPS fallback · Clock out") : r.kind === "LEAVE" ? "Leave" : r.kind === "LATE_ARRIVAL" ? "Late arrival" : r.kind === "SHIFT_CHANGE" ? "Temporary shift change" : r.kind === "EARLY_DEPARTURE" ? "Excused early departure" : r.kind === "LATE_CLOCK_OUT" ? "Clock-out after 10:45 pm" : r.kind === "EXTRA_TIME" ? "Past extra-time request" : "Attendance correction"}
             {admin ? ` · ${r.user.name}` : ""}
           </h3>
           <p className="text-xs text-foreground/60 mt-1">
@@ -211,7 +214,12 @@ function RequestCard({
         <span className="admin-badge self-start">{r.kind === "EXTRA_TIME" && r.status === "PENDING" ? "RETIRED" : r.status}</span>
       </div>
       <p className="text-sm whitespace-pre-wrap break-words">{r.reason}</p>
-      {r.proposedIn && r.proposedOut && (
+      {gps && <div className="space-y-2 text-sm">
+        <p>Recorded request time: {formatIstDateTime(new Date((r.kind === "GPS_CLOCK_IN" ? r.proposedIn : r.proposedOut)!))}</p>
+        {r.verificationPhoto && <a className="text-brand underline" href={`/api/photos/${r.verificationPhoto}`} target="_blank" rel="noopener noreferrer">View verification selfie</a>}
+        <p>You can review remotely at any time. Approval records the request time, not the approval time. Late clock-out time needs separate approval. Complete any pending manager meeting first.</p>
+      </div>}
+      {!gps && r.proposedIn && r.proposedOut && (
         <p className="text-sm">
           Requested: {formatIstDateTime(new Date(r.proposedIn))} →{" "}
           {formatIstDateTime(new Date(r.proposedOut))}
@@ -239,17 +247,19 @@ function RequestCard({
                 maxLength={1000}
               />
             </label>
+            {gps && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={verified} onChange={e => setVerified(e.target.checked)} />I reviewed the selfie and request and confirm this attendance at the recorded request time.</label>}
             <div className="flex gap-2">
               {["APPROVED", "REJECTED"].map((s) => (
                 <button
                   key={s}
                   className="admin-button"
-                  disabled={action.busy}
+                  disabled={action.busy || (gps && s === "APPROVED" && (!verified || !note.trim()))}
                   onClick={() =>
                     void action.run(() =>
                       api(`/api/team/requests/${r.id}`, "PATCH", {
                         status: s,
                         reviewNote: note,
+                        physicalPresenceVerified: verified,
                       }),
                     )
                   }

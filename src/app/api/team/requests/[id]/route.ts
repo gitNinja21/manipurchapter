@@ -1,3 +1,4 @@
+import { approveLocationFallback } from "@/lib/locationFallback";
 import { lateClockOutRule } from "@/lib/attendanceTime";
 import { effectiveSchedule, validateShift, policyAudit, penaltyContext, syncMeetings } from "@/lib/performanceServer";
 import { extraCutoff, durationSnapshot } from "@/lib/performance";
@@ -61,6 +62,10 @@ export const PATCH = teamRoute(async (u, req) => {
         "This employee has assigned shifts during the leave. Cancel or reassign those shifts before approving.",
         409,
       );
+    if (["GPS_CLOCK_IN", "GPS_CLOCK_OUT"].includes(r.kind) && status === "APPROVED") {
+      if (b.physicalPresenceVerified !== true || !reviewNote) throw new TeamError("Confirm you reviewed this attendance request and add a review note.");
+      await approveLocationFallback(tx, r, u);
+    }
     if (r.kind === "LATE_CLOCK_OUT") {
       const record = r.expectedRecordId ? await tx.attendanceRecord.findUnique({where:{id:r.expectedRecordId}}) : null;
       if (!record || record.userId !== r.userId || record.lateClockOutStatus !== "PENDING" || record.clockOutAt?.toISOString() !== r.proposedOut?.toISOString())
@@ -180,7 +185,7 @@ export const PATCH = teamRoute(async (u, req) => {
       [r.user],
       "REQUEST_DECISION",
       `${id}:${status}`,
-      `Your ${r.kind === "LEAVE" ? "leave" : r.kind === "LATE_ARRIVAL" ? "late-arrival" : r.kind === "SHIFT_CHANGE" ? "shift change" : r.kind === "EARLY_DEPARTURE" ? "early departure" : r.kind === "LATE_CLOCK_OUT" ? "late clock-out" : r.kind === "EXTRA_TIME" ? "extra-time" : "correction"} request was ${status.toLowerCase()}`,
+      `Your ${r.kind.startsWith("GPS_CLOCK_") ? "GPS fallback" : r.kind === "LEAVE" ? "leave" : r.kind === "LATE_ARRIVAL" ? "late-arrival" : r.kind === "SHIFT_CHANGE" ? "shift change" : r.kind === "EARLY_DEPARTURE" ? "early departure" : r.kind === "LATE_CLOCK_OUT" ? "late clock-out" : r.kind === "EXTRA_TIME" ? "extra-time" : "correction"} request was ${status.toLowerCase()}`,
       "team?view=requests",
     );
   });

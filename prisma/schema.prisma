@@ -208,6 +208,8 @@ model AnnouncementAck {
   @@unique([announcementId, userId])
 }
 model StaffRequest {
+  verificationPhoto String?
+  verificationDistance Float?
   id String @id @default(cuid())
   userId String
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
