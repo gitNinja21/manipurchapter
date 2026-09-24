@@ -166,7 +166,7 @@ export const POST = teamRoute(async (u, req) => {
         "REFERRAL",
         r.id,
         `${u.name}: customer referral needs verification`,
-        "team?view=performance",
+        "team?view=performance&section=clearance",
       );
     });
     return { ok: true };
@@ -195,25 +195,6 @@ export const PATCH = teamRoute(async (u, req) => {
       if (!employee.active || !employee.approved)
         throw new TeamError("Employee is not active and approved.", 409);
       const date = todayWorkDate();
-      const a = await tx.arrivalAttempt.findUnique({
-        where: { userId_workDate: { userId: m.userId, workDate: date } },
-      });
-      if (!a)
-        throw new TeamError(
-          "The employee must record a verified arrival using clock-in before this meeting can be cleared.",
-          409,
-        );
-      const approvedAt =
-        b.useProposed === true && a.proposedAt ? a.proposedAt : a.arrivedAt;
-      if (a.approvedAt && +a.approvedAt !== +approvedAt)
-        throw new TeamError(
-          "Another manager has already approved today's arrival. Use the same time.",
-          409,
-        );
-      const afterArrival = await tx.arrivalAttempt.update({
-        where: { id: a.id },
-        data: { approvedAt, approvedBy: u.name },
-      });
       const after = await tx.managerMeeting.update({
         where: { id },
         data: {
@@ -224,24 +205,29 @@ export const PATCH = teamRoute(async (u, req) => {
           note,
         },
       });
-      await policyAudit(
-        tx,
-        u,
-        m.userId,
-        a.id,
-        "ARRIVAL_APPROVED",
-        a,
-        afterArrival,
-      );
       await policyAudit(tx, u, m.userId, id, "MEETING_CLEARED", m, after);
       await notify(
         tx,
         [employee],
         "MEETING_CLEARED",
         id,
-        "Manager meeting completed. Retry clock-in when all meetings are cleared; your approved arrival time is protected.",
-        "team?view=performance",
+        "Manager meeting completed. Any recorded arrival needs separate approval before you retry clock-in.",
+        "team?view=performance&section=clearance",
       );
+      return;
+    }
+    if (b.action === "APPROVE_ARRIVAL") {
+      const a = await tx.arrivalAttempt.findUnique({where:{id}});
+      if (!a || a.workDate !== todayWorkDate()) throw new TeamError("Choose today's recorded arrival. For older dates, use an attendance correction.",409);
+      const employee = await tx.user.findUniqueOrThrow({where:{id:a.userId}});
+      if (!employee.active || !employee.approved) throw new TeamError("Employee is not active and approved.",409);
+      if (await tx.attendanceRecord.findFirst({where:{userId:a.userId,workDate:a.workDate,clockInAt:{not:null}}})) throw new TeamError("Clock-in already exists. Use an attendance correction.",409);
+      if (a.approvedAt) throw new TeamError("Arrival is already approved. Refresh the page.",409);
+      const approvedAt = b.useProposed === true && a.proposedAt ? a.proposedAt : a.arrivedAt;
+      const changed = await tx.arrivalAttempt.updateMany({where:{id,approvedAt:null},data:{approvedAt,approvedBy:u.name}});
+      if (!changed.count) throw new TeamError("Arrival already changed. Refresh.",409);
+      await policyAudit(tx,u,a.userId,id,"ARRIVAL_APPROVED",a,{...a,approvedAt,approvedBy:u.name,note});
+      await notify(tx,[employee],"ARRIVAL_APPROVED",id,"Arrival approved. Retry clock-in after any pending meetings are cleared.","team?view=performance&section=clearance");
       return;
     }
     if (b.action === "REVIEW_REFERRAL") {
@@ -298,7 +284,7 @@ export const PATCH = teamRoute(async (u, req) => {
         "REFERRAL_DECISION",
         `${id}:${status}`,
         `Your referral for bill ${r.billNumber} was ${status.toLowerCase()}`,
-        "team?view=performance",
+        "team?view=performance&section=clearance",
       );
       return;
     }

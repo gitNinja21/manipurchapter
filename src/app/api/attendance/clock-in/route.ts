@@ -53,6 +53,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const awaitingArrival = await prisma.arrivalAttempt.findUnique({where:{userId_workDate:{userId:user.id,workDate}}});
+  if (awaitingArrival && !awaitingArrival.approvedAt) return NextResponse.json({error:"Your recorded arrival needs separate approval under Team → Performance → Manager clearance. Ask your admin to approve the arrival time and clear any pending meetings, then retry."},{status:409});
+
   // Location gate — a no-op unless RESTAURANT_LAT/RESTAURANT_LNG are set in
   // the environment. Checked before the face match so someone clocking in
   // from off-site gets a clear, honest reason rather than a face-match error.

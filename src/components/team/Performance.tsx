@@ -149,8 +149,7 @@ export default function Performance({ admin }: { admin: boolean }) {
           Manager clearance
         </h3>
         <p className="text-sm text-foreground/60">
-          Use clock-in to record a verified arrival before the meeting. After
-          clearance, retry clock-in; the approved arrival time is used.
+          Confirm completed meetings at any time. Review recorded arrival times separately below.
         </p>
         {data?.meetings.filter(m => visible(m.userId)).length === 0 && (
           <p className="text-sm">No manager meetings in this view.</p>
@@ -168,6 +167,19 @@ export default function Performance({ admin }: { admin: boolean }) {
               reload={reload}
             />
           ))}
+        {admin && data?.arrivals.filter(a => visible(a.userId) && !a.approvedAt).map(a => (
+          <form key={a.id} className="admin-panel p-4 space-y-3" onSubmit={e => {
+            e.preventDefault(); const f = new FormData(e.currentTarget);
+            void action.run(() => api("/api/team/performance", "PATCH", {action:"APPROVE_ARRIVAL",id:a.id,note:f.get("note"),useProposed:f.get("proposed") === "on"}));
+          }}>
+            <h4 className="font-semibold">{name(a.userId)} · Arrival approval</h4>
+            <p className="text-sm">Recorded arrival: {when(a.arrivedAt)}</p>
+            {a.proposedAt && <label className="flex gap-2 text-sm"><input type="checkbox" name="proposed" />Use verified claimed arrival: {when(a.proposedAt)} ({a.reason})</label>}
+            <label className="block text-sm">Arrival review note<textarea className="input" name="note" required maxLength={1000} /></label>
+            <button className="admin-button" disabled={action.busy}>Approve arrival time</button>
+            <p className="text-xs text-foreground/60">The employee can retry clock-in once arrival is approved and all meetings are cleared.</p>
+          </form>
+        ))}
         {!admin &&
           data?.arrivals
             .filter((a) => !a.approvedAt)
@@ -424,17 +436,10 @@ function MeetingCard({
                 action: "CLEAR_MEETING",
                 id: m.id,
                 note: f.get("note"),
-                useProposed: f.get("proposed") === "on",
               }),
             );
           }}
         >
-          {a?.proposedAt && (
-            <label className="flex gap-2 text-sm">
-              <input type="checkbox" name="proposed" />I verified the employee’s
-              claimed arrival; use it instead of the recorded attempt.
-            </label>
-          )}
           <label className="block text-sm">
             Meeting outcome
             <textarea
@@ -445,14 +450,10 @@ function MeetingCard({
               placeholder="Record what was discussed and agreed"
             />
           </label>
-          <button disabled={action.busy || !a} className="admin-button">
-            Confirm meeting & approve arrival
+          <button disabled={action.busy} className="admin-button">
+            Confirm meeting completed
           </button>
-          {!a && (
-            <p className="text-sm">
-              Waiting for the employee’s verified arrival attempt.
-            </p>
-          )}
+          <p className="text-xs text-foreground/60">This clears the meeting only. Arrival is reviewed separately.</p>
         </form>
       )}
     </article>

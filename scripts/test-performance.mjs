@@ -304,11 +304,22 @@ try {
     note: "Discussed punctuality and verified arrival",
     useProposed: true,
   });
+  const savedEarlyArrival = await db.arrivalAttempt.findUniqueOrThrow({where:{userId_workDate:{userId:additional[1][0],workDate:"2026-09-23"}}});
+  await db.arrivalAttempt.delete({where:{id:savedEarlyArrival.id}});
   await ok(admin, "/api/team/performance", "PATCH", {
     action: "CLEAR_MEETING",
     id: early.id,
     note: "Discussed early departures",
   });
+  // Clearing a meeting does not require or approve an arrival.
+  assert.equal(await db.arrivalAttempt.findUnique({where:{id:savedEarlyArrival.id}}),null);
+  await db.arrivalAttempt.create({data:savedEarlyArrival});
+  const separateArrival = await db.arrivalAttempt.findUniqueOrThrow({where:{userId_workDate:{userId:additional[0][0],workDate:"2026-09-23"}}});
+  assert.equal(separateArrival.approvedAt,null);
+  assert.equal((await request(angai,"/api/attendance/clock-in","POST",photo)).status,409);
+  assert.equal((await request(angai,"/api/team/performance","PATCH",{action:"APPROVE_ARRIVAL",id:separateArrival.id,note:"Self approval"})).status,403);
+  await ok(admin,"/api/team/performance","PATCH",{action:"APPROVE_ARRIVAL",id:separateArrival.id,note:"Verified earlier arrival",useProposed:true});
+  await ok(admin,"/api/team/performance","PATCH",{action:"APPROVE_ARRIVAL",id:savedEarlyArrival.id,note:"Verified recorded arrival"});
   const meetingDay = (
     await ok(angai, "/api/attendance/clock-in", "POST", photo)
   ).record;
