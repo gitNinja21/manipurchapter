@@ -25,7 +25,7 @@ export default function TeamWorkspace({ admin }: { admin: boolean }) {
           ["birthdays", "Birthdays"],
           ["schedule", "Schedule"],
           ["requests", "Requests"],
-          ["performance", "Points & attendance"],
+          ["performance", "Performance"],
           ...(admin ? [["attendance", "Attendance tracking"]] : []),
         ].map(([id, label]) => (
           <button

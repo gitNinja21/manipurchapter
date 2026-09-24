@@ -28,7 +28,7 @@ export default function AttendanceTracking() {
   const lastDay=selected.filter(r=>r.date===data?.to);
   const pending=data?.pendingMeetings.filter(m=>!employeeId || m.userId===employeeId) ?? [];
   const name=(id:string)=>data?.employees.find(e=>e.id===id)?.name ?? "Employee";
-  const manage=(id:string)=>`/admin/team?view=performance&employeeId=${encodeURIComponent(id)}`;
+  const manage=(id:string)=>`/admin/team?view=performance&section=clearance&employeeId=${encodeURIComponent(id)}`;
   return <section className="space-y-5">
     <div><h2 className="text-xl font-semibold">Attendance tracking</h2><p className="text-sm text-foreground/65 mt-1">Date-wise late arrivals, early departures and manager talks. Times are in IST.</p></div>
     <div className="admin-panel p-4 space-y-3">

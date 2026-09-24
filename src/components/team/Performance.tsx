@@ -1,5 +1,5 @@
 "use client";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
 import { api, useAction, useTeamData } from "./useTeamData";
 import { ErrorNotice } from "./TeamCommon";
@@ -78,6 +78,13 @@ export default function Performance({ admin }: { admin: boolean }) {
     30000,
   );
   const params = useSearchParams();
+  const router = useRouter(), pathname = usePathname();
+  const section = ["points", "history", "clearance", "referrals"].includes(params.get("section") ?? "") ? params.get("section")! : "points";
+  function openSection(id: string) {
+    const next = new URLSearchParams(params.toString());
+    next.set("section", id);
+    router.replace(`${pathname}?${next}`, {scroll: false});
+  }
   const [employeeId, setEmployeeId] = useState(params.get("employeeId") || "");
   const visible = (id: string) => !employeeId || id === employeeId;
   const action = useAction(reload);
@@ -86,12 +93,13 @@ export default function Performance({ admin }: { admin: boolean }) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">Attendance & monthly points</h2>
+        <h2 className="text-xl font-semibold">Performance</h2>
         <p className="text-sm text-foreground/60 mt-1">
-          Attendance points update on completion. Customer reviews add points immediately; referrals and clock-outs after 10:45 pm need admin approval.
+          Your points and manager follow-ups, in one place.
         </p>
       </div>
-      <label className="block text-sm max-w-xs">
+      <div className="flex flex-wrap items-end gap-3">
+      <label className="block text-sm w-full sm:w-48">
         Month
         <input
           className="input mt-1"
@@ -101,7 +109,7 @@ export default function Performance({ admin }: { admin: boolean }) {
         />
       </label>
       {admin && (
-        <label className="block text-sm max-w-xs">
+        <label className="block text-sm w-full sm:w-64">
           Employee
           <select
             className="input mt-1"
@@ -117,50 +125,16 @@ export default function Performance({ admin }: { admin: boolean }) {
           </select>
         </label>
       )}
-      <nav className="flex flex-wrap gap-2 text-sm">
-        <a className="admin-button" href="#manager-clearance">
-          Manager clearance (
-          {data?.meetings.filter(
-            (m) => m.status === "PENDING" && visible(m.userId),
-          ).length ?? 0}
-          )
-        </a>
-        <a className="admin-button" href="#referrals">
-          Referral reviews (
-          {data?.referrals.filter(
-            (r) => r.status === "PENDING" && visible(r.userId),
-          ).length ?? 0}
-          )
-        </a>
+      </div>
+      <nav className="flex gap-2 overflow-x-auto pb-2" aria-label="Performance sections">
+        {[["points", "Points"], ["history", "Points history"], ["clearance", `Manager clearance (${data?.meetings.filter(m => m.status === "PENDING" && visible(m.userId)).length ?? 0})`], ["referrals", "Referrals"]].map(([id, label]) => (
+          <button key={id} className={`admin-button shrink-0 ${section === id ? "!bg-brand !text-white" : ""}`} aria-current={section === id ? "page" : undefined} onClick={() => openSection(id)}>{label}</button>
+        ))}
       </nav>
       <ErrorNotice error={error || action.error} />
       {loading && <p>Loading performance…</p>}
-      <div className="grid sm:grid-cols-2 gap-3">
-        {data?.employees
-          .filter((e) => visible(e.id))
-          .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
-          .map((e) => (
-            <article className="admin-panel p-4" key={e.id}>
-              <h3 className="font-semibold">
-                {e.name}{" "}
-                <span className="admin-badge">
-                  {e.points > 0 ? "+" : ""}
-                  {e.points} pts
-                </span>
-              </h3>
-              <p className="text-sm mt-2">
-                {e.eligibleShifts} completed scheduled shifts ·{" "}
-                {e.eligibleShifts ? e.pointsPerShift : "—"} points / shift
-              </p>
-              {!e.attendancePolicyFrom && (
-                <p className="text-xs text-foreground/60">
-                  No recurring schedule. Schedule-based awards require a dated
-                  shift.
-                </p>
-              )}
-            </article>
-          ))}
-      </div>
+      {section === "points" && <>
+      {!loading && data && <PointsOverview employees={data.employees.filter(e => visible(e.id))} entries={data.entries.filter(e => visible(e.userId))} />}
       <details className="admin-panel p-4">
         <summary className="font-medium cursor-pointer">How attendance points work</summary>
         <div className="text-sm space-y-2 mt-3">
@@ -169,7 +143,8 @@ export default function Performance({ admin }: { admin: boolean }) {
           <p>Clock out by 10:30–10:45 pm. Time after 10:45 pm requires admin approval before it contributes to awards. Always record your actual leaving time.</p>
         </div>
       </details>
-      <section className="space-y-3">
+      </>}
+      {section === "clearance" && <section className="space-y-3">
         <h3 id="manager-clearance" className="text-lg font-semibold">
           Manager clearance
         </h3>
@@ -177,11 +152,12 @@ export default function Performance({ admin }: { admin: boolean }) {
           Use clock-in to record a verified arrival before the meeting. After
           clearance, retry clock-in; the approved arrival time is used.
         </p>
-        {data?.meetings.length === 0 && (
+        {data?.meetings.filter(m => visible(m.userId)).length === 0 && (
           <p className="text-sm">No manager meetings in this view.</p>
         )}
         {data?.meetings
           .filter((e) => visible(e.userId))
+          .sort((a, b) => Number(b.status === "PENDING") - Number(a.status === "PENDING"))
           .map((m) => (
             <MeetingCard
               key={m.id}
@@ -241,16 +217,13 @@ export default function Performance({ admin }: { admin: boolean }) {
                 </button>
               </form>
             ))}
-      </section>
-      <section className="space-y-3">
+      </section>}
+      {section === "referrals" && <section className="space-y-3">
         <h3 id="referrals" className="text-lg font-semibold">
           Customer referrals
         </h3>
         <p className="text-sm text-foreground/60">
-          One verified completed bill earns +3 for one employee. Use a
-          consistent party reference: split bills and repeat visits from the
-          same party do not earn more points. No customer phone or address is
-          needed.
+          +3 points per verified party. Split bills and repeat visits do not earn extra points.
         </p>
         {!admin && (
           <details className="admin-panel p-4">
@@ -314,6 +287,7 @@ export default function Performance({ admin }: { admin: boolean }) {
             </form>
           </details>
         )}
+        {data?.referrals.filter(r => visible(r.userId)).length === 0 && <p className="text-sm text-foreground/60">No referrals this month.</p>}
         {data?.referrals
           .filter((e) => visible(e.userId))
           .map((r) => (
@@ -325,10 +299,11 @@ export default function Performance({ admin }: { admin: boolean }) {
               reload={reload}
             />
           ))}
-      </section>
-      <section className="space-y-3">
-        <h3 className="text-lg font-semibold">Attendance incidents</h3>
-        {data?.incidents.length === 0 && (
+      </section>}
+      {section === "history" && <>
+      <details className="admin-panel p-4 space-y-3">
+        <summary className="font-semibold cursor-pointer">Attendance incidents</summary>
+        {data?.incidents.filter(e => visible(e.userId)).length === 0 && (
           <p className="text-sm">No incidents this month.</p>
         )}
         {data?.incidents
@@ -347,16 +322,17 @@ export default function Performance({ admin }: { admin: boolean }) {
               </p>
             </div>
           ))}
-      </section>
+      </details>
       <section className="space-y-2">
         <h3 className="text-lg font-semibold">Points history</h3>
-        {data?.entries.length === 0 && (
+        {data?.entries.filter(e => visible(e.userId)).length === 0 && (
           <p className="text-sm">
             No awards or deductions this month.
           </p>
         )}
         {data?.entries
           .filter((e) => visible(e.userId))
+          .sort((a, b) => b.date.localeCompare(a.date))
           .map((e) => (
             <div
               className="admin-panel p-3 flex justify-between gap-3 text-sm"
@@ -389,6 +365,7 @@ export default function Performance({ admin }: { admin: boolean }) {
             ))}
         </div>
       </details>
+      </>}
     </div>
   );
 }
@@ -578,4 +555,36 @@ function ReferralCard({
       )}
     </article>
   );
+}
+
+function PointsOverview({employees, entries}: {employees: Data["employees"]; entries: Data["entries"]}) {
+  const earned = entries.reduce((sum, e) => sum + Math.max(0, e.points), 0);
+  const deducted = entries.reduce((sum, e) => sum + Math.max(0, -e.points), 0);
+  const format = (n: number) => Number(n.toFixed(2)).toLocaleString();
+  const groups = new Map<string, number>();
+  for (const entry of entries) {
+    const label = entry.kind.startsWith("Customer review") ? "Customer reviews" : entry.kind;
+    groups.set(label, (groups.get(label) ?? 0) + entry.points);
+  }
+  const rows = employees.length > 1
+    ? employees.map(e => ({id:e.id,label:e.name,value:e.points})).sort((a,b) => b.value-a.value)
+    : [...groups].map(([label,value]) => ({id:label,label,value}));
+  const maximum = Math.max(1, ...rows.map(r => Math.abs(r.value)));
+  return <section className="space-y-4" aria-label="Points overview">
+    <div className="grid grid-cols-3 gap-2 sm:gap-4">
+      {[["Net points", earned-deducted], ["Earned", earned], ["Deducted", deducted]].map(([label,value]) => <div key={label} className="admin-panel p-3 sm:p-5">
+        <p className="text-xs sm:text-sm text-foreground/60">{label}</p>
+        <p className="mt-2 text-2xl sm:text-3xl font-semibold tabular-nums">{format(Number(value))}</p>
+      </div>)}
+    </div>
+    <div className="admin-panel p-4 sm:p-6 space-y-5">
+      <div><h3 className="font-semibold">{employees.length > 1 ? "Team points" : "Points breakdown"}</h3><p className="text-xs text-foreground/60 mt-1">Green: earned or positive total · Red: deducted or negative total</p></div>
+      {!entries.length && <p className="text-sm text-foreground/60">No points recorded for this selection yet.</p>}
+      {rows.map(row => <div key={row.id} className="space-y-2">
+        <div className="flex justify-between gap-4 text-sm"><span>{row.label}</span><strong className="tabular-nums whitespace-nowrap">{row.value > 0 ? "+" : ""}{format(row.value)} pts</strong></div>
+        <div aria-hidden="true" className="h-3 rounded-full bg-surface-muted overflow-hidden"><div className={`h-full rounded-full ${row.value < 0 ? "bg-danger" : "bg-success"}`} style={{width:`${Math.abs(row.value)/maximum*100}%`}} /></div>
+      </div>)}
+    </div>
+    {employees.length === 1 && <p className="text-xs text-foreground/60">{employees[0].name} · {employees[0].eligibleShifts} completed shifts · {format(employees[0].pointsPerShift)} points / shift</p>}
+  </section>;
 }
