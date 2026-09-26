@@ -60,7 +60,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
       </div>
       {!!data?.recurring?.length && <section className="admin-panel p-5 space-y-3">
         <h3 className="font-semibold">Daily attendance rules</h3>
-        <p className="text-sm">From 26 September, finish times are fixed. One-hour breaks are paid; longer unpaid breaks are proportional. The first 15 minutes of arrival lateness are paid grace.</p>
+        <p className="text-sm">From 26 September, finish times are fixed. Break expectations are listed for each employee; unpaid breaks are proportional. The first 15 minutes of arrival lateness are paid grace.</p>
         {data.recurring.map(person => <div key={person.id} className="text-sm border-t border-border pt-2">
           <strong>{person.name}</strong> · from {formatWorkDate(person.masterScheduleFrom || person.attendancePolicyFrom)}
           <p>{recurringDescription(person)}</p>

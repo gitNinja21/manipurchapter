@@ -1,5 +1,5 @@
 import { usesMasterPolicy, monthlyLateness } from "./masterPolicy";
-import { minuteLabel, recurringRule } from "@/lib/workPolicy";
+import { minuteLabel, recurringRule, breakExpectation } from "@/lib/workPolicy";
 import { effectiveSchedule } from "@/lib/performanceServer";
 import { formatIstTime } from "@/lib/time";
 import { prisma } from "@/lib/prisma";
@@ -26,6 +26,7 @@ export async function getAttendanceToday(user: User) {
     finish: record?.scheduledEndAt ? formatIstTime(record.scheduledEndAt) : schedule.policyVersion === 3 ? formatIstTime(schedule.end) : `${schedule.durationMinutes / 60} hours after clock-in`,
     fixed: !!override || rule?.start === rule?.latest, allowEarly: true,
     policyVersion: schedule.policyVersion,
+    breakExpectation: breakExpectation(user.employeeCode,new Date(`${workDate}T12:00:00+05:30`).getUTCDay(),schedule.durationMinutes,schedule.breakMinutes),
     durationHours: schedule.durationMinutes / 60, unpaidBreakMinutes: schedule.breakMinutes,
   } : null;
   const month=workDate.slice(0,7);

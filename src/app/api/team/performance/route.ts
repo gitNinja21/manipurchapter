@@ -71,6 +71,7 @@ export const GET = teamRoute(async (u, req) => {
   return {
     employees: employees.map((e) => ({
       ...e,
+      missedClockOuts: result.missedClockOutCounts.get(e.id) ?? 0,
       ...(result.lateness.get(e.id) ?? monthlyLateness([],month)),
       ...(result.totals.get(e.id) ?? {
         points: 0,

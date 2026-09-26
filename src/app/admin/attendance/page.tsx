@@ -26,6 +26,7 @@ type AttendanceRecord = PolicyRecord & {
   extraTimeReason: string | null;
   clockInAt: string | null;
   clockOutAt: string | null;
+  autoClockOut?: boolean;
   clockInPhoto: string | null;
   clockOutPhoto: string | null;
   clockInFaceMatch: boolean | null;
@@ -224,7 +225,7 @@ export default function AdminAttendancePage() {
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
                       {formatIstTime(outAt)}
-                      <FaceMatchBadge match={r.clockOutFaceMatch} />
+                      {r.autoClockOut ? <span className="text-xs text-foreground/60">Automatic · 10:45 pm</span> : <FaceMatchBadge match={r.clockOutFaceMatch} />}
                     </td>
                     <td className="px-4 py-4 tabular-nums">
                       <p className="font-medium">{durationLabel(clockedMs(r))} clocked</p>

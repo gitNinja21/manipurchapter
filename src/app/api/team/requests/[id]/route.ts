@@ -142,12 +142,14 @@ export const PATCH = teamRoute(async (u, req) => {
           ...workRules,
           clockInAt: r.proposedIn,
           clockOutAt: r.proposedOut,
+          autoClockOut: false,
           approvalStatus: "PENDING",
         },
         update: {
           ...workRules,
           clockInAt: r.proposedIn,
           clockOutAt: r.proposedOut,
+          autoClockOut: false,
           approvalStatus: "PENDING",
         },
       });

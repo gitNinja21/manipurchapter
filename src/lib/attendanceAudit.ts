@@ -11,6 +11,7 @@ export function auditData(
       approvalStatus: r.approvalStatus,
       clockInAt: r.clockInAt,
       clockOutAt: r.clockOutAt,
+      autoClockOut: r.autoClockOut,
       unpaidBreakMinutes: r.unpaidBreakMinutes,
       extraTimeCutoff: r.extraTimeCutoff,
       extraTimeStatus: r.extraTimeStatus,

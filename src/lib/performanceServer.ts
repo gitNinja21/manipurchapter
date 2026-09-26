@@ -1,3 +1,4 @@
+import { missedClockOutEntries } from "./missedClockOut";
 import { usesMasterPolicy, monthlyLateness } from "./masterPolicy";
 import { attendanceStreaks } from "./attendanceStreaks";
 import { countsForPayroll } from "./attendanceApproval";
@@ -223,7 +224,7 @@ export async function penaltyContext(db: Db, userId: string, date: string) {
 }
 export async function monthlyPerformance(month: string, userId?: string) {
   const where = userId ? { userId } : {};
-  const [records, referrals, customerReviews] = await Promise.all([
+  const [records, referrals, customerReviews, missedClockOutAudits] = await Promise.all([
     prisma.attendanceRecord.findMany({
       where: { ...where, workDate: { startsWith: month } },
       orderBy: { workDate: "desc" },
@@ -232,7 +233,9 @@ export async function monthlyPerformance(month: string, userId?: string) {
       where: { ...where, billDate: { startsWith: month }, status: "APPROVED" },
     }),
     prisma.customerReview.findMany({where:{...where,workDate:{startsWith:month}}}),
+    prisma.attendanceAudit.findMany({where:{...where,action:"AUTO_CLOCK_OUT",workDate:{startsWith:month}},select:{recordId:true,userId:true,workDate:true}}),
   ]);
+  const missedClockOuts=missedClockOutEntries(missedClockOutAudits);
   const entries = records.flatMap((r) =>
     attendancePoints(r).map((p, i) => ({
       ...p,
@@ -241,6 +244,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
       date: r.workDate,
     })),
   );
+  entries.push(...missedClockOuts);
   entries.push(
     ...referrals.map((r) => ({
       id: r.id,
@@ -302,6 +306,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
   return {
     entries,
     totals,
+    missedClockOutCounts: new Map([...new Set(missedClockOuts.map(e=>e.userId))].map(id=>[id,missedClockOuts.filter(e=>e.userId===id).length])),
     lateness: new Map([...new Set(records.map(r=>r.userId))].map(id=>[id,monthlyLateness(records.filter(r=>r.userId===id),month)])),
     incidents: records
       .filter(

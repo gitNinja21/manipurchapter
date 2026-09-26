@@ -5,6 +5,7 @@ export function policyApplies(user: { attendancePolicyFrom?: string | null; mast
   return (!!user.masterScheduleFrom && date >= user.masterScheduleFrom) || (!!user.attendancePolicyFrom && date >= user.attendancePolicyFrom);
 }
 export type PolicySchedule = {
+  employeeCode?: string;
   masterScheduleFrom?: string | null;
   masterScheduleJson?: string | null;
   unpaidBreakFrom?: string | null;
@@ -15,6 +16,12 @@ export type PolicySchedule = {
   attendanceEndMinute?: number;
   attendanceAllowEarly?: boolean;
 };
+/** Display expectations only; payroll continues to use the saved unpaid percentage. */
+export function breakExpectation(employeeCode: string | undefined, weekday: number, duration: number, unpaid: number) {
+  const paid = employeeCode === "LACHIT" || employeeCode === "PANKAJ" ? 0 : employeeCode === "TOKI" && weekday === 5 ? 30 : 60;
+  const work = Math.max(0, duration - unpaid - paid) / 60;
+  return `${work} hours expected work · ${paid === 0 ? "No additional break during working hours" : `${paid}-minute paid break`}${unpaid ? ` · ${unpaid / 60}-hour unpaid break (${(unpaid / duration * 100).toFixed(2)}%, proportional)` : ""}`;
+}
 export function minuteLabel(minute: number) {
   const hour = Math.floor(minute / 60);
   return `${hour % 12 || 12}:${String(minute % 60).padStart(2, "0")} ${hour >= 12 ? "pm" : "am"}`;
@@ -93,7 +100,7 @@ export function recurringRule(user: PolicySchedule, date: string): DayRule | nul
 export function recurringDescription(user: PolicySchedule, date = todayWorkDate()) {
   if (user.masterScheduleFrom && date >= user.masterScheduleFrom && user.masterScheduleJson) {
     const days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-    return Object.entries(JSON.parse(user.masterScheduleJson) as Record<string,DayRule>).map(([d,r]) => `${days[Number(d)]}: ${minuteLabel(r.start)}–${minuteLabel(r.start+r.duration)} · ${((r.duration-r.unpaidBreak)/60)} paid hours · ${r.unpaidBreak ? `${(r.unpaidBreak/r.duration*100).toFixed(2)}% unpaid; ` : ""}1-hour paid break`).join("; ");
+    return Object.entries(JSON.parse(user.masterScheduleJson) as Record<string,DayRule>).map(([d,r]) => `${days[Number(d)]}: ${minuteLabel(r.start)}–${minuteLabel(r.start+r.duration)} · ${breakExpectation(user.employeeCode, Number(d), r.duration, r.unpaidBreak)}`).join("; ");
   }
   const breakLabel = (fallback = 0) => { const minutes = scheduledBreak(user, date, fallback); return minutes ? `${minutes / 60}-hour unpaid break` : "1-hour paid break"; };
   if (!user.weeklyScheduleJson) return `Arrival: ${scheduleLabels(user).arrival} IST · 9 hours from actual clock-in · ${breakLabel()}`;

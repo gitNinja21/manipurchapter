@@ -40,6 +40,7 @@ type Data = {
     attendancePolicyFrom: string | null;
     points: number;
     lateDays?: number;
+    missedClockOuts?: number;
     lateMinutes?: number;
     awardEligible?: boolean;
     lateWarning?: boolean;
@@ -143,7 +144,7 @@ export default function Performance({ admin }: { admin: boolean }) {
         <summary className="font-medium cursor-pointer">How attendance points work</summary>
         <div className="text-sm space-y-2 mt-3">
           <p>From 26 September: +0.5 for base-hour completion, +1 per bonus working day, +3 per approved referral, and up to +1 per customer review. Earlier records retain their original awards.</p>
-          <p>15 minutes paid grace. Third late day: automatic warning. Fifth late day: ineligible for Best Employee that month. Monthly counts reset; no manager talks or negative attendance points under the new policy.</p>
+          <p>15 minutes paid grace. Third late day: automatic warning. Fifth late day: ineligible for Best Employee that month. Monthly counts reset; no manager talks or late-arrival point deductions. Each missed clock-out costs 0.5 points; its date appears in Points history.</p>
           <p>Clock out by 10:30–10:45 pm. Time after 10:45 pm requires admin approval before it contributes to awards. Always record your actual leaving time.</p>
         </div>
       </details>
@@ -594,7 +595,7 @@ function PointsOverview({employees, entries}: {employees: Data["employees"]; ent
       <h3 className="font-semibold">Best Employee · Monthly eligibility</h3>
       <p className="text-xs text-foreground/60">Ranked by points among eligible employees. Counts reset monthly; five late days excludes an employee from this award only.</p>
       {[...employees].sort((a,b)=>Number(b.awardEligible !== false)-Number(a.awardEligible !== false) || b.points-a.points || a.name.localeCompare(b.name)).map(e => <div key={e.id} className="border-t pt-3 text-sm flex justify-between gap-3">
-        <div><strong>{e.name}</strong><p>{e.lateDays ?? 0} late days · {Math.round(e.lateMinutes ?? 0)} late minutes beyond grace</p><p>{e.awardEligible === false ? "Not eligible this month" : e.lateWarning ? "Warning · Eligible until the fifth late day" : "Eligible"}</p></div>
+        <div><strong>{e.name}</strong><p>{e.lateDays ?? 0} late days · {Math.round(e.lateMinutes ?? 0)} late minutes beyond grace</p><p>{e.missedClockOuts ?? 0} missed clock-outs · −{format((e.missedClockOuts ?? 0)*0.5)} points</p><p>{e.awardEligible === false ? "Not eligible this month" : e.lateWarning ? "Warning · Eligible until the fifth late day" : "Eligible"}</p></div>
         <strong>{format(e.points)} pts</strong>
       </div>)}
     </div>

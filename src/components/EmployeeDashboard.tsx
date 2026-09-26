@@ -10,6 +10,7 @@ import { formatIstTime } from "@/lib/time";
 type TodayRecord = {
   clockInAt: string | null;
   clockOutAt: string | null;
+  autoClockOut?: boolean;
   workDate: string;
   unpaidBreakMinutes: number;
   policyVersion: number;
@@ -35,7 +36,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
   const [serverTime, setServerTime] = useState<string | null>(null);
   const [lateness, setLateness] = useState<{lateDays:number;lateMinutes:number;awardEligible:boolean;lateWarning:boolean} | null>(null);
   const [meetings, setMeetings] = useState<{ id: string; kind: string }[]>([]);
-  const [schedule, setSchedule] = useState<{arrival: string; latest: string; opening: string; finish: string; fixed: boolean; allowEarly: boolean; durationHours: number; unpaidBreakMinutes: number; policyVersion?: number} | null>(null);
+  const [schedule, setSchedule] = useState<{arrival: string; latest: string; opening: string; finish: string; fixed: boolean; allowEarly: boolean; durationHours: number; unpaidBreakMinutes: number; policyVersion?: number; breakExpectation?: string} | null>(null);
   const [policy, setPolicy] = useState(false);
   const [arrival, setArrival] = useState<string | null>(null);
   const [lateStatus, setLateStatus] = useState<string | null>(null);
@@ -214,7 +215,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>
           {master ? <>
             <p>{schedule?.arrival}–{schedule?.finish} IST · Fixed finish · 15-minute paid arrival grace.</p>
-            <p>{schedule?.durationHours} scheduled hours · One-hour paid break{schedule?.unpaidBreakMinutes ? ` · ${((schedule.unpaidBreakMinutes/(schedule.durationHours*60))*100).toFixed(2)}% proportional unpaid break` : ""}.</p>
+            <p>{schedule?.durationHours} scheduled hours · {schedule?.breakExpectation}.</p>
             <p>Clock-in opens at {schedule?.opening}. Record your actual leaving time; time after 10:45 pm needs admin review.</p>
             {lateness && <p className={lateness.lateWarning ? "text-accent font-medium" : ""}>{lateness.lateDays} late days this month · {Math.round(lateness.lateMinutes)} late minutes after grace. {lateness.awardEligible ? (lateness.lateWarning ? "Warning: five late days removes Best Employee eligibility." : "Eligible for Best Employee.") : "Not eligible for Best Employee this month. Your points and earned bonus pay are retained."}</p>}
           </> : <p>Complete {schedule?.durationHours} hours from actual clock-in. Required finish: {schedule?.finish}. This record retains its earlier rules.</p>}
@@ -274,7 +275,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
             }
           />
           <StatusRow
-            label="Clocked out"
+            label={record?.autoClockOut ? "Automatically clocked out" : "Clocked out"}
             time={
               record?.clockOutAt
                 ? formatIstTime(new Date(record.clockOutAt))
