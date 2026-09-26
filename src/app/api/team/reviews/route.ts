@@ -12,7 +12,7 @@ export const GET = teamRoute(async (u, req) => {
     prisma.customerReview.findMany({where,orderBy:[{createdAt:"desc"},{id:"desc"}],skip:(page-1)*30,take:30,select:{id:true,createdAt:true,friendliness:true,attentiveness:true,accuracy:true,speed:true,overall:true,totalStars:true,points:true,user:{select:{id:true,name:true}}}}),
     prisma.customerReview.count({where}),
     prisma.customerReview.aggregate({where,_sum:{points:true,totalStars:true}}),
-    u.role === "EMPLOYEE" ? prisma.customerReviewInvite.findFirst({where:{activeUserId:u.id,expiresAt:{gt:new Date()}},select:{code:true,expiresAt:true,claimedAt:true}}) : null,
+    u.role === "EMPLOYEE" ? prisma.customerReviewInvite.findFirst({where:{activeUserId:u.id,expiresAt:{gt:new Date()}},select:{id:true,code:true,expiresAt:true,claimedAt:true}}) : null,
     u.role === "ADMIN" ? prisma.user.findMany({where:{role:"EMPLOYEE"},select:{id:true,name:true},orderBy:{name:"asc"}}) : [],
   ]);
   return {reviews,total,points:Math.round((summary._sum.points ?? 0)*100)/100,average:total ? Math.round((summary._sum.totalStars ?? 0)/total/5*100)/100 : null,invite,employees,serverTime:new Date().toISOString()};
@@ -20,5 +20,5 @@ export const GET = teamRoute(async (u, req) => {
 export const POST = teamRoute(async u => {
   if (u.role !== "EMPLOYEE") throw new TeamError("Generate codes from your employee account.",403);
   const invite = await issueReviewCode(u.id);
-  return {invite:{code:invite.code,expiresAt:invite.expiresAt,claimedAt:invite.claimedAt},serverTime:new Date().toISOString()};
+  return {invite:{id:invite.id,code:invite.code,expiresAt:invite.expiresAt,claimedAt:invite.claimedAt},serverTime:new Date().toISOString()};
 });

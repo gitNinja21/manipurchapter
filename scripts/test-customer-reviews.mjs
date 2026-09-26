@@ -40,7 +40,10 @@ try {
  assert.match(ca,/^\d{4}$/);assert.notEqual(ca,cb);assert.equal(issued[2].data.invite.code,ca);
  assert.equal(new Date(issued[0].data.invite.expiresAt)-new Date(issued[0].data.serverTime),300000);
  assert.equal((await request(a,"/api/reviews/code","POST",{code:ca})).status,403);
- const claims=await Promise.all([request("","/api/reviews/code","POST",{code:ca}),request("","/api/reviews/code","POST",{code:ca})]);
+ const inviteId=issued[0].data.invite.id;
+ assert.ok(inviteId);
+ assert.equal((await request("","/api/reviews/code","POST",{code:ca,inviteId:issued[1].data.invite.id})).status,410);
+ const claims=await Promise.all([request("","/api/reviews/code","POST",{code:ca,inviteId}),request("","/api/reviews/code","POST",{code:ca,inviteId})]);
  assert.equal(claims.filter(r=>r.status===200).length,1);
  const claim=claims.find(r=>r.status===200);assert.equal(claim.data.employeeName,"Test Waiter A");
  assert.ok(claim.cookie.startsWith("mc_customer_review="));assert.ok(!claim.cookie.includes("mc_session"));

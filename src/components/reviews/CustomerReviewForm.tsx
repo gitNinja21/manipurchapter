@@ -9,18 +9,25 @@ export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUr
   const saving = useRef(false);
   const [session, setSession] = useState<Session | null>(null);
   const visit = useRef(0);
+  const [inviteId,setInviteId] = useState<string|undefined>();
   const [code, setCode] = useState("");
   const [ratings, setRatings] = useState<Partial<Ratings>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
+    const params=new URLSearchParams(window.location.hash.slice(1));
+    const scannedCode=params.get("code"), scannedInvite=params.get("invite");
+    if(scannedCode && /^[0-9]{4}$/.test(scannedCode) && scannedInvite) {
+      setCode(scannedCode); setInviteId(scannedInvite);
+      window.history.replaceState(window.history.state,"",window.location.pathname+window.location.search);
+    }
     // Never resume another server from the persistent review cookie.
     // pagehide also clears state retained by the browser's Back/Forward cache.
     function invalidateVisit() { visit.current++; }
     function resetVisit() {
       invalidateVisit();
       saving.current = false;
-      setSession(null); setCode(""); setRatings({}); setBusy(false); setError("");
+      setSession(null); setInviteId(undefined); setCode(""); setRatings({}); setBusy(false); setError("");
     }
     function restorePage(event: PageTransitionEvent) {
       if (event.persisted) resetVisit();
@@ -37,7 +44,7 @@ export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUr
     e.preventDefault(); setBusy(true); setError("");
     const currentVisit = visit.current;
     try {
-      const nextSession = await api<Session>("/api/reviews/code", "POST", {code});
+      const nextSession = await api<Session>("/api/reviews/code", "POST", {code,inviteId});
       if (currentVisit !== visit.current) return;
       setSession(nextSession); setRatings({});
     }
@@ -78,9 +85,9 @@ export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUr
     {!session ?
       <form onSubmit={enterCode} className="admin-panel p-6 space-y-5">
         <label className="block text-sm font-medium">Your server’s four-digit code
-          <input autoComplete="off" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} required value={code} onChange={e => setCode(e.target.value.replace(/\D/g,"").slice(0,4))} className="input mt-3 text-center !text-3xl tracking-[0.4em] tabular-nums" placeholder="••••" />
+          <input autoComplete="off" inputMode="numeric" pattern="[0-9]{4}" maxLength={4} required value={code} onChange={e => {setInviteId(undefined);setCode(e.target.value.replace(/\D/g,"").slice(0,4));}} className="input mt-3 text-center !text-3xl tracking-[0.4em] tabular-nums" placeholder="••••" />
         </label>
-        <p className="text-sm text-foreground/60">Ask your waiter or waitress for a code. It is valid for five minutes and can be used once.</p>
+        <p className="text-sm text-foreground/60">{inviteId ? "Your QR code is ready. Tap Start review to rate your server." : "Ask your waiter or waitress for a code. It is valid for five minutes and can be used once."}</p>
         <button className="admin-button w-full" disabled={busy || code.length !== 4}>{busy ? "Checking…" : "Start review"}</button>
       </form> :
       <section className="space-y-4" aria-busy={busy}>
@@ -106,7 +113,7 @@ export default function CustomerReviewForm({ googleReviewUrl }: { googleReviewUr
           <a className="admin-button block w-full text-center" href={googleReviewUrl} target="_blank" rel="noopener noreferrer">Review us on Google</a> :
           <button type="button" className="admin-button w-full" disabled>Review us on Google</button>)}
         {error && complete && !busy && <button type="button" className="admin-button w-full" onClick={() => void saveReview(ratings)}>Retry saving</button>}
-        {!session.submitted && <button type="button" className="block mx-auto text-sm text-white underline" disabled={busy} onClick={() => {visit.current++;setSession(null);setCode("");setRatings({});setError("");}}>Wrong server? Enter a different code</button>}
+        {!session.submitted && <button type="button" className="block mx-auto text-sm text-white underline" disabled={busy} onClick={() => {visit.current++;setSession(null);setInviteId(undefined);setCode("");setRatings({});setError("");}}>Wrong server? Enter a different code</button>}
       </section>}
     {error && <p role="alert" className="text-danger text-sm admin-panel p-4">{error}</p>}
     {!session && <footer className="text-center text-xs text-white/80"><Link href="/">Staff sign in</Link></footer>}

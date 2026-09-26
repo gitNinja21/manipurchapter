@@ -47,12 +47,12 @@ export async function limitCodeAttempts(req: NextRequest) {
   });
   if (row.count > 30) throw new TeamError("Too many code attempts. Please wait five minutes and try again.", 429);
 }
-export async function claimReviewCode(code: unknown) {
+export async function claimReviewCode(code: unknown, inviteId?: unknown) {
   if (typeof code !== "string" || !/^\d{4}$/.test(code)) throw new TeamError("Enter the four-digit code from your server.");
   const token = randomBytes(32).toString("hex");
   const invite = await reviewTransaction(async tx => {
     const now = new Date();
-    const current = await tx.customerReviewInvite.findFirst({where:{code,expiresAt:{gt:now},claimedAt:null,usedAt:null,user:eligible},select:{id:true,user:{select:{name:true}}}});
+    const current = await tx.customerReviewInvite.findFirst({where:{code,...(inviteId === undefined ? {} : {id:typeof inviteId === "string" ? inviteId : ""}),expiresAt:{gt:now},claimedAt:null,usedAt:null,user:eligible},select:{id:true,user:{select:{name:true}}}});
     if (!current) throw new TeamError("This code has expired or has already been used. Ask your server for a new code.", 410);
     const changed = await tx.customerReviewInvite.updateMany({where:{id:current.id,claimedAt:null,expiresAt:{gt:now},usedAt:null},data:{claimedAt:now,tokenHash:hash(token),sessionExpiresAt:new Date(+now+SESSION_MS)}});
     if (!changed.count) throw new TeamError("This code has already been used.", 409);
