@@ -39,6 +39,10 @@ type Data = {
     employeeCode: string;
     attendancePolicyFrom: string | null;
     points: number;
+    lateDays?: number;
+    lateMinutes?: number;
+    awardEligible?: boolean;
+    lateWarning?: boolean;
     eligibleShifts: number;
     pointsPerShift: number;
   }[];
@@ -127,7 +131,7 @@ export default function Performance({ admin }: { admin: boolean }) {
       )}
       </div>
       <nav className="flex gap-2 overflow-x-auto pb-2" aria-label="Performance sections">
-        {[["points", "Points"], ["history", "Points history"], ["clearance", `Manager clearance (${data?.meetings.filter(m => m.status === "PENDING" && visible(m.userId)).length ?? 0})`], ["referrals", "Referrals"]].map(([id, label]) => (
+        {[["points", "Points"], ["history", "Points history"], ["clearance", `Arrival approvals (${data?.arrivals.filter(a => !a.approvedAt && visible(a.userId)).length ?? 0})`], ["referrals", "Referrals"]].map(([id, label]) => (
           <button key={id} className={`admin-button shrink-0 ${section === id ? "!bg-brand !text-white" : ""}`} aria-current={section === id ? "page" : undefined} onClick={() => openSection(id)}>{label}</button>
         ))}
       </nav>
@@ -138,15 +142,15 @@ export default function Performance({ admin }: { admin: boolean }) {
       <details className="admin-panel p-4">
         <summary className="font-medium cursor-pointer">How attendance points work</summary>
         <div className="text-sm space-y-2 mt-3">
-          <p>+0.5 for an on-time completed shift; +1 for eligible work exceeding 10½ hours; +3 for an approved customer referral. Customer reviews add up to 1 point each.</p>
-          <p>Three consecutive working days more than 15 minutes late, or three early departures, require a manager meeting. After the meeting, further incidents receive −1.5 points once per day for the rest of the month.</p>
+          <p>From 26 September: +0.5 for base-hour completion, +1 per bonus working day, +3 per approved referral, and up to +1 per customer review. Earlier records retain their original awards.</p>
+          <p>15 minutes paid grace. Third late day: automatic warning. Fifth late day: ineligible for Best Employee that month. Monthly counts reset; no manager talks or negative attendance points under the new policy.</p>
           <p>Clock out by 10:30–10:45 pm. Time after 10:45 pm requires admin approval before it contributes to awards. Always record your actual leaving time.</p>
         </div>
       </details>
       </>}
       {section === "clearance" && <section className="space-y-3">
         <h3 id="manager-clearance" className="text-lg font-semibold">
-          Manager clearance
+          Arrival approvals and historical meetings
         </h3>
         <p className="text-sm text-foreground/60">
           Confirm completed meetings at any time. Review recorded arrival times separately below.
@@ -584,6 +588,14 @@ function PointsOverview({employees, entries}: {employees: Data["employees"]; ent
       {rows.map(row => <div key={row.id} className="space-y-2">
         <div className="flex justify-between gap-4 text-sm"><span>{row.label}</span><strong className="tabular-nums whitespace-nowrap">{row.value > 0 ? "+" : ""}{format(row.value)} pts</strong></div>
         <div aria-hidden="true" className="h-3 rounded-full bg-surface-muted overflow-hidden"><div className={`h-full rounded-full ${row.value < 0 ? "bg-danger" : "bg-success"}`} style={{width:`${Math.abs(row.value)/maximum*100}%`}} /></div>
+      </div>)}
+    </div>
+    <div className="admin-panel p-4 space-y-3">
+      <h3 className="font-semibold">Best Employee · Monthly eligibility</h3>
+      <p className="text-xs text-foreground/60">Ranked by points among eligible employees. Counts reset monthly; five late days excludes an employee from this award only.</p>
+      {[...employees].sort((a,b)=>Number(b.awardEligible !== false)-Number(a.awardEligible !== false) || b.points-a.points || a.name.localeCompare(b.name)).map(e => <div key={e.id} className="border-t pt-3 text-sm flex justify-between gap-3">
+        <div><strong>{e.name}</strong><p>{e.lateDays ?? 0} late days · {Math.round(e.lateMinutes ?? 0)} late minutes beyond grace</p><p>{e.awardEligible === false ? "Not eligible this month" : e.lateWarning ? "Warning · Eligible until the fifth late day" : "Eligible"}</p></div>
+        <strong>{format(e.points)} pts</strong>
       </div>)}
     </div>
     {employees.length === 1 && <p className="text-xs text-foreground/60">{employees[0].name} · {employees[0].eligibleShifts} completed shifts · {format(employees[0].pointsPerShift)} points / shift</p>}

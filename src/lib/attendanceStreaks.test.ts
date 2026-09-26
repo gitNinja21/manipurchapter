@@ -56,9 +56,9 @@ test("manager clearance resets its cycle, preserves raw consecutive counts, and 
   assert.equal(report.days.at(-1)?.lateTalk,"FOLLOW_UP");
 });
 test("streaks cross month boundaries and pending talks survive them",()=>{
-  const records=[record("2026-09-29"),record("2026-09-30"),record("2026-10-01")];
-  const report=attendanceStreaks({...base,records,from:"2026-10-01",to:"2026-10-02",today:"2026-10-02"});
-  assert.equal(report.days[0].lateStreak,3);assert.ok(report.triggers.has("LATE:2026-10-01"));
-  const pending=attendanceStreaks({...base,records:[],from:"2026-10-01",to:"2026-10-01",today:"2026-10-01",meetings:[{kind:"LATE",status:"PENDING",triggerDate:"2026-09-30",clearedDate:null}]});
+  const records=[record("2020-09-29"),record("2020-09-30"),record("2020-10-01")];
+  const report=attendanceStreaks({...base,user:{...user,attendancePolicyFrom:"2020-09-01"},records,from:"2020-10-01",to:"2020-10-02",today:"2020-10-02"});
+  assert.equal(report.days[0].lateStreak,3);assert.ok(report.triggers.has("LATE:2020-10-01"));
+  const pending=attendanceStreaks({...base,user:{...user,attendancePolicyFrom:"2020-09-01"},records:[],from:"2020-10-01",to:"2020-10-01",today:"2020-10-01",meetings:[{kind:"LATE",status:"PENDING",triggerDate:"2020-09-30",clearedDate:null}]});
   assert.equal(pending.days[0].lateTalk,"PENDING");
 });

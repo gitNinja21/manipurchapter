@@ -1,4 +1,5 @@
 "use client";
+import { masterPay, unpaidFraction } from "@/lib/masterPolicy";
 import { salaryCredit, offDay, type PolicyRecord } from "@/lib/performance";
 import { clockedMs, durationLabel } from "@/lib/attendanceTime";
 import { overtimeMs } from "@/lib/performance";
@@ -232,8 +233,8 @@ export default function AdminAttendancePage() {
                         <p className="text-xs">Bonus: {durationLabel(overtimeMs(r))}</p>
                       </>}
                       {r.approvalStatus === "REJECTED" && <p className="text-xs text-danger">Regular and bonus time excluded</p>}
-                      {r.policyVersion === 2 && !r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">1-hour break included</p>}
-                      {!!r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">{r.unpaidBreakMinutes}m unpaid break</p>}
+                      {r.policyVersion >= 2 && !r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">1-hour break included</p>}
+                      {r.policyVersion === 3 ? <p className="text-xs text-foreground/55">{(unpaidFraction(r)*100).toFixed(2)}% unpaid · {durationLabel(masterPay(r).unpaidMs)} deducted · {durationLabel(masterPay(r).graceMs)} arrival grace</p> : !!r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">{r.unpaidBreakMinutes}m unpaid break</p>}
                       {r.lateClockOutStatus === "PENDING" && <a className="text-xs text-accent underline" href="/admin/team?view=requests">Time after 10:45 pm awaiting approval</a>}
                       {r.lateClockOutStatus === "REJECTED" && <p className="text-xs text-danger">Time after 10:45 pm excluded</p>}
                       {r.extraTimeReason && <p className="text-xs max-w-48 whitespace-pre-wrap">{r.extraTimeReason}</p>}

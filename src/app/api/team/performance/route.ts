@@ -1,3 +1,4 @@
+import { monthlyLateness, usesMasterPolicy } from "@/lib/masterPolicy";
 import { prisma } from "@/lib/prisma";
 import {
   teamRoute,
@@ -70,6 +71,7 @@ export const GET = teamRoute(async (u, req) => {
   return {
     employees: employees.map((e) => ({
       ...e,
+      ...(result.lateness.get(e.id) ?? monthlyLateness([],month)),
       ...(result.totals.get(e.id) ?? {
         points: 0,
         eligibleShifts: 0,
@@ -78,7 +80,7 @@ export const GET = teamRoute(async (u, req) => {
     })),
     entries: result.entries,
     incidents: result.incidents,
-    meetings,
+    meetings: usesMasterPolicy(todayWorkDate()) ? [] : meetings,
     arrivals,
     referrals,
     audit,

@@ -192,3 +192,13 @@ test("completed pending shifts and extra hours count automatically, retaining sh
   records=[{...record,clockOutAt:null}];
   [s]=await computeStatsForRange("2020-09-01","2020-09-01");assert.equal(s.salaryRs,0);assert.equal(s.incompleteDays,1);
 });
+
+test("master policy pays all ten regular hours rather than capping salary at nine", async t=>{
+  const oldUsers=prisma.user.findMany, oldRecords=prisma.attendanceRecord.findMany;
+  t.after(()=>{prisma.user.findMany=oldUsers;prisma.attendanceRecord.findMany=oldRecords;});
+  const date="2026-09-26", at=(s:string)=>new Date(`${date}T${s}:00+05:30`);
+  prisma.user.findMany=(async()=>[{id:"p",name:"Pankaj",employeeCode:"PANKAJ",hourlyRateRs:100,createdAt:new Date("2026-09-01"),active:true} as User]) as typeof prisma.user.findMany;
+  prisma.attendanceRecord.findMany=(async()=>[{id:"r",userId:"p",workDate:date,clockInAt:at("10:00"),clockOutAt:at("22:30"),scheduledStartAt:at("10:00"),scheduledEndAt:at("22:30"),shiftDurationMinutes:750,unpaidBreakMinutes:150,policyVersion:3,approvalStatus:"PENDING"} as AttendanceRecord]) as typeof prisma.attendanceRecord.findMany;
+  const [row]=await computeStatsForRange(date,date);
+  assert.equal(row.regularPayRs,1000);assert.equal(row.totalHours,10);assert.equal(row.overtimeHours,0);
+});

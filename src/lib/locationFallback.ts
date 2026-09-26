@@ -7,7 +7,7 @@ import { auditData } from "./attendanceAudit";
 
 export async function checkFallbackIn(tx: Prisma.TransactionClient, user: User, date: string, at: Date) {
   const schedule = await effectiveSchedule(tx,user,date);
-  if (user.weeklyScheduleJson && !schedule) throw new TeamError("Ask your manager to assign your shift first.",409);
+  if ((user.weeklyScheduleJson || user.masterScheduleJson) && !schedule) throw new TeamError("Ask your manager to assign your shift first.",409);
   if (schedule && at < schedule.opens) throw new TeamError("Your shift has not opened. Request a shift change first.",409);
   if (await tx.staffRequest.findFirst({where:{userId:user.id,kind:"LEAVE",status:"APPROVED",fromDate:{lte:date},toDate:{gte:date}}})) throw new TeamError("Approved leave must be resolved first.",409);
   if (await tx.attendanceRecord.findFirst({where:{userId:user.id,OR:[{clockInAt:{not:null},clockOutAt:null},{workDate:date,clockInAt:{not:null}}]}})) throw new TeamError("Attendance already exists. Refresh or request a correction.",409);

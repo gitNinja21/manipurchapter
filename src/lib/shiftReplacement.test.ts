@@ -30,7 +30,7 @@ test("same-day exception cannot bypass past-date, duration, leave or overlap che
   await assert.rejects(validateShift(db({overlap:true}),"employee",today,start,end,true), /overlaps/);
 });
 test("replacement scheduled start recalculates lateness without adding hours or pay", () => {
-  const record = {...durationSnapshot(start,{start:new Date(+start-3600000),durationMinutes:540,breakMinutes:150}),clockInAt:start,clockOutAt:end};
+  const record = {...durationSnapshot(start,{start:new Date(+start-3600000),durationMinutes:540,breakMinutes:150,policyVersion:2}),clockInAt:start,clockOutAt:end};
   const changed = {...record,scheduledStartAt:start};
   assert.equal(deviations(record).lateMs,3600000);
   assert.equal(deviations(changed).lateMs,0);

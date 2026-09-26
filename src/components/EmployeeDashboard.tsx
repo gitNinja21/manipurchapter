@@ -33,8 +33,9 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
   const employeeQuery = encodeURIComponent(previewEmployeeId ?? "");
   const todayUrl = preview ? `/api/admin/employee-dashboard?employeeId=${employeeQuery}&section=today` : "/api/attendance/today";
   const [serverTime, setServerTime] = useState<string | null>(null);
+  const [lateness, setLateness] = useState<{lateDays:number;lateMinutes:number;awardEligible:boolean;lateWarning:boolean} | null>(null);
   const [meetings, setMeetings] = useState<{ id: string; kind: string }[]>([]);
-  const [schedule, setSchedule] = useState<{arrival: string; latest: string; opening: string; finish: string; fixed: boolean; allowEarly: boolean; durationHours: number; unpaidBreakMinutes: number} | null>(null);
+  const [schedule, setSchedule] = useState<{arrival: string; latest: string; opening: string; finish: string; fixed: boolean; allowEarly: boolean; durationHours: number; unpaidBreakMinutes: number; policyVersion?: number} | null>(null);
   const [policy, setPolicy] = useState(false);
   const [arrival, setArrival] = useState<string | null>(null);
   const [lateStatus, setLateStatus] = useState<string | null>(null);
@@ -63,6 +64,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       setRecord(data.record ?? null);
       setServerTime(data.serverTime ?? null);
       setMeetings(data.meetings ?? []);
+      setLateness(data.lateness ?? null);
       setPolicy(!!data.policy);
       setSchedule(data.schedule ?? null);
       setArrival(data.arrivalState);
@@ -89,6 +91,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       .finally(() => setAnnouncementsLoading(false));
   }, []);
 
+  const master = record ? record.policyVersion === 3 : schedule?.policyVersion === 3;
   const hasClockedIn = !!record?.clockInAt;
   const hasClockedOut = !!record?.clockOutAt;
 
@@ -203,20 +206,23 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
         </p>
       </div>
 
-      <Link className="text-brand underline block" href={preview ? `/admin/team?view=performance&employeeId=${employeeQuery}` : "/employee/team?view=performance"}>My points, attendance incidents and manager clearance</Link>
+      <Link className="text-brand underline block" href={preview ? `/admin/team?view=performance&employeeId=${employeeQuery}` : "/employee/team?view=performance"}>My points and award eligibility</Link>
       {!policy && <p className="text-sm text-foreground/60">{arrival === "OFF" ? "No shift is scheduled today. Ask your admin to assign a shift if you are working." : "Complete your scheduled hours from clock-in, including the one-hour break."}</p>}
-      {record && record.policyVersion !== 2 && <p className="text-sm text-accent">This record uses an earlier attendance policy. Ask your manager if its schedule needs correction.</p>}
-      {policy && (!record || record.policyVersion === 2) && (
+      {record && record.policyVersion < 2 && <p className="text-sm text-accent">This record uses an earlier attendance policy. Ask your manager if its schedule needs correction.</p>}
+      {policy && (!record || record.policyVersion >= 2) && (
         <section className="admin-panel p-4 space-y-2 text-sm">
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>
-          <p>{schedule?.fixed ? "Scheduled start:" : "Clock-in window:"} {schedule?.arrival} IST. Complete {schedule?.durationHours} hours from actual clock-in, including {schedule?.unpaidBreakMinutes ? `${schedule.unpaidBreakMinutes / 60}-hour unpaid` : "a 1-hour paid"} break.</p>
-          <p>Clock out when you actually leave. Required finish: {schedule?.finish}. Leaving before completing the shift is an early departure. Plan to clock out by 10:30–10:45 pm IST. Clocking out after 10:45 pm requires admin approval. Always record your actual leaving time.</p>
-          <p>Clock-in opens at {schedule?.opening} IST, up to 15 minutes before your scheduled start (or the beginning of your arrival window). For an earlier start, submit a shift-change request and get admin approval. Same-day requests are allowed. Your required finish moves with your actual clock-in.</p>
+          {master ? <>
+            <p>{schedule?.arrival}–{schedule?.finish} IST · Fixed finish · 15-minute paid arrival grace.</p>
+            <p>{schedule?.durationHours} scheduled hours · One-hour paid break{schedule?.unpaidBreakMinutes ? ` · ${((schedule.unpaidBreakMinutes/(schedule.durationHours*60))*100).toFixed(2)}% proportional unpaid break` : ""}.</p>
+            <p>Clock-in opens at {schedule?.opening}. Record your actual leaving time; time after 10:45 pm needs admin review.</p>
+            {lateness && <p className={lateness.lateWarning ? "text-accent font-medium" : ""}>{lateness.lateDays} late days this month · {Math.round(lateness.lateMinutes)} late minutes after grace. {lateness.awardEligible ? (lateness.lateWarning ? "Warning: five late days removes Best Employee eligibility." : "Eligible for Best Employee.") : "Not eligible for Best Employee this month. Your points and earned bonus pay are retained."}</p>}
+          </> : <p>Complete {schedule?.durationHours} hours from actual clock-in. Required finish: {schedule?.finish}. This record retains its earlier rules.</p>}
           {!preview && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=SHIFT_CHANGE">Request an earlier start / shift change</Link>}
           {!hasClockedIn && arrival === "EARLY" && <p>Clock-in opens at {schedule?.opening}.</p>}
           {!hasClockedIn && lateStatus && <p>Today’s late-arrival request: <strong>{lateStatus}</strong>.</p>}
           {!hasClockedIn && !preview && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request an excused late arrival</Link>}
-          {!hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Clock in when you arrive. More than 15 minutes late is an incident; after three consecutive incidents, manager clearance is required. After that meeting, further late arrivals receive negative points.</p>}
+          {!master && !hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Clock in when you arrive. More than 15 minutes late is an incident; after three consecutive incidents, manager clearance is required. After that meeting, further late arrivals receive negative points.</p>}
         </section>
       )}
       {!preview && record?.clockInAt && !record.clockOutAt && mode !== "submitting" && (

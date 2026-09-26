@@ -1,3 +1,4 @@
+import { usesMasterPolicy } from "@/lib/masterPolicy";
 import { prisma } from "@/lib/prisma";
 import { adminOnly, teamRoute, TeamError } from "@/lib/team";
 import { syncMeetings } from "@/lib/performanceServer";
@@ -12,12 +13,12 @@ export const GET = teamRoute(async (u,req)=>{
   if(!validRange(from,to) || to>today || Date.parse(to)-Date.parse(from)>92*86400000) throw new TeamError("Choose up to 93 days, ending today or earlier.");
   const employees=await prisma.user.findMany({where:{role:"EMPLOYEE",approved:true},orderBy:{name:"asc"},select:{
     id:true,name:true,employeeCode:true,active:true,createdAt:true,
-    attendancePolicyFrom:true,unpaidBreakFrom:true,scheduledUnpaidBreakMinutes:true,weeklyScheduleJson:true,attendanceStartMinute:true,attendanceLatestMinute:true,
+    attendancePolicyFrom:true,unpaidBreakFrom:true,scheduledUnpaidBreakMinutes:true,masterScheduleFrom:true,masterScheduleJson:true,weeklyScheduleJson:true,attendanceStartMinute:true,attendanceLatestMinute:true,
   }});
   for(const employee of employees) await prisma.$transaction(tx=>syncMeetings(tx,employee.id,today));
   const ids=employees.map(e=>e.id);
   const [records,leave,shifts,meetings,arrivals]=await Promise.all([
-    prisma.attendanceRecord.findMany({where:{userId:{in:ids},workDate:{lte:to},policyVersion:{in:[1,2]}},orderBy:{workDate:"asc"},select:{
+    prisma.attendanceRecord.findMany({where:{userId:{in:ids},workDate:{lte:to},policyVersion:{in:[1,2,3]}},orderBy:{workDate:"asc"},select:{
       id:true,userId:true,workDate:true,clockInAt:true,clockOutAt:true,scheduledStartAt:true,scheduledEndAt:true,policyVersion:true,
       shiftDurationMinutes:true,approvalStatus:true,lateExcused:true,earlyExcused:true,latePenaltyActive:true,earlyPenaltyActive:true,
     }}),
@@ -40,7 +41,7 @@ export const GET = teamRoute(async (u,req)=>{
       const expected=record?.scheduledStartAt ?? shift?.startsAt ?? (day.eligible && policyApplies(employee,day.date) && rule ? new Date(+new Date(`${day.date}T00:00:00+05:30`)+rule.latest*60000) : null);
       return {...day,userId:employee.id,recordId:record?.id ?? null,
         lateMinutes:actual.lateMs/60000,earlyMinutes:actual.earlyMs/60000,
-        lateIncident:day.eligible && record?.approvalStatus!=="REJECTED" && day.lateMs>15*60000,
+        lateIncident:day.eligible && record?.approvalStatus!=="REJECTED" && day.lateMs>(record?.policyVersion===3 ? 0 : 15*60000),
         earlyIncident:day.eligible && record?.approvalStatus!=="REJECTED" && day.earlyMs>0,
         lateExcused:record?.lateExcused ?? false,earlyExcused:record?.earlyExcused ?? false,
         penaltyActive:record?.latePenaltyActive || record?.earlyPenaltyActive || false,
@@ -53,5 +54,5 @@ export const GET = teamRoute(async (u,req)=>{
     });
   }).sort((a,b)=>b.date.localeCompare(a.date) || employees.find(e=>e.id===a.userId)!.name.localeCompare(employees.find(e=>e.id===b.userId)!.name));
   return {from,to,today,employees:employees.map(({id,name,employeeCode,active})=>({id,name,employeeCode,active})),rows,
-    pendingMeetings:meetings.filter(m=>m.status==="PENDING")};
+    pendingMeetings:usesMasterPolicy(today) ? [] : meetings.filter(m=>m.status==="PENDING")};
 });

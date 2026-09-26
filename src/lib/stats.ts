@@ -107,7 +107,7 @@ export async function computeStatsForRange(
         : [];
     // Mondays are paid off-days with no attendance expected, so they shouldn't
     // inflate "missed clock-ins" — only non-Monday calendar days count there.
-    const weeklyApplies = (d: string) => !!emp.weeklyScheduleJson && !!emp.attendancePolicyFrom && d >= emp.attendancePolicyFrom;
+    const weeklyApplies = (d: string) => (!!emp.masterScheduleJson && !!emp.masterScheduleFrom && d >= emp.masterScheduleFrom) || (!!emp.weeklyScheduleJson && !!emp.attendancePolicyFrom && d >= emp.attendancePolicyFrom);
     const expectedDay = (d: string) => !isMonday(d) && (!weeklyApplies(d) || !!recurringRule(emp, d));
     const workingCalendarDays = allDays.filter(expectedDay).length;
 
@@ -171,7 +171,7 @@ export async function computeStatsForRange(
       paidWorkDays += Math.min(creditedHours / FULL_DAY_HOURS, 1);
       if (creditedHours >= FULL_DAY_HOURS) {
         fullDaysWorked += 1;
-        regularPayRs += dailyRateRs;
+        regularPayRs += record?.policyVersion === 3 ? creditedHours * emp.hourlyRateRs : dailyRateRs;
       } else {
         // Short day: pro-rated for actual hours worked, not a full day's pay.
         regularPayRs += creditedHours * emp.hourlyRateRs;

@@ -1,3 +1,5 @@
+> Historical policy through 25 September 2026. See [master policy](master-attendance-policy.md) for the current rules.
+
 # Clock-duration attendance policy (version 2)
 
 New clock-ins and newly created manual/corrected attendance use version 2 after

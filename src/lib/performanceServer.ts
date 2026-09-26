@@ -1,14 +1,17 @@
+import { usesMasterPolicy, monthlyLateness } from "./masterPolicy";
 import { attendanceStreaks } from "./attendanceStreaks";
 import { countsForPayroll } from "./attendanceApproval";
 import type { Prisma, User } from "@prisma/client";
 import { prisma } from "./prisma";
 import { policyApplies, policyTimes, recurringRule, scheduledBreak } from "./workPolicy";
-import { attendancePoints, deviations, offDay } from "./performance";
+import { attendancePoints, deviations, offDay, overtimeMs } from "./performance";
 import { todayWorkDate } from "./time";
 import { TeamError, notify } from "./team";
 type Db = Prisma.TransactionClient;
 type ScheduleUser = Pick<
   User,
+  | "masterScheduleFrom"
+  | "masterScheduleJson"
   | "weeklyScheduleJson"
   | "unpaidBreakFrom"
   | "scheduledUnpaidBreakMinutes"
@@ -24,16 +27,18 @@ export async function effectiveSchedule(db: Db, u: ScheduleUser, date: string) {
     where: { userId_workDate: { userId: u.id, workDate: date } },
   });
   const rule = recurringRule(u, date);
+  const policyVersion = usesMasterPolicy(date) ? 3 : 2;
   if (shift) return {
-    start: shift.startsAt, end: new Date(+shift.startsAt + (rule?.duration ?? 540) * 60000),
+    policyVersion,
+    start: shift.startsAt, end: policyVersion === 3 ? shift.endsAt : new Date(+shift.startsAt + (rule?.duration ?? 540) * 60000),
     arrivalStart: shift.startsAt,
     opens: new Date(Math.max(+new Date(`${date}T00:00:00+05:30`), +shift.startsAt - 15 * 60000)),
-    durationMinutes: rule?.duration ?? 540, breakMinutes: scheduledBreak(u, date, rule?.unpaidBreak ?? 0),
+    durationMinutes: policyVersion === 3 ? (+shift.endsAt-+shift.startsAt)/60000 : rule?.duration ?? 540, breakMinutes: u.masterScheduleFrom && date >= u.masterScheduleFrom ? rule?.unpaidBreak ?? 0 : scheduledBreak(u, date, rule?.unpaidBreak ?? 0),
   };
   if (!policyApplies(u, date) || !rule) return null;
   const t = policyTimes(date, { ...u, attendanceStartMinute: rule.start, attendanceLatestMinute: rule.latest });
   const start = new Date(+t.lateAt - 60000);
-  return { start, arrivalStart: new Date(+new Date(`${date}T00:00:00+05:30`) + rule.start * 60000), end: new Date(+start + rule.duration * 60000), opens: t.opensAt,
+  return { policyVersion, start, arrivalStart: new Date(+new Date(`${date}T00:00:00+05:30`) + rule.start * 60000), end: new Date(+start + rule.duration * 60000), opens: t.opensAt,
     durationMinutes: rule.duration, breakMinutes: rule.unpaidBreak };
 }
 
@@ -67,12 +72,12 @@ export async function validateShift(
   const sameDayReplacement = allowSameDayReplacement && date === todayWorkDate();
   if (+end - +start <= 60 * 60000)
     throw new TeamError(
-      "A scheduled shift must be longer than its one-hour unpaid break.",
+      "A scheduled shift must be longer than one hour.",
     );
   if (!sameDayReplacement) await assertScheduleMutable(db, userId, date);
   const employee = await db.user.findUniqueOrThrow({ where: { id: userId } });
   const duration = recurringRule(employee, date)?.duration ?? 540;
-  if (+end - +start !== duration * 60000) throw new TeamError(`Temporary shifts must span ${duration / 60} hours including the break. The actual finish moves with clock-in.`);
+  if (+end - +start !== duration * 60000) throw new TeamError(`Temporary shifts must span ${duration / 60} hours including the break. The approved start and finish apply to that date.`);
   if (!sameDayReplacement && +start <= Date.now())
     throw new TeamError(
       "Request and approve the new shift before it starts.",
@@ -129,6 +134,7 @@ export async function syncMeetings(
   userId: string,
   today = todayWorkDate(),
 ) {
+  if (usesMasterPolicy(today)) return []; // Historical meetings are retained, never block new-policy attendance.
   const [user, records, leave, shifts, meetings] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId } }),
     db.attendanceRecord.findMany({
@@ -202,6 +208,7 @@ export async function syncMeetings(
   return db.managerMeeting.findMany({ where: { userId, status: "PENDING" } });
 }
 export async function penaltyContext(db: Db, userId: string, date: string) {
+  if (usesMasterPolicy(date)) return {latePenaltyActive:false,earlyPenaltyActive:false};
   const meetings = await db.managerMeeting.findMany({
     where: {
       userId,
@@ -244,6 +251,18 @@ export async function monthlyPerformance(month: string, userId?: string) {
     })),
   );
   entries.push(...customerReviews.map(r => ({id:`review:${r.id}`,userId:r.userId,date:r.workDate,kind:`Customer review · ${r.totalStars}/25 stars`,points:r.points})));
+  // A bonus working day is one point per earned eight-hour block. Use prior
+  // approved overtime to preserve the existing carry-forward threshold.
+  const bonusHistory = await prisma.attendanceRecord.findMany({where:{...(userId ? {userId} : {}),workDate:{lt:`${month}-01`},clockOutAt:{not:null}}});
+  const extraByUser = new Map<string,number>();
+  for (const r of bonusHistory) if (countsForPayroll(r) && !offDay(r.workDate)) extraByUser.set(r.userId,(extraByUser.get(r.userId) ?? 0)+overtimeMs(r));
+  for (const r of [...records].sort((a,b)=>a.workDate.localeCompare(b.workDate))) {
+    if (!countsForPayroll(r) || !r.clockOutAt || offDay(r.workDate)) continue;
+    const previous=extraByUser.get(r.userId) ?? 0, next=previous+overtimeMs(r);
+    const days=Math.floor(next/(8*3600000))-Math.floor(previous/(8*3600000));
+    if (r.policyVersion === 3 && days>0) entries.push({id:`bonus:${r.id}`,userId:r.userId,date:r.workDate,kind:"Bonus working days",points:days});
+    extraByUser.set(r.userId,next);
+  }
   const totals = new Map<
     string,
     { points: number; eligibleShifts: number; pointsPerShift: number }
@@ -283,6 +302,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
   return {
     entries,
     totals,
+    lateness: new Map([...new Set(records.map(r=>r.userId))].map(id=>[id,monthlyLateness(records.filter(r=>r.userId===id),month)])),
     incidents: records
       .filter(
         (r) =>

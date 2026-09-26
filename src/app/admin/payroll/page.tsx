@@ -373,7 +373,7 @@ export default function PayrollPage() {
         </summary>
         <div className="mt-3 space-y-2 text-foreground/70">
           <p>
-            Regular pay uses actual clocked time up to the scheduled duration, less the assigned unpaid break. From 23 September 2026, Lachit, Hingnam, Pankaj and Gokul have a 2½-hour unpaid break (6½ paid hours for a nine-hour shift). Friday part-time shifts require 7 clock hours and pay 6 after the unpaid break. Missing hours are not topped up or deducted twice. A bonus day is worth the hourly rate × 9.
+            From 26 September, regular pay follows the fixed master schedule, including paid arrival grace of up to 15 minutes and paid one-hour breaks. Unpaid breaks are proportional: 20% for Hingnam, Lachit and Pankaj; 16⅔% for Gokul. Full longer shifts pay ten hours. Earlier records retain their original rules. Eight eligible bonus hours earn one nine-hour bonus day; unused bonus hours carry forward. Late-day counts reset monthly and never cause an extra salary penalty.
           </p>
           <p>
             Billing starts at account creation in IST. Regular staff have paid Mondays; part-time staff are paid for their assigned shifts. Completed working-day shifts count automatically toward

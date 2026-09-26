@@ -176,7 +176,7 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
           {record?.clockInAt && record.clockOutAt && <label className="flex gap-2 text-sm">
             <input type="checkbox" checked={applyCurrentPolicy} disabled={action.busy} onChange={e => setApplyCurrentPolicy(e.target.checked)} />
             <span>Recalculate this record using the current pay policy.
-              <span className="block text-xs text-foreground/60">Normally 9 clock hours including the paid break; Tokili Friday is 7 clock hours with 6 paid. Recalculates pay, bonus hours and incidents. Leave times unchanged if they are correct. Updates payroll automatically.</span>
+              <span className="block text-xs text-foreground/60">From 26 September, the master timetable sets the fixed finish, paid grace and proportional breaks. Recalculates pay, bonus hours and incidents. Leave times unchanged if they are correct. Updates payroll automatically.</span>
             </span>
           </label>}
           <label className="flex gap-2 text-sm">

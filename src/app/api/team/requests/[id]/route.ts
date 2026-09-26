@@ -28,7 +28,7 @@ export const PATCH = teamRoute(async (u, req) => {
             role: true,
             active: true,
             approved: true,
-            unpaidBreakFrom: true, scheduledUnpaidBreakMinutes: true, weeklyScheduleJson: true,
+            unpaidBreakFrom: true, scheduledUnpaidBreakMinutes: true, masterScheduleFrom: true, masterScheduleJson: true, weeklyScheduleJson: true,
             attendancePolicyFrom: true,
             attendanceStartMinute: true,
             attendanceLatestMinute: true,
@@ -85,12 +85,12 @@ export const PATCH = teamRoute(async (u, req) => {
         where: {userId_workDate: {userId: r.userId, workDate: r.fromDate}},
       });
       if (attendance) {
-        if (attendance.policyVersion !== 2)
+        if (![2,3].includes(attendance.policyVersion))
           throw new TeamError("Use an attendance correction for this legacy attendance record.", 409);
         // Approve the replacement schedule, never invent an earlier clock-in.
         // Duration, breaks, clock times and existing approval decisions stay intact.
         const updated = await tx.attendanceRecord.update({where: {id: attendance.id},
-          data: {scheduledStartAt: r.proposedIn}});
+          data: {scheduledStartAt: r.proposedIn, ...(attendance.policyVersion === 3 ? {scheduledEndAt:r.proposedOut,extraTimeCutoff:r.proposedOut} : {})}});
         await tx.attendanceAudit.create({data: auditData(attendance, r.user, u, "SHIFT_CHANGE_APPROVED", updated)});
       }
     }
@@ -119,7 +119,7 @@ export const PATCH = teamRoute(async (u, req) => {
       const breakMinutes = record ? record.unpaidBreakMinutes : schedule?.breakMinutes ?? 60;
       const version = record ? record.policyVersion : 2;
       const end = record ? record.scheduledEndAt : schedule?.end;
-      const v2 = version === 2 ? durationSnapshot(r.proposedIn!, schedule, record) : null;
+      const v2 = version >= 2 ? durationSnapshot(r.proposedIn!, schedule, record) : null;
       const extraTimeCutoff = v2 ? v2.extraTimeCutoff : version ? extraCutoff(r.proposedIn!, breakMinutes, end) : record?.extraTimeCutoff ?? null;
       const needsExtra = !!extraTimeCutoff && !!r.proposedOut && r.proposedOut > extraTimeCutoff;
       const workRules = {

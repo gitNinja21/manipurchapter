@@ -155,7 +155,7 @@ export const POST = teamRoute(async (u, req) => {
     const scheduledEndAt = record
       ? record.scheduledEndAt
       : (schedule?.end ?? null);
-    const v2 = policyVersion === 2 ? durationSnapshot(clockInAt, schedule, recalculate ? null : record) : null;
+    const v2 = policyVersion >= 2 ? durationSnapshot(clockInAt, schedule, recalculate ? null : record) : null;
     const cutoff = v2 ? v2.extraTimeCutoff : policyVersion
       ? extraCutoff(clockInAt, unpaidBreakMinutes, scheduledEndAt)
       : (record?.extraTimeCutoff ?? null);

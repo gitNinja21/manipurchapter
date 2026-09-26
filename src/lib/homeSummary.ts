@@ -60,7 +60,7 @@ export async function getHomeSummary(u: User) {
     summary: u.role === "EMPLOYEE" ? {clockedMinutes: Math.round(records.reduce((sum,r)=>sum+(clockedMs(r) ?? 0),0)/60000),completedShifts:records.length} : null,
     nextShift,
     attendancePolicyFrom: u.attendancePolicyFrom,
-    scheduleDescription: u.attendancePolicyFrom ? recurringDescription(u) : null,
+    scheduleDescription: u.attendancePolicyFrom || u.masterScheduleFrom ? recurringDescription(u) : null,
     requests,
     unread,
     chatUnread,

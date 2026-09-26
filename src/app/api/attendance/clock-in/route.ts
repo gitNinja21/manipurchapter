@@ -1,3 +1,4 @@
+import { usesMasterPolicy } from "@/lib/masterPolicy";
 import { effectiveSchedule, syncMeetings, penaltyContext } from "@/lib/performanceServer";
 import { durationSnapshot } from "@/lib/performance";
 import { NextRequest, NextResponse } from "next/server";
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   const now = new Date();
   const workDate = todayWorkDate();
   const schedule = await effectiveSchedule(prisma, user, workDate);
-  if (user.weeklyScheduleJson && !schedule) return NextResponse.json({error: "You have no scheduled shift today. Ask your admin to assign one."}, {status: 403});
+  if ((user.weeklyScheduleJson || user.masterScheduleJson) && !schedule) return NextResponse.json({error: "You have no scheduled shift today. Ask your admin to assign one."}, {status: 403});
   if (schedule && now < schedule.opens) return NextResponse.json({error: "Clock-in opens 15 minutes before your scheduled start. For an earlier start, submit a shift-change request and obtain admin approval; same-day requests are allowed."}, {status: 403});
   const leave = await prisma.staffRequest.findFirst({where: {userId: user.id, kind: "LEAVE", status: "APPROVED", fromDate: {lte: workDate}, toDate: {gte: workDate}}});
   if (leave) return NextResponse.json({error: "You have approved leave today. Ask your manager to resolve this before clock-in."}, {status: 409});
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
   }
 
   const awaitingArrival = await prisma.arrivalAttempt.findUnique({where:{userId_workDate:{userId:user.id,workDate}}});
-  if (awaitingArrival && !awaitingArrival.approvedAt) return NextResponse.json({error:"Your recorded arrival needs separate approval under Team → Performance → Manager clearance. Ask your admin to approve the arrival time and clear any pending meetings, then retry."},{status:409});
+  if (!usesMasterPolicy(workDate) && awaitingArrival && !awaitingArrival.approvedAt) return NextResponse.json({error:"Your recorded arrival needs separate approval under Team → Performance → Manager clearance. Ask your admin to approve the arrival time and clear any pending meetings, then retry."},{status:409});
 
   // Location gate — a no-op unless RESTAURANT_LAT/RESTAURANT_LNG are set in
   // the environment. Checked before the face match so someone clocking in

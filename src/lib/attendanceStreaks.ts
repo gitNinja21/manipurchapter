@@ -1,3 +1,4 @@
+import { usesMasterPolicy } from "./masterPolicy";
 import { deviations, offDay, type PolicyRecord } from "./performance";
 import { policyApplies, recurringRule, type PolicySchedule } from "./workPolicy";
 export type TalkStatus = "NONE" | "SOON" | "DUE_TODAY" | "PENDING" | "CLEARED" | "FOLLOW_UP";
@@ -29,11 +30,12 @@ export function attendanceStreaks({user,records,leave,shifts,meetings,from,to,to
     const date=new Date(time).toISOString().slice(0,10),r=byDay.get(date);
     const onLeave=leave.some(l=>l.fromDate<=date && l.toDate>=date);
     const eligible=!offDay(date) && !onLeave &&
-      (!user.weeklyScheduleJson || !!recurringRule(user,date) || shiftDays.has(date)) &&
+      (!(user.weeklyScheduleJson || (user.masterScheduleFrom && date>=user.masterScheduleFrom && user.masterScheduleJson)) || !!recurringRule(user,date) || shiftDays.has(date)) &&
       (!!r?.scheduledStartAt || policyApplies(user,date) || shiftDays.has(date));
     const d=r ? deviations(r) : {lateMs:0,earlyMs:0};
     const states:Record<"LATE"|"EARLY",TalkStatus>={LATE:"NONE",EARLY:"NONE"};
     for(const kind of ["LATE","EARLY"] as const) {
+      if (usesMasterPolicy(date)) { counters[kind]={actual:0,cycle:0,awaiting:false}; continue; }
       const c=counters[kind];
       const cleared=meetings.some(m=>m.kind===kind && m.status==="CLEARED" && m.clearedDate===date);
       if(cleared) {c.cycle=0;c.awaiting=false;}

@@ -19,7 +19,7 @@ export async function reminderForUser(user: User, now = new Date()) {
   ]);
   const monday = new Date(`${date}T12:00:00+05:30`).getUTCDay() === 1;
   // Legacy accounts without policy still use their configured arrival deadline.
-  const off = !override && (monday || (!!user.weeklyScheduleJson && !schedule));
+  const off = !override && (monday || (!!(user.weeklyScheduleJson || user.masterScheduleJson) && !schedule));
   const midnight = +new Date(`${date}T00:00:00+05:30`);
   const start = off ? null : schedule?.start ?? new Date(midnight + user.attendanceLatestMinute * 60000);
   const end = off ? null : schedule?.end ?? new Date(midnight + user.attendanceEndMinute * 60000);
