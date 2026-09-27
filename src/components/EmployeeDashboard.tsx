@@ -52,6 +52,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(true);
   const [gpsFailed, setGpsFailed] = useState<"in" | "out" | null>(null);
+  const [pendingGpsRequests,setPendingGpsRequests] = useState<{id:string;kind:string;proposedIn:string|null;proposedOut:string|null}[]>([]);
   const [gpsFallback, setGpsFallback] = useState(false);
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
 
@@ -63,6 +64,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       if (!res.ok) throw new Error(data.error || "Could not load attendance.");
       setError(null);
       setRecord(data.record ?? null);
+      setPendingGpsRequests(data.pendingGpsRequests ?? []);
       setServerTime(data.serverTime ?? null);
       setMeetings(data.meetings ?? []);
       setLateness(data.lateness ?? null);
@@ -95,6 +97,8 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
   const master = record ? record.policyVersion === 3 : schedule?.policyVersion === 3;
   const hasClockedIn = !!record?.clockInAt;
   const hasClockedOut = !!record?.clockOutAt;
+
+  const pendingGps = pendingGpsRequests.find(r=>r.kind === (hasClockedIn ? "GPS_CLOCK_OUT" : "GPS_CLOCK_IN"));
 
   async function startCapture(which: "in" | "out") {
     if (preview) return;
@@ -168,11 +172,13 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       if (!res.ok) {
         setError(data.error || "Something went wrong.");
         setMode("idle");
+        if (gpsFallback) void refresh(true);
         return;
       }
       if (gpsFallback) {
         setMessage("Selfie sent. Attendance is pending admin review in Team → Requests. Your admin can approve later, even remotely. The submission time is recorded; approval will use that time.");
         setMode("idle"); setAction(null); setGpsFailed(null); setGpsFallback(false);
+        await refresh(true);
         return;
       }
       window.dispatchEvent(new Event("attendance-updated"));
@@ -233,7 +239,13 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
           <span className="block text-xs text-foreground/60 mt-2">You can leave this blank. If you leave after 10:45 pm, your clock-out will be sent for admin approval.</span>
         </label>
       )}
-      {gpsFailed && mode === "idle" && !preview && <div className="admin-panel p-4 space-y-2">
+      {pendingGps && !hasClockedOut && <section className="admin-panel p-4 space-y-2" role="status">
+        <h2 className="font-semibold">Clock-{pendingGps.kind === "GPS_CLOCK_IN" ? "in" : "out"} request saved · awaiting admin approval</h2>
+        <p className="text-sm">Your selfie and submission time ({formatIstTime(new Date((pendingGps.kind === "GPS_CLOCK_IN" ? pendingGps.proposedIn : pendingGps.proposedOut)!))} IST) are saved. You do not need to take another selfie or retry GPS. Admin approval will record attendance using that time.</p>
+        <Link href={preview ? "/admin/team?view=requests" : "/employee/team?view=requests"} className="text-sm text-brand underline">View verification request</Link>
+        <button className="admin-button block" disabled={loading} onClick={()=>void refresh()}>Check approval status</button>
+      </section>}
+      {gpsFailed && !pendingGps && mode === "idle" && !preview && <div className="admin-panel p-4 space-y-2">
         <button className="admin-button" onClick={() => {setAction(gpsFailed);setGpsFallback(true);setError(null);setMode("capturing");}}>Can’t get location? Ask manager to verify</button>
         <p className="text-sm text-foreground/60">Take a selfie. Your admin can review the request later, even remotely. Approval uses your saved submission time for clock-{gpsFailed}.</p>
         <Link className="text-sm text-brand underline" href="/employee/team?view=requests">View my requests</Link>
@@ -293,7 +305,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
               disabled={preview || arrival === "OFF" || (policy && arrival === "EARLY")}
               className="w-full rounded-lg bg-brand text-white font-medium py-3 hover:bg-brand-dark transition-colors disabled:opacity-50"
             >
-              Clock In
+              {pendingGps ? "Try normal Clock In instead" : "Clock In"}
             </button>
           ) : !hasClockedOut ? (
             <button
@@ -301,7 +313,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
               disabled={preview}
               className="w-full rounded-lg bg-accent text-white font-medium py-3 hover:brightness-95 transition-[filter] disabled:opacity-50"
             >
-              Clock Out
+              {pendingGps ? "Try normal Clock Out instead" : "Clock Out"}
             </button>
           ) : (
             <p className="text-center text-sm text-success bg-success/10 border border-success/20 rounded-lg py-2.5">

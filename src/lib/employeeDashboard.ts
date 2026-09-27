@@ -29,9 +29,10 @@ export async function getAttendanceToday(user: User) {
     breakExpectation: breakExpectation(user.employeeCode,new Date(`${workDate}T12:00:00+05:30`).getUTCDay(),schedule.durationMinutes,schedule.breakMinutes),
     durationHours: schedule.durationMinutes / 60, unpaidBreakMinutes: schedule.breakMinutes,
   } : null;
+  const pendingGpsRequests = await prisma.staffRequest.findMany({where:{userId:user.id,status:"PENDING",kind:{in:["GPS_CLOCK_IN","GPS_CLOCK_OUT"]},fromDate:{in:[workDate,...(open ? [open.workDate] : [])]}},select:{id:true,kind:true,proposedIn:true,proposedOut:true,createdAt:true},orderBy:{createdAt:"desc"}});
   const month=workDate.slice(0,7);
   const lateness=monthlyLateness(await prisma.attendanceRecord.findMany({where:{userId:user.id,workDate:{startsWith:month}}}),month);
-  return {lateness,record, policy: !!schedule, schedule: labels,
+  return {pendingGpsRequests,lateness,record, policy: !!schedule, schedule: labels,
     arrivalState: (user.weeklyScheduleJson || user.masterScheduleJson) && !schedule ? "OFF" : schedule ? new Date() < schedule.opens ? "EARLY" : +new Date() > +schedule.start + (schedule.policyVersion === 3 ? 15*60000 : 0) ? "LATE" : "ON_TIME" : null,
     lateRequest, meetings, serverTime: new Date().toISOString()};
 }
