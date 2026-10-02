@@ -14,6 +14,7 @@ model User {
   id            String   @id @default(cuid())
   employeeCode  String   @unique // login ID, e.g. "MC-001"
   name          String
+  authVersion   Int @default(0)
   passwordHash  String
   role          String   @default("EMPLOYEE")
   hourlyRateRs  Float    @default(100)
@@ -371,4 +372,24 @@ model AnnouncementCall {
   updatedAt DateTime @updatedAt
   @@unique([announcementId, userId])
   @@index([status, nextAttemptAt])
+}
+
+model AccountRecovery {
+  id String @id
+  userId String?
+  phone String
+  credentialStamp String?
+  verificationSid String?
+  attempts Int @default(0)
+  verifiedAt DateTime?
+  consumedAt DateTime?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([expiresAt])
+  @@index([userId])
+}
+model RecoveryRateLimit {
+  key String @id
+  count Int @default(0)
+  expiresAt DateTime
 }

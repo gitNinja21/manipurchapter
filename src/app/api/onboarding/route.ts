@@ -101,6 +101,7 @@ export async function POST(req: NextRequest) {
   // employeeCode reflects any change they just made.
   const token = await signSession({
     userId: updated.id,
+    authVersion: updated.authVersion,
     role: updated.role as "ADMIN" | "EMPLOYEE",
     employeeCode: updated.employeeCode,
     name: updated.name,

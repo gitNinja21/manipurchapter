@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
 
   const token = await signSession({
     userId: user.id,
+    authVersion: user.authVersion,
     role: user.role as "ADMIN" | "EMPLOYEE",
     employeeCode: user.employeeCode,
     name: user.name,

@@ -17,6 +17,7 @@ const SESSION_DURATION_SECONDS = 60 * 60 * 24 * 14; // 14 days
 
 export type SessionPayload = {
   userId: string;
+  authVersion?: number;
   role: Role;
   employeeCode: string;
   name: string;
@@ -47,6 +48,8 @@ export async function signSession(payload: SessionPayload): Promise<string> {
 export async function verifySession(token: string): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, secretKey);
+    const user=await prisma.user.findUnique({where:{id:String(payload.userId)},select:{active:true,authVersion:true}});
+    if(!user?.active || user.authVersion !== (payload.authVersion ?? 0)) return null;
     return payload as unknown as SessionPayload;
   } catch {
     return null;
@@ -77,7 +80,7 @@ export async function getCurrentUser() {
   const session = await getSession();
   if (!session) return null;
   const user = await prisma.user.findUnique({ where: { id: session.userId } });
-  if (!user || !user.active) return null;
+  if (!user || !user.active || user.authVersion !== (session.authVersion ?? 0)) return null;
   return user;
 }
 

@@ -104,6 +104,8 @@ export default function LoginForm() {
         {loading ? "Signing in…" : "Sign in"}
       </button>
 
+      <Link href="/recover" className="block text-center text-sm text-brand underline">Forgot login ID or password?</Link>
+
       <p className="text-xs text-foreground/50 text-center pt-1">
         New here?{" "}
         <Link href="/signup" className="text-brand underline underline-offset-2 hover:text-brand-dark">
