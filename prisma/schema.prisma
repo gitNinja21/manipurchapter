@@ -10,6 +10,7 @@ datasource db {
 // SQLite has no native enum support in Prisma, so roles are plain strings.
 // Valid values are "ADMIN" | "EMPLOYEE" (see src/lib/roles.ts).
 model User {
+  attendanceSms AttendanceSms[]
   announcementCalls AnnouncementCall[]
   id            String   @id @default(cuid())
   employeeCode  String   @unique // login ID, e.g. "MC-001"
@@ -191,6 +192,19 @@ model MessageReaction {
   emoji String
   @@unique([messageId, userId, emoji])
 }
+model AttendanceSms {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workDate String
+  status String @default("CLAIMED")
+  messageSid String?
+  errorCode String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, workDate])
+}
+
 model Notification {
   id String @id @default(cuid())
   userId String

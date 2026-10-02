@@ -56,7 +56,7 @@ export async function middleware(req: NextRequest) {
 
   if (isProtectedPath && !session) {
     const url = new URL("/", req.url);
-    url.searchParams.set("next", pathname);
+    url.searchParams.set("next", pathname + req.nextUrl.search);
     return NextResponse.redirect(url);
   }
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { employeeLoginDestination } from "@/lib/loginDestination";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -46,7 +47,8 @@ export default function LoginForm() {
       } else if (!data.user.approved) {
         router.push("/pending-approval");
       } else {
-        router.push("/employee");
+        const next = new URLSearchParams(window.location.search).get("next");
+        router.push(employeeLoginDestination(next));
       }
       router.refresh();
     } catch {

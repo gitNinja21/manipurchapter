@@ -23,7 +23,7 @@ export default function Requests({ admin }: { admin: boolean }) {
   const params = useSearchParams();
   const [page, setPage] = useState(1),
     [filter, setFilter] = useState(admin ? "PENDING" : ""),
-    [kind, setKind] = useState(["LATE_ARRIVAL", "SHIFT_CHANGE"].includes(params.get("kind") ?? "") ? params.get("kind")! : "LEAVE"),
+    [kind, setKind] = useState(["LEAVE", "LATE_ARRIVAL", "SHIFT_CHANGE"].includes(params.get("kind") ?? "") ? params.get("kind")! : "LEAVE"),
     [from, setFrom] = useState(todayWorkDate()),
     [to, setTo] = useState(todayWorkDate()),
     [reason, setReason] = useState(""),
@@ -45,7 +45,7 @@ export default function Requests({ admin }: { admin: boolean }) {
         </p>
       </div>
       {!admin && (
-        <details className="admin-panel p-5" open={["LATE_ARRIVAL", "SHIFT_CHANGE"].includes(params.get("kind") ?? "") || undefined}>
+        <details className="admin-panel p-5" open={["LEAVE", "LATE_ARRIVAL", "SHIFT_CHANGE"].includes(params.get("kind") ?? "") || undefined}>
           <summary className="font-medium cursor-pointer">
             Submit a request
           </summary>
