@@ -1,4 +1,8 @@
 export async function register() {
+  if(process.env.NEXT_RUNTIME === "nodejs" && process.env.NEXT_PHASE !== "phase-production-build" && process.env.NODE_ENV === "production" && process.env.ANNOUNCEMENT_VOICE_ENABLED === "true") {
+    const {startAnnouncementVoiceWorker}=await import("./lib/announcementVoice");
+    startAnnouncementVoiceWorker();
+  }
   if (process.env.NEXT_RUNTIME === "nodejs" && process.env.NEXT_PHASE !== "phase-production-build" &&
       process.env.AUTO_CLOCK_OUT_ENABLED !== "false" &&
       (process.env.NODE_ENV === "production" || process.env.AUTO_CLOCK_OUT_ENABLED === "true")) {

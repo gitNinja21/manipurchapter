@@ -10,6 +10,7 @@ datasource db {
 // SQLite has no native enum support in Prisma, so roles are plain strings.
 // Valid values are "ADMIN" | "EMPLOYEE" (see src/lib/roles.ts).
 model User {
+  announcementCalls AnnouncementCall[]
   id            String   @id @default(cuid())
   employeeCode  String   @unique // login ID, e.g. "MC-001"
   name          String
@@ -134,6 +135,7 @@ model AttendanceRecord {
 }
 
 model Announcement {
+  calls AnnouncementCall[]
   acknowledgements AnnouncementAck[]
   id        String   @id @default(cuid())
   title     String
@@ -349,4 +351,24 @@ model ReviewRateLimit {
   count Int
   expiresAt DateTime
   @@index([expiresAt])
+}
+
+model AnnouncementCall {
+  id String @id @default(cuid())
+  announcementId String
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone String?
+  status String @default("QUEUED")
+  attempts Int @default(0)
+  attemptKey String? @unique
+  callSid String? @unique
+  nextAttemptAt DateTime @default(now())
+  acknowledgedAt DateTime?
+  error String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([announcementId, userId])
+  @@index([status, nextAttemptAt])
 }

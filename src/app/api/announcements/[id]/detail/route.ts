@@ -1,3 +1,4 @@
+import { voiceConfig } from "@/lib/announcementVoice";
 import { prisma } from "@/lib/prisma";
 import { teamRoute, TeamError } from "@/lib/team";
 export const GET = teamRoute(async (u, req) => {
@@ -13,5 +14,5 @@ export const GET = teamRoute(async (u, req) => {
     },
   });
   if (!announcement) throw new TeamError("This announcement was removed.", 404);
-  return { announcement };
+  return { announcement, ...(u.role === "ADMIN" ? {voiceConfigured:!!voiceConfig()} : {}) };
 });

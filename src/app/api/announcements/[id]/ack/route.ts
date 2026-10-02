@@ -40,5 +40,6 @@ export const GET = teamRoute(async (u, req) => {
     },
     orderBy: { name: "asc" },
   });
-  return { people };
+  const calls=await prisma.announcementCall.findMany({where:{announcementId:id},select:{userId:true,status:true,attempts:true,nextAttemptAt:true,acknowledgedAt:true,error:true,user:{select:{name:true,employeeCode:true}}},orderBy:{createdAt:"asc"}});
+  return { people, calls };
 });

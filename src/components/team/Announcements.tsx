@@ -27,6 +27,7 @@ export default function Announcements({ admin }: { admin: boolean }) {
     announcements?: Announcement[];
     announcement?: Announcement;
     total?: number;
+    voiceConfigured?: boolean;
   }>(url, 30000);
   const action = useAction(reload);
   const items = data?.announcement
@@ -47,6 +48,7 @@ export default function Announcements({ admin }: { admin: boolean }) {
           </button>
         )}
       </div>
+      {admin && data && !data.voiceConfigured && <p className="admin-panel p-4 text-sm text-accent">Voice calling is not configured. Announcements will still be posted, but employees will not receive calls until the calling account is connected.</p>}
       {admin && (
         <details className="admin-panel p-5">
           <summary className="font-medium cursor-pointer">
@@ -88,7 +90,7 @@ export default function Announcements({ admin }: { admin: boolean }) {
             </label>
             <p className="text-xs text-foreground/60">
               Posting creates in-app notifications for active team members and
-              sends push alerts to subscribed devices when configured.
+              sends push alerts to subscribed devices when configured. When voice calling is connected, every new announcement also calls all active employees in English. Press 1 acknowledges; unanswered calls retry once after five minutes.
             </p>
             <button className="admin-button" disabled={action.busy}>
               {action.busy ? "Posting…" : "Post and notify team"}
@@ -188,7 +190,7 @@ function AnnouncementCard({
         )}
         {admin && (
           <button className="admin-button" onClick={() => setReport(!report)}>
-            {report ? "Hide acknowledgements" : "Who has acknowledged?"}
+            {report ? "Hide delivery report" : "Calls & acknowledgements"}
           </button>
         )}
       </div>
@@ -198,6 +200,7 @@ function AnnouncementCard({
 }
 function Acknowledgements({ id }: { id: string }) {
   const { data, error } = useTeamData<{
+    calls: {userId:string;status:string;attempts:number;nextAttemptAt:string;acknowledgedAt:string|null;error:string|null;user:{name:string;employeeCode:string}}[];
     people: {
       id: string;
       name: string;
@@ -216,6 +219,15 @@ function Acknowledgements({ id }: { id: string }) {
             {data.people.filter((p) => p.acknowledgements.length).length} of{" "}
             {data.people.length} current employees acknowledged
           </p>
+          <h3 className="font-semibold text-sm mt-4">Voice calls</h3>
+          {!data.calls?.length && <p className="text-xs text-foreground/60">No voice calls were scheduled for this announcement.</p>}
+          <ul className="divide-y divide-border mt-2">{data.calls?.map(c=><li key={c.userId} className="py-2 text-sm">
+            <strong>{c.user.name}</strong> · {callLabel(c.status)} · {c.attempts} of 2 attempts
+            {c.status === "RETRY_WAIT" && <p className="text-xs">Retry after {formatIstDateTime(new Date(c.nextAttemptAt))}</p>}
+            {c.acknowledgedAt && <p className="text-xs">Pressed 1 at {formatIstDateTime(new Date(c.acknowledgedAt))}</p>}
+            {c.error && <p className="text-xs text-accent">{c.error}</p>}
+          </li>)}</ul>
+          <h3 className="font-semibold text-sm mt-4">All acknowledgements</h3>
           <ul className="divide-y divide-border max-h-72 overflow-auto mt-2">
             {data.people.map((p) => (
               <li
@@ -242,4 +254,9 @@ function Acknowledgements({ id }: { id: string }) {
       )}
     </div>
   );
+}
+
+function callLabel(status:string) {
+  const labels:Record<string,string>={QUEUED:"Waiting to call",SENDING:"Starting call",CALLING:"Call in progress",ACKNOWLEDGED:"Acknowledged by phone",ACKNOWLEDGED_ON_WEB:"Acknowledged on website",RETRY_WAIT:"Unanswered / failed · retry scheduled",UNANSWERED:"Unanswered",FAILED:"Failed",NO_ACK:"Call ended without acknowledgement",UNKNOWN:"Delivery unknown",INVALID_NUMBER:"Missing or invalid phone number",NOT_CONFIGURED:"Calling not configured",SKIPPED:"Skipped"};
+  return labels[status] ?? status;
 }

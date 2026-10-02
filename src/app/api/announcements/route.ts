@@ -1,3 +1,4 @@
+import { queueAnnouncementCalls, voiceConfig } from "@/lib/announcementVoice";
 import { prisma } from "@/lib/prisma";
 import {
   teamRoute,
@@ -31,7 +32,7 @@ export const GET = teamRoute(async (u, req) => {
     }),
     prisma.announcement.count(),
   ]);
-  return { announcements, total };
+  return { announcements, total, ...(u.role === "ADMIN" ? {voiceConfigured:!!voiceConfig()} : {}) };
 });
 export const POST = teamRoute(async (u, req) => {
   adminOnly(u);
@@ -55,6 +56,7 @@ export const POST = teamRoute(async (u, req) => {
       title,
       `announcements?announcement=${a.id}`,
     );
+    await queueAnnouncementCalls(tx,a.id);
     return a;
   });
   await sendAnnouncementPush(announcement.id).catch(() =>
