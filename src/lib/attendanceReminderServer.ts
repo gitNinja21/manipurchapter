@@ -4,6 +4,7 @@ import { effectiveSchedule } from "./performanceServer";
 import { attendanceReminder } from "./attendanceReminders";
 import { workDateFor } from "./time";
 import { sendAttendancePush } from "./push";
+import { claimNotification } from "./notificationClaim";
 
 export async function reminderForUser(user: User, now = new Date()) {
   if (!user.active || !user.approved || user.mustChangePassword || user.role !== "EMPLOYEE") return null;
@@ -36,14 +37,9 @@ export async function dispatchAttendanceReminders(now = new Date()) {
   for (const user of users) {
     const reminder = await reminderForUser(user, now);
     if (!reminder) continue;
-    // Unique constraint claims a slot across processes; it is never sent twice.
-    try {
-      await prisma.notification.create({data:{userId:user.id,kind:reminder.kind,entityKey:reminder.key,
-        title:reminder.message,href:reminder.href}});
-    } catch (error) {
-      if ((error as {code?:string}).code === "P2002") continue;
-      throw error;
-    }
+    const claimed = await claimNotification(prisma, {userId:user.id,kind:reminder.kind,entityKey:reminder.key,
+      title:reminder.message,href:reminder.href});
+    if (!claimed) continue;
     // Recheck after claiming to avoid notifying somebody who has just clocked in/out.
     const latest = await reminderForUser(user, now);
     if (latest?.kind === reminder.kind && latest.key === reminder.key) await sendAttendancePush(user.id, reminder);
