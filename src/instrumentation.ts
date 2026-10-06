@@ -1,5 +1,10 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs" && process.env.NEXT_PHASE !== "phase-production-build" &&
+      process.env.NODE_ENV === "production" && process.env.ANNOUNCEMENT_SMS_ENABLED === "true") {
+    const { startAnnouncementSmsWorker } = await import("./lib/announcementSms");
+    startAnnouncementSmsWorker();
+  }
+  if (process.env.NEXT_RUNTIME === "nodejs" && process.env.NEXT_PHASE !== "phase-production-build" &&
       process.env.NODE_ENV === "production" && process.env.ATTENDANCE_SMS_ENABLED === "true") {
     const { startAttendanceSmsWorker } = await import("./lib/attendanceSms");
     startAttendanceSmsWorker();

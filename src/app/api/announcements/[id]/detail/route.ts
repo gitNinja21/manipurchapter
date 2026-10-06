@@ -1,10 +1,12 @@
+import { announcementWhere } from "@/lib/announcementAudience";
+import { announcementSmsConfig } from "@/lib/announcementSms";
 import { voiceConfig } from "@/lib/announcementVoice";
 import { prisma } from "@/lib/prisma";
 import { teamRoute, TeamError } from "@/lib/team";
 export const GET = teamRoute(async (u, req) => {
   const id = req.nextUrl.pathname.split("/").at(-2)!;
-  const announcement = await prisma.announcement.findUnique({
-    where: { id },
+  const announcement = await prisma.announcement.findFirst({
+    where: { id, ...announcementWhere(u) },
     include: {
       author: { select: { name: true } },
       acknowledgements: {
@@ -14,5 +16,5 @@ export const GET = teamRoute(async (u, req) => {
     },
   });
   if (!announcement) throw new TeamError("This announcement was removed.", 404);
-  return { announcement, ...(u.role === "ADMIN" ? {voiceConfigured:!!voiceConfig()} : {}) };
+  return { announcement, ...(u.role === "ADMIN" ? {voiceConfigured:!!voiceConfig(),smsConfigured:!!announcementSmsConfig()} : {}) };
 });

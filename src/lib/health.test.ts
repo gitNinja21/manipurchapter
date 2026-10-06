@@ -11,7 +11,7 @@ test("readiness checks the database on every request and hides failure details",
   assert.equal(ready.status, 200);
   assert.equal(ready.headers.get("Cache-Control"), "no-store");
   assert.deepEqual(await ready.json(), { status: "ok" });
-  prisma.user.findFirst = (async () => { throw new Error("private database details"); }) as typeof original;
+  prisma.user.findFirst = (async () => { throw new Error("private database details"); }) as unknown as typeof original;
   const unavailable = await GET();
   assert.equal(unavailable.status, 503);
   assert.equal(unavailable.headers.get("Cache-Control"), "no-store");

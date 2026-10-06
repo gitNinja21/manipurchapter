@@ -8,6 +8,9 @@ type Announcement = {
   id: string;
   title: string;
   body: string;
+  audience: string;
+  sendSms: boolean;
+  sendCall: boolean;
   createdAt: string;
   author: { name: string };
   acknowledgements: { acknowledgedAt: string }[];
@@ -20,6 +23,9 @@ export default function Announcements({ admin }: { admin: boolean }) {
   const [page, setPage] = useState(1),
     [title, setTitle] = useState(""),
     [body, setBody] = useState("");
+  const [audience, setAudience] = useState("ALL");
+  const [recipientIds, setRecipientIds] = useState<string[]>([]);
+  const [sendSms, setSendSms] = useState(true), [sendCall, setSendCall] = useState(true);
   const url = selected
     ? `/api/announcements/${encodeURIComponent(selected)}/detail`
     : `/api/announcements?page=${page}`;
@@ -28,6 +34,7 @@ export default function Announcements({ admin }: { admin: boolean }) {
     announcement?: Announcement;
     total?: number;
     voiceConfigured?: boolean;
+    smsConfigured?: boolean;
   }>(url, 30000);
   const action = useAction(reload);
   const items = data?.announcement
@@ -39,7 +46,7 @@ export default function Announcements({ admin }: { admin: boolean }) {
         <div>
           <h1 className="text-2xl font-semibold">Announcements</h1>
           <p className="text-sm text-foreground/60 mt-1">
-            Important updates for the whole team.
+            Updates for everyone or selected team members.
           </p>
         </div>
         {selected && (
@@ -59,7 +66,7 @@ export default function Announcements({ admin }: { admin: boolean }) {
             onSubmit={(e) => {
               e.preventDefault();
               void action.run(async () => {
-                await api("/api/announcements", "POST", { title, body });
+                await api("/api/announcements", "POST", { title, body, audience, recipientIds, sendSms, sendCall });
                 setTitle("");
                 setBody("");
                 setPage(1);
@@ -67,6 +74,20 @@ export default function Announcements({ admin }: { admin: boolean }) {
               });
             }}
           >
+            <label className="block text-sm">Send to
+              <select className="input mt-1" value={audience} onChange={e=>setAudience(e.target.value)}>
+                <option value="ALL">All employees</option>
+                <option value="SELECTED">Selected employees</option>
+              </select>
+            </label>
+            {audience === "SELECTED" && <RecipientPicker selected={recipientIds} onChange={setRecipientIds} />}
+            <fieldset className="flex flex-wrap gap-4 text-sm">
+              <legend className="mb-2">Phone delivery</legend>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={sendSms} onChange={e=>setSendSms(e.target.checked)} />SMS</label>
+              <label className="flex items-center gap-2"><input type="checkbox" checked={sendCall} onChange={e=>setSendCall(e.target.checked)} />Phone call</label>
+            </fieldset>
+            {sendSms && data && !data.smsConfigured && <p className="text-sm text-accent" role="status">SMS is not configured. The announcement will be saved, but texts will not be sent. Delivery reports will show “SMS not configured”.</p>}
+            <p className="text-xs text-foreground/60">Only recipients and admins can read this announcement. Website notifications are included. “All employees” includes active, approved employees at posting time.</p>
             <label className="block text-sm">
               Title
               <input
@@ -89,11 +110,12 @@ export default function Announcements({ admin }: { admin: boolean }) {
               />
             </label>
             <p className="text-xs text-foreground/60">
-              Posting creates in-app notifications for active team members and
-              sends push alerts to subscribed devices when configured. When voice calling is connected, every new announcement also calls all active employees in English. Press 1 acknowledges; unanswered calls retry once after five minutes.
+              Calls use English. Press 1 acknowledges; unanswered calls retry once after five minutes.
+              SMS contains the title and message; longer texts cost multiple SMS segments. SMS delivery does not mark an announcement as read.
             </p>
-            <button className="admin-button" disabled={action.busy}>
-              {action.busy ? "Posting…" : "Post and notify team"}
+            {sendSms && <p className={`text-xs ${title.length+body.length>1500 ? "text-danger" : "text-foreground/60"}`}>{title.length+body.length} / 1,500 characters for SMS</p>}
+            <button className="admin-button" disabled={action.busy || (audience === "SELECTED" && !recipientIds.length) || (sendSms && title.length+body.length>1500)}>
+              {action.busy ? "Posting…" : "Post and notify recipients"}
             </button>
           </form>
         </details>
@@ -143,6 +165,7 @@ function AnnouncementCard({
           <h2 className="font-semibold text-lg break-words">{a.title}</h2>
           <p className="text-xs text-foreground/60 mt-1">
             {formatIstDateTime(new Date(a.createdAt))} · {a.author.name}
+            {admin && <> · {a.audience === "SELECTED" ? "Selected employees" : "All employees"} · {[a.sendSms && "SMS",a.sendCall && "Call","Website"].filter(Boolean).join(" + ")}</>}
           </p>
         </div>
         {admin && (
@@ -190,7 +213,7 @@ function AnnouncementCard({
         )}
         {admin && (
           <button className="admin-button" onClick={() => setReport(!report)}>
-            {report ? "Hide delivery report" : "Calls & acknowledgements"}
+            {report ? "Hide delivery report" : "Delivery & acknowledgements"}
           </button>
         )}
       </div>
@@ -200,6 +223,7 @@ function AnnouncementCard({
 }
 function Acknowledgements({ id }: { id: string }) {
   const { data, error } = useTeamData<{
+    sms: {userId:string;status:string;error:string|null;user:{name:string;employeeCode:string}}[];
     calls: {userId:string;status:string;attempts:number;nextAttemptAt:string;acknowledgedAt:string|null;error:string|null;user:{name:string;employeeCode:string}}[];
     people: {
       id: string;
@@ -217,8 +241,14 @@ function Acknowledgements({ id }: { id: string }) {
         <>
           <p className="font-medium text-sm">
             {data.people.filter((p) => p.acknowledgements.length).length} of{" "}
-            {data.people.length} current employees acknowledged
+            {data.people.length} recipients acknowledged
           </p>
+          <h3 className="font-semibold text-sm mt-4">SMS</h3>
+          {!data.sms?.length && <p className="text-xs text-foreground/60">No SMS scheduled.</p>}
+          <ul className="divide-y divide-border mt-2">{data.sms?.map(message=><li key={message.userId} className="py-2 text-sm">
+            <strong>{message.user.name}</strong> · {smsLabel(message.status)}
+            {message.error && <p className="text-xs text-accent">{message.error}</p>}
+          </li>)}</ul>
           <h3 className="font-semibold text-sm mt-4">Voice calls</h3>
           {!data.calls?.length && <p className="text-xs text-foreground/60">No voice calls were scheduled for this announcement.</p>}
           <ul className="divide-y divide-border mt-2">{data.calls?.map(c=><li key={c.userId} className="py-2 text-sm">
@@ -258,5 +288,23 @@ function Acknowledgements({ id }: { id: string }) {
 
 function callLabel(status:string) {
   const labels:Record<string,string>={QUEUED:"Waiting to call",SENDING:"Starting call",CALLING:"Call in progress",ACKNOWLEDGED:"Acknowledged by phone",ACKNOWLEDGED_ON_WEB:"Acknowledged on website",RETRY_WAIT:"Unanswered / failed · retry scheduled",UNANSWERED:"Unanswered",FAILED:"Failed",NO_ACK:"Call ended without acknowledgement",UNKNOWN:"Delivery unknown",INVALID_NUMBER:"Missing or invalid phone number",NOT_CONFIGURED:"Calling not configured",SKIPPED:"Skipped"};
+  return labels[status] ?? status;
+}
+
+function RecipientPicker({selected,onChange}:{selected:string[];onChange:(ids:string[])=>void}) {
+  const {data,error} = useTeamData<{employees:{id:string;name:string;employeeCode:string}[]}>("/api/announcements/recipients",30000);
+  const [search,setSearch] = useState("");
+  return <fieldset className="rounded-lg border border-border p-3 space-y-2">
+    <legend className="text-sm">Select employees ({selected.length})</legend>
+    <ErrorNotice error={error} />
+    <input className="input" placeholder="Search employees" aria-label="Search employees" value={search} onChange={e=>setSearch(e.target.value)} />
+    {!data && !error && <p className="text-sm">Loading employees…</p>}
+    <div className="max-h-56 overflow-auto space-y-2">{data?.employees.filter(e=>`${e.name} ${e.employeeCode}`.toLowerCase().includes(search.toLowerCase())).map(e=><label key={e.id} className="flex gap-2 items-center text-sm">
+      <input type="checkbox" checked={selected.includes(e.id)} onChange={event=>onChange(event.target.checked ? [...selected,e.id] : selected.filter(id=>id!==e.id))} />{e.name} <span className="text-foreground/60">{e.employeeCode}</span>
+    </label>)}</div>
+  </fieldset>;
+}
+function smsLabel(status:string) {
+  const labels:Record<string,string> = {QUEUED:"Waiting to send",SENDING:"Sending",ACCEPTED:"Accepted by provider",PROVIDER_QUEUED:"Queued by provider",SENDING_PROVIDER:"Sending through provider",SENT:"Sent (delivery unconfirmed)",DELIVERED:"Delivered",FAILED:"Failed",UNDELIVERED:"Undelivered",UNKNOWN:"Delivery unknown",NOT_CONFIGURED:"SMS not configured",INVALID_NUMBER:"Missing or invalid phone number",SKIPPED:"Skipped"};
   return labels[status] ?? status;
 }

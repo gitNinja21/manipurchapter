@@ -10,6 +10,8 @@ datasource db {
 // SQLite has no native enum support in Prisma, so roles are plain strings.
 // Valid values are "ADMIN" | "EMPLOYEE" (see src/lib/roles.ts).
 model User {
+  announcementRecipients AnnouncementRecipient[]
+  announcementSms AnnouncementSms[]
   attendanceSms AttendanceSms[]
   announcementCalls AnnouncementCall[]
   id            String   @id @default(cuid())
@@ -137,6 +139,11 @@ model AttendanceRecord {
 }
 
 model Announcement {
+  audience String @default("LEGACY_ALL")
+  sendSms Boolean @default(false)
+  sendCall Boolean @default(true)
+  recipients AnnouncementRecipient[]
+  sms AnnouncementSms[]
   calls AnnouncementCall[]
   acknowledgements AnnouncementAck[]
   id        String   @id @default(cuid())
@@ -406,4 +413,28 @@ model RecoveryRateLimit {
   key String @id
   count Int @default(0)
   expiresAt DateTime
+}
+
+model AnnouncementRecipient {
+  announcementId String
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@id([announcementId, userId])
+  @@index([userId])
+}
+model AnnouncementSms {
+  id String @id @default(cuid())
+  announcementId String
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone String?
+  status String @default("QUEUED")
+  messageSid String? @unique
+  error String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([announcementId, userId])
+  @@index([status, createdAt])
 }

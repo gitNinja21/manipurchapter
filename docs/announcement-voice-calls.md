@@ -28,3 +28,15 @@ Conditional database claims prevent concurrent workers from dialing the same job
 ## Verification
 
 Run npm test, npm run build, and node --import tsx scripts/test-announcement-voice.ts. Tests use a disposable SQLite database and fake delivery; they never call an employee. A real phone/carrier test remains necessary after provisioning the provider.
+
+## Targeted announcements and SMS (6 October 2026)
+
+The same admin form now selects All employees or Selected employees, with independent SMS and Call checkboxes. Website access and notifications are always included. New announcements save a snapshot of active, approved recipients when posted. Only these recipients and admins can list, open, or acknowledge the announcement. Browser push uses the same scoped notification recipients. Older announcements retain their previous all-team visibility. Deleting an announcement removes pending delivery records; it cannot retract texts or calls already submitted to Twilio.
+
+SMS requires `ANNOUNCEMENT_SMS_ENABLED=true`, an HTTPS `ANNOUNCEMENT_SMS_BASE_URL` (falls back to the voice base URL), existing Twilio account credentials, and either `TWILIO_SMS_FROM` or an `MG...` `TWILIO_MESSAGING_SERVICE_SID`. This is independent of `ATTENDANCE_SMS_ENABLED` and the `VA...` Verify service. The sender and destination must support SMS; voice setup alone is insufficient. If configuration is missing at posting time the admin is warned and delivery rows show NOT_CONFIGURED. Enabling later does not send old messages.
+
+SMS includes the title and full message, limited to 1,500 combined characters plus restaurant identification. Long/Unicode texts may incur multiple SMS-segment charges. Calls remain in English with the existing acknowledgement/retry behavior. Checking neither channel posts on the website only. SMS delivery does not count as acknowledgement; recipients acknowledge on the website or press 1 during the call.
+
+Delivery reports show only the recipient snapshot, along with calls, SMS and acknowledgements. SMS provider callbacks use signed requests and bind the message ID/phone to the queued recipient. Queues are claimed atomically before submission; uncertain submissions are not automatically retried. ACCEPTED/SENT are not proof of delivery; DELIVERED reflects the provider delivery receipt.
+
+Run `npm test`, `npm run build`, `npx tsx scripts/test-targeted-announcements.ts` and `npx tsx scripts/test-announcement-voice.ts`. Integration tests use disposable databases and fake transports; they never contact recipients.

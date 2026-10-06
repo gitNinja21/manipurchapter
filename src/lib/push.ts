@@ -30,7 +30,7 @@ export function allowedPushEndpoint(endpoint: string) {
 export async function sendAnnouncementPush(id: string) {
   if (!pushConfigured()) return;
   const subscriptions = await prisma.pushSubscription.findMany({
-    where: { user: memberWhere },
+    where: { user: { AND: [memberWhere, { notifications: { some: { kind: "ANNOUNCEMENT", entityKey: id } } }] } },
   });
   await Promise.allSettled(
     subscriptions.map(async (s) => {

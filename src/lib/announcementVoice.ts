@@ -17,9 +17,9 @@ export function voicePhone(value:string|null) {
   if(/^91[6-9]\d{9}$/.test(phone)) return `+${phone}`;
   return /^\+[1-9]\d{7,14}$/.test(phone) ? phone : null;
 }
-export async function queueAnnouncementCalls(tx:Prisma.TransactionClient,announcementId:string) {
+export async function queueAnnouncementCalls(tx:Prisma.TransactionClient,announcementId:string, recipients?: {id:string;phone:string|null}[]) {
   const configured=!!voiceConfig();
-  const employees=await tx.user.findMany({where:{role:"EMPLOYEE",active:true,approved:true},select:{id:true,phone:true}});
+  const employees=recipients ?? await tx.user.findMany({where:{role:"EMPLOYEE",active:true,approved:true},select:{id:true,phone:true}});
   for(const employee of employees) {
     const phone=voicePhone(employee.phone);
     await tx.announcementCall.create({data:{announcementId,userId:employee.id,phone,
