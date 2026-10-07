@@ -1,3 +1,4 @@
+import { STATISTICS_START_DATE } from "./statisticsStart";
 import { missedClockOutEntries } from "./missedClockOut";
 import { usesMasterPolicy, monthlyLateness } from "./masterPolicy";
 import { attendanceStreaks } from "./attendanceStreaks";
@@ -226,14 +227,14 @@ export async function monthlyPerformance(month: string, userId?: string) {
   const where = userId ? { userId } : {};
   const [records, referrals, customerReviews, missedClockOutAudits] = await Promise.all([
     prisma.attendanceRecord.findMany({
-      where: { ...where, workDate: { startsWith: month } },
+      where: { ...where, workDate: { startsWith: month, gte: STATISTICS_START_DATE } },
       orderBy: { workDate: "desc" },
     }),
     prisma.referralClaim.findMany({
-      where: { ...where, billDate: { startsWith: month }, status: "APPROVED" },
+      where: { ...where, billDate: { startsWith: month, gte: STATISTICS_START_DATE }, status: "APPROVED" },
     }),
-    prisma.customerReview.findMany({where:{...where,workDate:{startsWith:month}}}),
-    prisma.attendanceAudit.findMany({where:{...where,action:"AUTO_CLOCK_OUT",workDate:{startsWith:month}},select:{recordId:true,userId:true,workDate:true}}),
+    prisma.customerReview.findMany({where:{...where,workDate:{startsWith:month,gte:STATISTICS_START_DATE}}}),
+    prisma.attendanceAudit.findMany({where:{...where,action:"AUTO_CLOCK_OUT",workDate:{startsWith:month,gte:STATISTICS_START_DATE}},select:{recordId:true,userId:true,workDate:true}}),
   ]);
   const missedClockOuts=missedClockOutEntries(missedClockOutAudits);
   const entries = records.flatMap((r) =>
@@ -257,7 +258,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
   entries.push(...customerReviews.map(r => ({id:`review:${r.id}`,userId:r.userId,date:r.workDate,kind:`Customer review · ${r.totalStars}/25 stars`,points:r.points})));
   // A bonus working day is one point per earned eight-hour block. Use prior
   // approved overtime to preserve the existing carry-forward threshold.
-  const bonusHistory = await prisma.attendanceRecord.findMany({where:{...(userId ? {userId} : {}),workDate:{lt:`${month}-01`},clockOutAt:{not:null}}});
+  const bonusHistory = await prisma.attendanceRecord.findMany({where:{...(userId ? {userId} : {}),workDate:{gte:STATISTICS_START_DATE,lt:`${month}-01`},clockOutAt:{not:null}}});
   const extraByUser = new Map<string,number>();
   for (const r of bonusHistory) if (countsForPayroll(r) && !offDay(r.workDate)) extraByUser.set(r.userId,(extraByUser.get(r.userId) ?? 0)+overtimeMs(r));
   for (const r of [...records].sort((a,b)=>a.workDate.localeCompare(b.workDate))) {

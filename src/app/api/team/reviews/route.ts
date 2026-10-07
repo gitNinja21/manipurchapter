@@ -1,3 +1,4 @@
+import { STATISTICS_START_DATE } from "@/lib/statisticsStart";
 import { prisma } from "@/lib/prisma";
 import { teamRoute, TeamError } from "@/lib/team";
 import { issueReviewCode } from "@/lib/customerReviewServer";
@@ -6,7 +7,7 @@ export const GET = teamRoute(async (u, req) => {
   const month = req.nextUrl.searchParams.get("month") || todayWorkDate().slice(0,7);
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new TeamError("Choose a valid month.");
   const employeeId = u.role === "ADMIN" ? req.nextUrl.searchParams.get("employeeId") : u.id;
-  const where = { ...(employeeId ? {userId:employeeId} : {}), workDate:{startsWith:month} };
+  const where = { ...(employeeId ? {userId:employeeId} : {}), workDate:{startsWith:month,gte:STATISTICS_START_DATE} };
   const page = Math.max(1,Math.min(10000,Math.floor(Number(req.nextUrl.searchParams.get("page")) || 1)));
   const [reviews, total, summary, invite, employees] = await Promise.all([
     prisma.customerReview.findMany({where,orderBy:[{createdAt:"desc"},{id:"desc"}],skip:(page-1)*30,take:30,select:{id:true,createdAt:true,friendliness:true,attentiveness:true,accuracy:true,speed:true,overall:true,totalStars:true,points:true,user:{select:{id:true,name:true}}}}),

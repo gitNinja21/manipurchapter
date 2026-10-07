@@ -143,7 +143,7 @@ export default function Performance({ admin }: { admin: boolean }) {
       <details className="admin-panel p-4">
         <summary className="font-medium cursor-pointer">How attendance points work</summary>
         <div className="text-sm space-y-2 mt-3">
-          <p>From 26 September: +0.5 for base-hour completion, +1 per bonus working day, +3 per approved referral, and up to +1 per customer review. Earlier records retain their original awards.</p>
+          <p>From 1 October 2026: +0.5 for base-hour completion, +1 per bonus working day, +3 per approved referral, and up to +1 per customer review. Pre-launch activity is excluded from points and bonus-hour balances.</p>
           <p>15 minutes paid grace. Third late day: automatic warning. Fifth late day: ineligible for Best Employee that month. Monthly counts reset; no manager talks or late-arrival point deductions. Each missed clock-out costs 0.5 points; its date appears in Points history.</p>
           <p>Clock out by 10:30–10:45 pm. Time after 10:45 pm requires admin approval before it contributes to awards. Always record your actual leaving time.</p>
         </div>

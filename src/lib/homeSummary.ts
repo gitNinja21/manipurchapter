@@ -1,3 +1,4 @@
+import { statisticsFrom } from "./statisticsStart";
 import { recurringDescription } from "@/lib/workPolicy";
 import { prisma } from "@/lib/prisma";
 import { memberWhere } from "@/lib/team";
@@ -12,7 +13,7 @@ export async function getHomeSummary(u: User) {
   const [records, nextShift, requests, birthdays, unread, chatUnread] =
     await Promise.all([
       u.role === "EMPLOYEE"
-        ? prisma.attendanceRecord.findMany({where:{userId:u.id,workDate:{gte:month,lte:today},clockInAt:{not:null},clockOutAt:{not:null}},select:{clockInAt:true,clockOutAt:true}})
+        ? prisma.attendanceRecord.findMany({where:{userId:u.id,workDate:{gte:statisticsFrom(month),lte:today},clockInAt:{not:null},clockOutAt:{not:null}},select:{clockInAt:true,clockOutAt:true}})
         : Promise.resolve([]),
       prisma.scheduledShift.findFirst({
         where: { userId: u.id, endsAt: { gte: new Date() } },

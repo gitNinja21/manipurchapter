@@ -133,6 +133,7 @@ export default function PayrollPage() {
             Pay with confidence
           </p>
           <h1 className="text-3xl font-semibold">Payroll</h1>
+          <p className="text-sm text-foreground/60 mt-2">Statistics start on 1 October 2026. Earlier activity does not contribute to pay or bonus balances.</p>
           <p className="text-sm text-foreground/60 mt-2">
             Review earnings, resolve incomplete shifts, and export your selected
             period.
@@ -373,7 +374,7 @@ export default function PayrollPage() {
         </summary>
         <div className="mt-3 space-y-2 text-foreground/70">
           <p>
-            From 26 September, regular pay follows the fixed master schedule, including paid arrival grace of up to 15 minutes and paid one-hour breaks. Unpaid breaks are proportional: 20% for Hingnam, Lachit and Pankaj; 16⅔% for Gokul. Full longer shifts pay ten hours. Earlier records retain their original rules. Eight eligible bonus hours earn one nine-hour bonus day; unused bonus hours carry forward. Late-day counts reset monthly and never cause an extra salary penalty.
+            From 1 October 2026, regular pay follows the fixed master schedule, including paid arrival grace of up to 15 minutes and paid one-hour breaks. Unpaid breaks are proportional: 20% for Hingnam, Lachit and Pankaj; 16⅔% for Gokul. Full longer shifts pay ten hours. Pre-launch records are retained for audit but excluded from statistics. Eight eligible bonus hours earn one nine-hour bonus day; unused bonus hours carry forward. Late-day counts reset monthly and never cause an extra salary penalty.
           </p>
           <p>
             Billing starts at account creation in IST. Regular staff have paid Mondays; part-time staff are paid for their assigned shifts. Completed working-day shifts count automatically toward

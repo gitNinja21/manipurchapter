@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, beforeEach, afterEach, mock } from "node:test";
+beforeEach(() => mock.timers.enable({apis:["Date"],now:new Date("2027-01-31T12:00:00Z")}));
+afterEach(() => mock.timers.reset());
 import type { AttendanceRecord, User } from "@prisma/client";
 import { prisma } from "./prisma";
 import { computeStatsForRange } from "./stats";
 import { todayWorkDate } from "./time";
 
 test("billing starts at account creation in IST and respects the report range", async (t) => {
-  let createdAt = new Date("2020-09-15T18:30:00Z"); // September 16 IST
+  let createdAt = new Date("2026-12-15T18:30:00Z"); // December 16 IST
   let records: AttendanceRecord[] = [];
   const originalUsers = prisma.user.findMany;
   const originalRecords = prisma.attendanceRecord.findMany;
@@ -24,32 +26,32 @@ test("billing starts at account creation in IST and respects the report range", 
     clockInAt: new Date(`${workDate}T03:30:00Z`),
     clockOutAt: complete ? new Date(`${workDate}T13:30:00Z`) : null,
   } as AttendanceRecord);
-  records = [attendance("2020-09-15"), attendance("2020-09-16")];
-  let [s] = await computeStatsForRange("2020-09-01", "2020-09-16");
-  assert.equal(s.billingFromDate, "2020-09-16");
+  records = [attendance("2026-12-15"), attendance("2026-12-16")];
+  let [s] = await computeStatsForRange("2026-12-01", "2026-12-16");
+  assert.equal(s.billingFromDate, "2026-12-16");
   assert.equal(s.offDays, 0);
   assert.equal(s.missedDays, 0);
   assert.equal(s.daysPresent, 1);
   assert.equal(s.totalHours, 10);
   assert.equal(s.salaryRs, 900);
 
-  records = [attendance("2020-09-14", "PENDING"), attendance("2020-09-15", "REJECTED"), attendance("2020-09-13", "PENDING", false)];
-  [s] = await computeStatsForRange("2020-09-01", "2020-09-15");
+  records = [attendance("2026-12-14", "PENDING"), attendance("2026-12-15", "REJECTED"), attendance("2026-12-13", "PENDING", false)];
+  [s] = await computeStatsForRange("2026-12-01", "2026-12-15");
   for (const key of ["daysPresent", "daysComplete", "incompleteDays", "missedDays", "pendingApprovalDays", "rejectedDays", "totalHours", "offDays", "salaryRs"] as const) assert.equal(s[key], 0, key);
   assert.equal(s.billingFromDate, null);
 
   records = [];
-  [s] = await computeStatsForRange("2020-09-01", "2020-09-21");
+  [s] = await computeStatsForRange("2026-12-01", "2026-12-21");
   assert.equal(s.offDays, 1);
   assert.equal(s.salaryRs, 900);
   assert.equal(s.missedDays, 5);
-  createdAt = new Date("2020-09-21T00:00:00Z");
-  [s] = await computeStatsForRange("2020-09-01", "2020-09-21");
+  createdAt = new Date("2026-12-21T00:00:00Z");
+  [s] = await computeStatsForRange("2026-12-01", "2026-12-21");
   assert.equal(s.offDays, 1);
   assert.equal(s.missedDays, 0);
-  createdAt = new Date("2020-08-01T00:00:00Z");
-  [s] = await computeStatsForRange("2020-09-14", "2020-09-14");
-  assert.equal(s.billingFromDate, "2020-09-14");
+  createdAt = new Date("2026-11-01T00:00:00Z");
+  [s] = await computeStatsForRange("2026-12-14", "2026-12-14");
+  assert.equal(s.billingFromDate, "2026-12-14");
   assert.equal(s.salaryRs, 900);
 
   createdAt = new Date();
@@ -85,8 +87,8 @@ test("overtime pays whole days, carries across months, and stays separate per em
     } as AttendanceRecord;
   };
   for (const [hours, days, balance] of [[0, 0, 0], [4, 0, 4], [8, 1, 0], [12, 1, 4], [16, 2, 0]]) {
-    records = [shift("a", "2020-09-01", hours / 2), shift("a", "2020-09-02", hours / 2), shift("b", "2020-09-01", 1)];
-    const [a, b] = await computeStatsForRange("2020-09-01", "2020-09-02");
+    records = [shift("a", "2026-12-01", hours / 2), shift("a", "2026-12-02", hours / 2), shift("b", "2026-12-01", 1)];
+    const [a, b] = await computeStatsForRange("2026-12-01", "2026-12-02");
     assert.equal(a.overtimeHours, hours);
     assert.equal(a.bonusDays, days);
     assert.equal(a.bonusPayRs, days * 900);
@@ -95,17 +97,17 @@ test("overtime pays whole days, carries across months, and stays separate per em
     assert.equal(b.bonusDays, 0);
     assert.equal(b.overtimeBalanceHours, 1);
   }
-  records = [shift("a", "2020-08-29", 7), shift("a", "2020-09-01", 1),
-    shift("a", "2020-09-02", 8, "PENDING"), shift("a", "2020-09-03", 8, "REJECTED"),
-    shift("a", "2020-08-31", 8)]; // Monday retains existing paid-off-day policy
-  let [a] = await computeStatsForRange("2020-09-01", "2020-09-03");
+  records = [shift("a", "2026-11-29", 7), shift("a", "2026-12-01", 1),
+    shift("a", "2026-12-02", 8, "PENDING"), shift("a", "2026-12-03", 8, "REJECTED"),
+    shift("a", "2026-11-30", 8)]; // Monday retains existing paid-off-day policy
+  let [a] = await computeStatsForRange("2026-12-01", "2026-12-03");
   assert.equal(a.overtimeHours, 9);
   assert.equal(a.bonusDays, 2);
   assert.equal(a.overtimeBalanceHours, 0);
-  [a] = await computeStatsForRange("2020-09-02", "2020-09-03");
+  [a] = await computeStatsForRange("2026-12-02", "2026-12-03");
   assert.equal(a.bonusDays, 1); // only the new eight-hour block is paid
-  records = [shift("a", "2020-09-01", 4), shift("a", "2020-09-02", 4 - 1 / 3600)];
-  [a] = await computeStatsForRange("2020-09-01", "2020-09-02");
+  records = [shift("a", "2026-12-01", 4), shift("a", "2026-12-02", 4 - 1 / 3600)];
+  [a] = await computeStatsForRange("2026-12-01", "2026-12-02");
   assert.equal(a.bonusDays, 0); // one second short must not round up
   assert.equal(a.overtimeBalanceHours, 7.99);
 });
@@ -114,13 +116,13 @@ test("salary previews do not mutate attendance and paid-day equivalents handle z
   const originalUsers = prisma.user.findMany, originalRecords = prisma.attendanceRecord.findMany;
   t.after(() => { prisma.user.findMany = originalUsers; prisma.attendanceRecord.findMany = originalRecords; });
   prisma.user.findMany = (async () => [{ id: "employee", name: "Employee", employeeCode: "MC-1", createdAt: new Date("2020-01-01T00:00:00Z"), hourlyRateRs: 0, active: true } as User]) as typeof prisma.user.findMany;
-  const record = { id: "shift", userId: "employee", workDate: "2020-09-01", clockInAt: new Date("2020-09-01T03:30:00Z"), clockOutAt: new Date("2020-09-01T08:00:00Z"), approvalStatus: "PENDING" } as AttendanceRecord;
+  const record = { id: "shift", userId: "employee", workDate: "2026-12-01", clockInAt: new Date("2026-12-01T03:30:00Z"), clockOutAt: new Date("2026-12-01T08:00:00Z"), approvalStatus: "PENDING" } as AttendanceRecord;
   prisma.attendanceRecord.findMany = (async () => [record]) as typeof prisma.attendanceRecord.findMany;
-  const [preview] = await computeStatsForRange("2020-09-01", "2020-09-01", { userId: "employee", recordId: "shift", approvalStatus: "APPROVED" });
+  const [preview] = await computeStatsForRange("2026-12-01", "2026-12-01", { userId: "employee", recordId: "shift", approvalStatus: "APPROVED" });
   assert.equal(preview.paidWorkDays, 0.5);
   assert.equal(preview.salaryRs, 0);
   assert.equal(record.approvalStatus, "PENDING");
-  const [actual] = await computeStatsForRange("2020-09-01", "2020-09-01");
+  const [actual] = await computeStatsForRange("2026-12-01", "2026-12-01");
   assert.equal(actual.paidWorkDays, 0.5);
   assert.equal(actual.pendingApprovalDays, 0);
 });
@@ -133,24 +135,24 @@ test("payroll uses net hours, keeps old records unchanged and awards exact bonus
   let records: AttendanceRecord[] = [];
   prisma.attendanceRecord.findMany = (async () => records) as typeof prisma.attendanceRecord.findMany;
   const shift = (day: string, elapsed: number, breakMinutes = 60) => ({id: day, userId: "a", workDate: day, approvalStatus: "APPROVED", clockInAt: new Date(`${day}T00:00:00Z`), clockOutAt: new Date(+new Date(`${day}T00:00:00Z`) + elapsed * 3600000), unpaidBreakMinutes: breakMinutes} as AttendanceRecord);
-  records = [shift("2020-09-01", 9.5), shift("2020-09-02", 10), shift("2020-09-03", 14), shift("2020-09-04", 14)];
-  let [s] = await computeStatsForRange("2020-09-01", "2020-09-04");
+  records = [shift("2026-12-01", 9.5), shift("2026-12-02", 10), shift("2026-12-03", 14), shift("2026-12-04", 14)];
+  let [s] = await computeStatsForRange("2026-12-01", "2026-12-04");
   assert.equal(s.totalHours, 43.5);
   assert.equal(s.regularPayRs, 3550);
   assert.equal(s.overtimeHours, 8);
   assert.equal(s.bonusDays, 1);
   assert.equal(s.salaryRs, 4450);
-  records = [shift("2020-09-01", 0.5), shift("2020-09-02", 10, 0)];
-  [s] = await computeStatsForRange("2020-09-01", "2020-09-02");
+  records = [shift("2026-12-01", 0.5), shift("2026-12-02", 10, 0)];
+  [s] = await computeStatsForRange("2026-12-01", "2026-12-02");
   assert.equal(s.regularPayRs, 900);
   assert.equal(s.overtimeHours, 1);
-  const late = {...shift("2020-09-01", 14), extraTimeCutoff: new Date("2020-09-01T12:00:00Z"), extraTimeStatus: "REJECTED"};
+  const late = {...shift("2026-12-01", 14), extraTimeCutoff: new Date("2026-12-01T12:00:00Z"), extraTimeStatus: "REJECTED"};
   records = [late];
-  [s] = await computeStatsForRange("2020-09-01", "2020-09-01");
+  [s] = await computeStatsForRange("2026-12-01", "2026-12-01");
   assert.equal(s.totalHours, 11);
   assert.equal(s.overtimeHours, 2);
   records = [{...late, extraTimeStatus: "APPROVED"}];
-  [s] = await computeStatsForRange("2020-09-01", "2020-09-01");
+  [s] = await computeStatsForRange("2026-12-01", "2026-12-01");
   assert.equal(s.totalHours, 13);
   assert.equal(s.overtimeHours, 4);
 });
@@ -164,11 +166,11 @@ test("duration policy pays clock hours, carries automatic bonus blocks, and pres
     policyVersion:2,shiftDurationMinutes:540,unpaidBreakMinutes:0,
     extraTimeCutoff:new Date(`${date}T19:00:00+05:30`),extraTimeStatus,approvalStatus:"APPROVED",
   } as AttendanceRecord);
-  prisma.attendanceRecord.findMany = (async () => [row("2020-09-29","23:00"),row("2020-09-30","22:59"),row("2020-10-01","19:01")]) as typeof prisma.attendanceRecord.findMany;
-  let [s] = await computeStatsForRange("2020-10-01","2020-10-01");
+  prisma.attendanceRecord.findMany = (async () => [row("2026-12-29","23:00"),row("2026-12-30","22:59"),row("2027-01-01","19:01")]) as typeof prisma.attendanceRecord.findMany;
+  let [s] = await computeStatsForRange("2027-01-01","2027-01-01");
   assert.equal(s.regularPayRs,900);assert.equal(s.bonusDays,1);assert.equal(s.bonusPayRs,900);assert.equal(s.overtimeBalanceHours,0);assert.equal(s.salaryRs,1800);
-  prisma.attendanceRecord.findMany = (async () => [row("2020-10-01","23:00","REJECTED")]) as typeof prisma.attendanceRecord.findMany;
-  [s] = await computeStatsForRange("2020-10-01","2020-10-01");
+  prisma.attendanceRecord.findMany = (async () => [row("2027-01-01","23:00","REJECTED")]) as typeof prisma.attendanceRecord.findMany;
+  [s] = await computeStatsForRange("2027-01-01","2027-01-01");
   assert.equal(s.regularPayRs,900);assert.equal(s.overtimeHours,0);assert.equal(s.totalHours,9);
 });
 
@@ -176,29 +178,53 @@ test("completed pending shifts and extra hours count automatically, retaining sh
   const users=prisma.user.findMany, attendance=prisma.attendanceRecord.findMany;
   t.after(()=>{prisma.user.findMany=users;prisma.attendanceRecord.findMany=attendance;});
   prisma.user.findMany=(async()=>[{id:"a",name:"Employee",employeeCode:"A",createdAt:new Date("2020-01-01"),hourlyRateRs:100,active:true} as User]) as typeof users;
-  const at=(day:string,hour:string)=>new Date(`2020-09-${day}T${hour}:00+05:30`);
-  const record={id:"one",userId:"a",workDate:"2020-09-01",policyVersion:2,shiftDurationMinutes:540,unpaidBreakMinutes:0,approvalStatus:"PENDING",clockInAt:at("01","10:00"),clockOutAt:at("01","18:30"),extraTimeCutoff:at("01","19:00"),extraTimeStatus:"NOT_REQUIRED"} as AttendanceRecord;
+  const at=(day:string,hour:string)=>new Date(`2026-12-${day}T${hour}:00+05:30`);
+  const record={id:"one",userId:"a",workDate:"2026-12-01",policyVersion:2,shiftDurationMinutes:540,unpaidBreakMinutes:0,approvalStatus:"PENDING",clockInAt:at("01","10:00"),clockOutAt:at("01","18:30"),extraTimeCutoff:at("01","19:00"),extraTimeStatus:"NOT_REQUIRED"} as AttendanceRecord;
   let records=[record];
   prisma.attendanceRecord.findMany=(async()=>records) as typeof attendance;
-  let [s]=await computeStatsForRange("2020-09-01","2020-09-01");
+  let [s]=await computeStatsForRange("2026-12-01","2026-12-01");
   assert.equal(s.regularPayRs,850);assert.equal(s.pendingApprovalDays,0);
   records=[{...record,clockOutAt:at("01","22:00"),extraTimeStatus:"PENDING"}];
-  [s]=await computeStatsForRange("2020-09-01","2020-09-01");
+  [s]=await computeStatsForRange("2026-12-01","2026-12-01");
   assert.equal(s.regularPayRs,900);assert.equal(s.overtimeHours,3);
   records=[{...records[0],extraTimeStatus:"APPROVED"}];
-  [s]=await computeStatsForRange("2020-09-01","2020-09-01");assert.equal(s.overtimeHours,3);
+  [s]=await computeStatsForRange("2026-12-01","2026-12-01");assert.equal(s.overtimeHours,3);
   records=[{...record,approvalStatus:"REJECTED"}];
-  [s]=await computeStatsForRange("2020-09-01","2020-09-01");assert.equal(s.salaryRs,0);assert.equal(s.rejectedDays,1);
+  [s]=await computeStatsForRange("2026-12-01","2026-12-01");assert.equal(s.salaryRs,0);assert.equal(s.rejectedDays,1);
   records=[{...record,clockOutAt:null}];
-  [s]=await computeStatsForRange("2020-09-01","2020-09-01");assert.equal(s.salaryRs,0);assert.equal(s.incompleteDays,1);
+  [s]=await computeStatsForRange("2026-12-01","2026-12-01");assert.equal(s.salaryRs,0);assert.equal(s.incompleteDays,1);
 });
 
 test("master policy pays all ten regular hours rather than capping salary at nine", async t=>{
   const oldUsers=prisma.user.findMany, oldRecords=prisma.attendanceRecord.findMany;
   t.after(()=>{prisma.user.findMany=oldUsers;prisma.attendanceRecord.findMany=oldRecords;});
-  const date="2026-09-26", at=(s:string)=>new Date(`${date}T${s}:00+05:30`);
+  const date="2026-10-03", at=(s:string)=>new Date(`${date}T${s}:00+05:30`);
   prisma.user.findMany=(async()=>[{id:"p",name:"Pankaj",employeeCode:"PANKAJ",hourlyRateRs:100,createdAt:new Date("2026-09-01"),active:true} as User]) as typeof prisma.user.findMany;
   prisma.attendanceRecord.findMany=(async()=>[{id:"r",userId:"p",workDate:date,clockInAt:at("10:00"),clockOutAt:at("22:30"),scheduledStartAt:at("10:00"),scheduledEndAt:at("22:30"),shiftDurationMinutes:750,unpaidBreakMinutes:150,policyVersion:3,approvalStatus:"PENDING"} as AttendanceRecord]) as typeof prisma.attendanceRecord.findMany;
   const [row]=await computeStatsForRange(date,date);
   assert.equal(row.regularPayRs,1000);assert.equal(row.totalHours,10);assert.equal(row.overtimeHours,0);
+});
+
+test("October go-live excludes September salary, missed days and all overtime carry-in", async t => {
+  const users=prisma.user.findMany, attendance=prisma.attendanceRecord.findMany;
+  t.after(()=>{prisma.user.findMany=users;prisma.attendanceRecord.findMany=attendance;});
+  prisma.user.findMany=(async()=>[{id:"a",name:"A",employeeCode:"A",hourlyRateRs:100,createdAt:new Date("2026-09-01"),active:true} as User]) as typeof users;
+  const row=(date:string,extra:number)=>({id:date,userId:"a",workDate:date,policyVersion:2,shiftDurationMinutes:540,unpaidBreakMinutes:0,approvalStatus:"APPROVED",clockInAt:new Date(`${date}T00:00:00Z`),clockOutAt:new Date(+new Date(`${date}T00:00:00Z`)+(9+extra)*3600000)} as AttendanceRecord);
+  const records=[row("2026-09-30",7),row("2026-10-01",1),row("2026-10-02",7),row("2026-10-03",2)];
+  prisma.attendanceRecord.findMany=(async args=>{
+    assert.equal((args?.where?.workDate as {gte:string}).gte,"2026-10-01");
+    return records;
+  }) as typeof attendance;
+  let [result]=await computeStatsForRange("2026-10-01","2026-10-01");
+  assert.equal(result.bonusDays,0);assert.equal(result.overtimeBalanceHours,1);assert.equal(result.salaryRs,900);
+  [result]=await computeStatsForRange("2026-09-01","2026-09-30");
+  assert.equal(result.billingFromDate,null);
+  for(const key of ["salaryRs","bonusDays","overtimeBalanceHours","offDays","missedDays","daysPresent","totalHours"] as const) assert.equal(result[key],0,key);
+  [result]=await computeStatsForRange("2026-09-01","2026-10-01");
+  assert.equal(result.billingFromDate,"2026-10-01");assert.equal(result.daysPresent,1);assert.equal(result.missedDays,0);assert.equal(result.offDays,0);
+  [result]=await computeStatsForRange("2026-10-02","2026-10-02");
+  assert.equal(result.bonusDays,1);assert.equal(result.overtimeBalanceHours,0);
+  [result]=await computeStatsForRange("2026-11-01","2026-11-01");
+  assert.equal(result.bonusDays,0);assert.equal(result.overtimeBalanceHours,2); // October remainder still carries.
+  assert.equal(records[0].workDate,"2026-09-30"); // Source data is untouched.
 });

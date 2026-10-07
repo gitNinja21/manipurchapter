@@ -1,3 +1,4 @@
+import { STATISTICS_START_DATE } from "@/lib/statisticsStart";
 import { monthlyLateness, usesMasterPolicy } from "@/lib/masterPolicy";
 import { prisma } from "@/lib/prisma";
 import {
@@ -57,6 +58,7 @@ export const GET = teamRoute(async (u, req) => {
     prisma.referralClaim.findMany({
       where: {
         userId: { in: ids },
+        billDate: {gte:STATISTICS_START_DATE},
         OR: [{ status: "PENDING" }, { billDate: { startsWith: month } }],
       },
       orderBy: { createdAt: "desc" },

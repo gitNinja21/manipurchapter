@@ -1,3 +1,4 @@
+import { STATISTICS_START_DATE, statisticsFrom } from "./statisticsStart";
 import { salaryCredit, overtimeMs } from "./performance";
 import { paidTimeMs, recurringRule } from "./workPolicy";
 import { prisma } from "./prisma";
@@ -77,13 +78,14 @@ export async function computeStatsForRange(
 
   const records = await prisma.attendanceRecord.findMany({
     where: {
-      workDate: { lte: effectiveToDate },
+      workDate: { gte: STATISTICS_START_DATE, lte: effectiveToDate },
       userId: { in: employees.map((e) => e.id) },
     },
   });
 
   const recordsByUser = new Map<string, typeof records>();
   for (const original of records) {
+    if (original.workDate < STATISTICS_START_DATE) continue;
     const r =
       preview && preview.approvalStatus && preview.recordId === original.id
         ? { ...original, approvalStatus: preview.approvalStatus }
@@ -94,13 +96,13 @@ export async function computeStatsForRange(
   }
 
   return employees.map((emp) => {
-    // Nothing before an employee actually joined the system counts against
+    // Nothing before go-live or an employee actually joining counts against
     // (or in favor of) them — no missed days, no paid Mondays, no salary —
     // regardless of what date range is being viewed. "Joined" is when their
     // account was created, whether via self-signup or the admin's manual
     // add, not when (or if) they've been approved yet.
-    const joinWorkDate = workDateFor(emp.createdAt);
-    const effectiveFromDate = joinWorkDate > fromDate ? joinWorkDate : fromDate;
+    const joinWorkDate = statisticsFrom(workDateFor(emp.createdAt));
+    const effectiveFromDate = statisticsFrom(joinWorkDate, fromDate);
     const allDays =
       effectiveFromDate <= effectiveToDate
         ? daysInRange(effectiveFromDate, effectiveToDate)

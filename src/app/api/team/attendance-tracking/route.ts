@@ -1,3 +1,4 @@
+import { STATISTICS_START_DATE, statisticsFrom } from "@/lib/statisticsStart";
 import { usesMasterPolicy } from "@/lib/masterPolicy";
 import { prisma } from "@/lib/prisma";
 import { adminOnly, teamRoute, TeamError } from "@/lib/team";
@@ -18,19 +19,19 @@ export const GET = teamRoute(async (u,req)=>{
   for(const employee of employees) await prisma.$transaction(tx=>syncMeetings(tx,employee.id,today));
   const ids=employees.map(e=>e.id);
   const [records,leave,shifts,meetings,arrivals]=await Promise.all([
-    prisma.attendanceRecord.findMany({where:{userId:{in:ids},workDate:{lte:to},policyVersion:{in:[1,2,3]}},orderBy:{workDate:"asc"},select:{
+    prisma.attendanceRecord.findMany({where:{userId:{in:ids},workDate:{gte:STATISTICS_START_DATE,lte:to},policyVersion:{in:[1,2,3]}},orderBy:{workDate:"asc"},select:{
       id:true,userId:true,workDate:true,clockInAt:true,clockOutAt:true,scheduledStartAt:true,scheduledEndAt:true,policyVersion:true,
       shiftDurationMinutes:true,approvalStatus:true,lateExcused:true,earlyExcused:true,latePenaltyActive:true,earlyPenaltyActive:true,
     }}),
     prisma.staffRequest.findMany({where:{userId:{in:ids},kind:"LEAVE",status:"APPROVED",fromDate:{lte:to}},select:{userId:true,fromDate:true,toDate:true}}),
-    prisma.scheduledShift.findMany({where:{userId:{in:ids},workDate:{lte:to}},select:{userId:true,workDate:true,startsAt:true}}),
+    prisma.scheduledShift.findMany({where:{userId:{in:ids},workDate:{gte:STATISTICS_START_DATE,lte:to}},select:{userId:true,workDate:true,startsAt:true}}),
     prisma.managerMeeting.findMany({where:{userId:{in:ids}},orderBy:{triggerDate:"desc"},select:{id:true,userId:true,kind:true,status:true,triggerDate:true,clearedDate:true}}),
     prisma.arrivalAttempt.findMany({where:{userId:{in:ids},workDate:{gte:from,lte:to}},select:{userId:true,workDate:true,arrivedAt:true}}),
   ]);
   const rows=employees.flatMap(employee=>{
     const history=records.filter(r=>r.userId===employee.id),employeeShifts=shifts.filter(s=>s.userId===employee.id);
     const byDate=new Map(history.map(r=>[r.workDate,r]));
-    const employeeFrom=[from,workDateFor(employee.createdAt)].sort().at(-1)!;
+    const employeeFrom=statisticsFrom(from,workDateFor(employee.createdAt));
     const {days}=attendanceStreaks({user:employee,records:history,leave:leave.filter(l=>l.userId===employee.id),shifts:employeeShifts,
       meetings:meetings.filter(m=>m.userId===employee.id),from:employeeFrom,to,today});
     return days.map(day=>{

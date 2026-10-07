@@ -1,3 +1,4 @@
+import { STATISTICS_START_DATE } from "@/lib/statisticsStart";
 import { monthlyPerformance } from "@/lib/performanceServer";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -36,14 +37,14 @@ export default async function AdminOverviewPage() {
     computeStatsForRange(month, today),
     prisma.attendanceRecord.count({
       where: {
-        workDate: { lt: today },
+        workDate: { gte: STATISTICS_START_DATE, lt: today },
         clockInAt: { not: null },
         clockOutAt: null,
       },
     }),
     prisma.attendanceRecord.findMany({
       where: {
-        workDate: { lt: today },
+        workDate: { gte: STATISTICS_START_DATE, lt: today },
         clockInAt: { not: null },
         clockOutAt: null,
       },
