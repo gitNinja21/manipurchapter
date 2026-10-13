@@ -1,3 +1,4 @@
+import { scheduleVersion } from "@/lib/scheduleVersions";
 import { usesMasterPolicy } from "./masterPolicy";
 import { deviations, offDay, type PolicyRecord } from "./performance";
 import { policyApplies, recurringRule, type PolicySchedule } from "./workPolicy";
@@ -30,7 +31,7 @@ export function attendanceStreaks({user,records,leave,shifts,meetings,from,to,to
     const date=new Date(time).toISOString().slice(0,10),r=byDay.get(date);
     const onLeave=leave.some(l=>l.fromDate<=date && l.toDate>=date);
     const eligible=!offDay(date) && !onLeave &&
-      (!(user.weeklyScheduleJson || (user.masterScheduleFrom && date>=user.masterScheduleFrom && user.masterScheduleJson)) || !!recurringRule(user,date) || shiftDays.has(date)) &&
+      (!(scheduleVersion(user,date) || user.weeklyScheduleJson || (user.masterScheduleFrom && date>=user.masterScheduleFrom && user.masterScheduleJson)) || !!recurringRule(user,date) || shiftDays.has(date)) &&
       (!!r?.scheduledStartAt || policyApplies(user,date) || shiftDays.has(date));
     const d=r ? deviations(r) : {lateMs:0,earlyMs:0};
     const states:Record<"LATE"|"EARLY",TalkStatus>={LATE:"NONE",EARLY:"NONE"};

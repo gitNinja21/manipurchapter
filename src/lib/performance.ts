@@ -109,7 +109,7 @@ export function overtimeMs(r: PolicyRecord) {
     : (netWorkMs(r) ?? 0) - 9 * HOUR);
 }
 /** Reused by normal clock-in and both correction paths. */
-export function durationSnapshot(clockIn: Date, schedule?: { start: Date; durationMinutes: number; breakMinutes: number; end?: Date; policyVersion?: number } | null, existing?: PolicyRecord | null) {
+export function durationSnapshot(clockIn: Date, schedule?: { start: Date; durationMinutes: number; breakMinutes: number; paidBreakMinutes?: number; end?: Date; policyVersion?: number } | null, existing?: PolicyRecord | null) {
   const duration = existing?.shiftDurationMinutes ?? schedule?.durationMinutes ?? 540;
   const version = existing?.policyVersion ?? schedule?.policyVersion ?? (usesMasterPolicy(workDateFor(clockIn)) ? 3 : 2);
   const fixedStart = existing?.scheduledStartAt ? new Date(existing.scheduledStartAt) : schedule?.start ?? clockIn;
@@ -117,5 +117,6 @@ export function durationSnapshot(clockIn: Date, schedule?: { start: Date; durati
   return { policyVersion: version, shiftDurationMinutes: duration,
     scheduledStartAt: existing ? existing.scheduledStartAt : schedule?.start ?? null,
     scheduledEndAt: end, extraTimeCutoff: end,
+    paidBreakMinutes: existing ? existing.paidBreakMinutes ?? null : schedule?.paidBreakMinutes ?? null,
     unpaidBreakMinutes: existing?.unpaidBreakMinutes ?? schedule?.breakMinutes ?? 0 };
 }

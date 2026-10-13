@@ -1,3 +1,4 @@
+import { scheduleVersion } from "./scheduleVersions";
 import { STATISTICS_START_DATE, statisticsFrom } from "./statisticsStart";
 import { salaryCredit, overtimeMs } from "./performance";
 import { paidTimeMs, recurringRule } from "./workPolicy";
@@ -109,7 +110,7 @@ export async function computeStatsForRange(
         : [];
     // Mondays are paid off-days with no attendance expected, so they shouldn't
     // inflate "missed clock-ins" — only non-Monday calendar days count there.
-    const weeklyApplies = (d: string) => (!!emp.masterScheduleJson && !!emp.masterScheduleFrom && d >= emp.masterScheduleFrom) || (!!emp.weeklyScheduleJson && !!emp.attendancePolicyFrom && d >= emp.attendancePolicyFrom);
+    const weeklyApplies = (d: string) => !!scheduleVersion(emp,d) || (!!emp.masterScheduleJson && !!emp.masterScheduleFrom && d >= emp.masterScheduleFrom) || (!!emp.weeklyScheduleJson && !!emp.attendancePolicyFrom && d >= emp.attendancePolicyFrom);
     const expectedDay = (d: string) => !isMonday(d) && (!weeklyApplies(d) || !!recurringRule(emp, d));
     const workingCalendarDays = allDays.filter(expectedDay).length;
 

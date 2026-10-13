@@ -1,3 +1,4 @@
+import { scheduleVersion } from "@/lib/scheduleVersions";
 import { usesMasterPolicy, monthlyLateness } from "./masterPolicy";
 import { minuteLabel, recurringRule, breakExpectation } from "@/lib/workPolicy";
 import { effectiveSchedule } from "@/lib/performanceServer";
@@ -26,13 +27,13 @@ export async function getAttendanceToday(user: User) {
     finish: record?.scheduledEndAt ? formatIstTime(record.scheduledEndAt) : schedule.policyVersion === 3 ? formatIstTime(schedule.end) : `${schedule.durationMinutes / 60} hours after clock-in`,
     fixed: !!override || rule?.start === rule?.latest, allowEarly: true,
     policyVersion: schedule.policyVersion,
-    breakExpectation: breakExpectation(user.employeeCode,new Date(`${workDate}T12:00:00+05:30`).getUTCDay(),schedule.durationMinutes,schedule.breakMinutes),
+    breakExpectation: breakExpectation(user.employeeCode,new Date(`${workDate}T12:00:00+05:30`).getUTCDay(),schedule.durationMinutes,schedule.breakMinutes,schedule.paidBreakMinutes),
     durationHours: schedule.durationMinutes / 60, unpaidBreakMinutes: schedule.breakMinutes,
   } : null;
   const pendingGpsRequests = await prisma.staffRequest.findMany({where:{userId:user.id,status:"PENDING",kind:{in:["GPS_CLOCK_IN","GPS_CLOCK_OUT"]},fromDate:{in:[workDate,...(open ? [open.workDate] : [])]}},select:{id:true,kind:true,proposedIn:true,proposedOut:true,createdAt:true},orderBy:{createdAt:"desc"}});
   const month=workDate.slice(0,7);
   const lateness=monthlyLateness(await prisma.attendanceRecord.findMany({where:{userId:user.id,workDate:{startsWith:month}}}),month);
   return {pendingGpsRequests,lateness,record, policy: !!schedule, schedule: labels,
-    arrivalState: (user.weeklyScheduleJson || user.masterScheduleJson) && !schedule ? "OFF" : schedule ? new Date() < schedule.opens ? "EARLY" : +new Date() > +schedule.start + (schedule.policyVersion === 3 ? 15*60000 : 0) ? "LATE" : "ON_TIME" : null,
+    arrivalState: (scheduleVersion(user,workDate) || user.weeklyScheduleJson || user.masterScheduleJson) && !schedule ? "OFF" : schedule ? new Date() < schedule.opens ? "EARLY" : +new Date() > +schedule.start + (schedule.policyVersion === 3 ? 15*60000 : 0) ? "LATE" : "ON_TIME" : null,
     lateRequest, meetings, serverTime: new Date().toISOString()};
 }

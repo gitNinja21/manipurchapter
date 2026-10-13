@@ -75,6 +75,7 @@ model User {
   paidWeeklyOff Boolean @default(true) // independent of weekday-specific entry times
   unpaidBreakFrom String? // IST work date for employee-specific unpaid break
   scheduledUnpaidBreakMinutes Int?
+  scheduleHistoryJson String?
   masterScheduleFrom String?
   masterScheduleJson String?
   weeklyScheduleJson String? // weekday-keyed recurring rules; null uses standard daily rules
@@ -115,6 +116,7 @@ model AttendanceRecord {
   // and APPROVED records count automatically; REJECTED records stay excluded.
   approvalStatus String @default("PENDING")
   // Snapshots prevent future policy changes from rewriting historical payroll.
+  paidBreakMinutes Int?
   unpaidBreakMinutes Int @default(60)
   extraTimeCutoff DateTime?
   extraTimeStatus String @default("NOT_REQUIRED") // AUTOMATIC for new extra time; legacy REJECTED remains excluded

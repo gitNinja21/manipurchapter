@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import EmployeeShiftEditor from "@/components/EmployeeShiftEditor";
 
 type Employee = {
   id: string;
@@ -611,6 +612,8 @@ function EmployeeRow({
                 {saving ? "Saving…" : "Save changes"}
               </button>
             </div>
+
+            <EmployeeShiftEditor employeeId={employee.id} />
 
             <div className="mt-6 pt-4 border-t border-border max-w-xl">
               <DeleteEmployeeButton employee={employee} onDeleted={onSaved} />

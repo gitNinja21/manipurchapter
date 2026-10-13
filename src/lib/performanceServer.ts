@@ -1,3 +1,4 @@
+import { scheduleVersion } from "./scheduleVersions";
 import { STATISTICS_START_DATE } from "./statisticsStart";
 import { missedClockOutEntries } from "./missedClockOut";
 import { usesMasterPolicy, monthlyLateness } from "./masterPolicy";
@@ -14,6 +15,7 @@ type ScheduleUser = Pick<
   User,
   | "masterScheduleFrom"
   | "masterScheduleJson"
+  | "scheduleHistoryJson"
   | "weeklyScheduleJson"
   | "unpaidBreakFrom"
   | "scheduledUnpaidBreakMinutes"
@@ -35,13 +37,13 @@ export async function effectiveSchedule(db: Db, u: ScheduleUser, date: string) {
     start: shift.startsAt, end: policyVersion === 3 ? shift.endsAt : new Date(+shift.startsAt + (rule?.duration ?? 540) * 60000),
     arrivalStart: shift.startsAt,
     opens: new Date(Math.max(+new Date(`${date}T00:00:00+05:30`), +shift.startsAt - 15 * 60000)),
-    durationMinutes: policyVersion === 3 ? (+shift.endsAt-+shift.startsAt)/60000 : rule?.duration ?? 540, breakMinutes: u.masterScheduleFrom && date >= u.masterScheduleFrom ? rule?.unpaidBreak ?? 0 : scheduledBreak(u, date, rule?.unpaidBreak ?? 0),
+    durationMinutes: policyVersion === 3 ? (+shift.endsAt-+shift.startsAt)/60000 : rule?.duration ?? 540, paidBreakMinutes:rule?.paidBreak, breakMinutes: scheduleVersion(u,date) || (u.masterScheduleFrom && date >= u.masterScheduleFrom) ? rule?.unpaidBreak ?? 0 : scheduledBreak(u, date, rule?.unpaidBreak ?? 0),
   };
   if (!policyApplies(u, date) || !rule) return null;
   const t = policyTimes(date, { ...u, attendanceStartMinute: rule.start, attendanceLatestMinute: rule.latest });
   const start = new Date(+t.lateAt - 60000);
   return { policyVersion, start, arrivalStart: new Date(+new Date(`${date}T00:00:00+05:30`) + rule.start * 60000), end: new Date(+start + rule.duration * 60000), opens: t.opensAt,
-    durationMinutes: rule.duration, breakMinutes: rule.unpaidBreak };
+    durationMinutes: rule.duration, breakMinutes: rule.unpaidBreak, paidBreakMinutes: rule.paidBreak };
 }
 
 export async function assertScheduleMutable(

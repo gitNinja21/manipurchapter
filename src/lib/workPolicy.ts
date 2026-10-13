@@ -1,10 +1,12 @@
+import { scheduleVersion } from "./scheduleVersions";
 import { masterPay, unpaidFraction } from "./masterPolicy";
 import { todayWorkDate, workDateFor } from "./time";
 
-export function policyApplies(user: { attendancePolicyFrom?: string | null; masterScheduleFrom?: string | null }, date: string) {
-  return (!!user.masterScheduleFrom && date >= user.masterScheduleFrom) || (!!user.attendancePolicyFrom && date >= user.attendancePolicyFrom);
+export function policyApplies(user: { attendancePolicyFrom?: string | null; masterScheduleFrom?: string | null; scheduleHistoryJson?: string | null }, date: string) {
+  return !!scheduleVersion(user,date) || (!!user.masterScheduleFrom && date >= user.masterScheduleFrom) || (!!user.attendancePolicyFrom && date >= user.attendancePolicyFrom);
 }
 export type PolicySchedule = {
+  scheduleHistoryJson?: string | null;
   employeeCode?: string;
   masterScheduleFrom?: string | null;
   masterScheduleJson?: string | null;
@@ -17,8 +19,8 @@ export type PolicySchedule = {
   attendanceAllowEarly?: boolean;
 };
 /** Display expectations only; payroll continues to use the saved unpaid percentage. */
-export function breakExpectation(employeeCode: string | undefined, weekday: number, duration: number, unpaid: number) {
-  const paid = employeeCode === "LACHIT" || employeeCode === "PANKAJ" ? 0 : employeeCode === "TOKI" && weekday === 5 ? 30 : 60;
+export function breakExpectation(employeeCode: string | undefined, weekday: number, duration: number, unpaid: number, paidOverride?: number) {
+  const paid = paidOverride ?? (employeeCode === "LACHIT" || employeeCode === "PANKAJ" ? 0 : employeeCode === "TOKI" && weekday === 5 ? 30 : 60);
   const work = Math.max(0, duration - unpaid - paid) / 60;
   return `${work} hours expected work · ${paid === 0 ? "No additional break during working hours" : `${paid}-minute paid break`}${unpaid ? ` · ${unpaid / 60}-hour unpaid break (${(unpaid / duration * 100).toFixed(2)}%, proportional)` : ""}`;
 }
@@ -58,6 +60,7 @@ type WorkRecord = {
   policyVersion?: number;
   clockInAt: Date | string | null;
   clockOutAt: Date | string | null;
+  paidBreakMinutes?: number | null;
   unpaidBreakMinutes?: number;
   extraTimeCutoff?: Date | string | null;
   extraTimeStatus?: string;
@@ -74,7 +77,7 @@ export function netWorkMs(record: WorkRecord): number | null {
   if (record.extraTimeCutoff && record.extraTimeStatus === "REJECTED") {
     end = Math.min(end, +new Date(record.extraTimeCutoff));
   }
-  if (record.policyVersion === 3) return Math.max(0,(end-start)*(1-unpaidFraction(record)-60/(record.shiftDurationMinutes || 540)));
+  if (record.policyVersion === 3) return Math.max(0,(end-start)*(1-unpaidFraction(record)-(record.paidBreakMinutes ?? 60)/(record.shiftDurationMinutes || 540)));
   return Math.max(0, end - start - (record.policyVersion === 2 ? Math.max(60, record.unpaidBreakMinutes ?? 0) : record.unpaidBreakMinutes ?? 0) * 60000);
 }
 export function netWorkHours(record: WorkRecord): number | null {
@@ -88,7 +91,9 @@ export function scheduledBreak(user: PolicySchedule, date: string, fallback = 0)
     ? user.scheduledUnpaidBreakMinutes ?? fallback : fallback;
 }
 /** Explicit weekly schedules have no implicit shifts on omitted weekdays. */
-export function recurringRule(user: PolicySchedule, date: string): DayRule | null {
+export function recurringRule(user: PolicySchedule, date: string): (DayRule & {paidBreak?:number}) | null {
+  const version=scheduleVersion(user,date);
+  if(version) return version.days[String(new Date(`${date}T12:00:00+05:30`).getUTCDay())] ?? null;
   if (user.masterScheduleFrom && date >= user.masterScheduleFrom && user.masterScheduleJson) return (JSON.parse(user.masterScheduleJson) as Record<string,DayRule>)[String(new Date(`${date}T12:00:00+05:30`).getUTCDay())] ?? null;
   if (user.weeklyScheduleJson) {
     const rules = JSON.parse(user.weeklyScheduleJson) as Record<string, DayRule>;
@@ -98,6 +103,8 @@ export function recurringRule(user: PolicySchedule, date: string): DayRule | nul
   return { start: user.attendanceStartMinute ?? 570, latest: user.attendanceLatestMinute ?? 630, duration: 540, unpaidBreak: scheduledBreak(user, date) };
 }
 export function recurringDescription(user: PolicySchedule, date = todayWorkDate()) {
+  const version=scheduleVersion(user,date);
+  if(version) return Object.entries(version.days).map(([d,r])=>`${["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][Number(d)]}: ${minuteLabel(r.start)}–${minuteLabel(r.start+r.duration)} · ${breakExpectation(user.employeeCode,Number(d),r.duration,r.unpaidBreak,r.paidBreak)}`).join("; ");
   if (user.masterScheduleFrom && date >= user.masterScheduleFrom && user.masterScheduleJson) {
     const days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
     return Object.entries(JSON.parse(user.masterScheduleJson) as Record<string,DayRule>).map(([d,r]) => `${days[Number(d)]}: ${minuteLabel(r.start)}–${minuteLabel(r.start+r.duration)} · ${breakExpectation(user.employeeCode, Number(d), r.duration, r.unpaidBreak)}`).join("; ");

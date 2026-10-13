@@ -14,7 +14,7 @@ export const GET = teamRoute(async (u,req)=>{
   if(!validRange(from,to) || to>today || Date.parse(to)-Date.parse(from)>92*86400000) throw new TeamError("Choose up to 93 days, ending today or earlier.");
   const employees=await prisma.user.findMany({where:{role:"EMPLOYEE",approved:true},orderBy:{name:"asc"},select:{
     id:true,name:true,employeeCode:true,active:true,createdAt:true,
-    attendancePolicyFrom:true,unpaidBreakFrom:true,scheduledUnpaidBreakMinutes:true,masterScheduleFrom:true,masterScheduleJson:true,weeklyScheduleJson:true,attendanceStartMinute:true,attendanceLatestMinute:true,
+    attendancePolicyFrom:true,unpaidBreakFrom:true,scheduledUnpaidBreakMinutes:true,scheduleHistoryJson:true,masterScheduleFrom:true,masterScheduleJson:true,weeklyScheduleJson:true,attendanceStartMinute:true,attendanceLatestMinute:true,
   }});
   for(const employee of employees) await prisma.$transaction(tx=>syncMeetings(tx,employee.id,today));
   const ids=employees.map(e=>e.id);
