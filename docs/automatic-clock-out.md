@@ -1,3 +1,7 @@
+> Retired on 13 October 2026: automatic clock-out no longer runs. Employees must clock out through location and selfie verification, or submit the existing GPS fallback request for admin approval. Forgotten departures remain incomplete and require an attendance correction. The old AUTO_CLOCK_OUT_ENABLED flag cannot re-enable the worker. Historical records, audits and point deductions remain intact. After deploying this change, the server will not generate new automatic clock-outs or their deductions.
+
+The following describes historical behavior only.
+
 # Automatic clock-out
 
 From 27 September 2026, open shifts are closed at 22:45 IST. The production worker checks every minute and on server startup, using the exact 22:45 timestamp even if it runs late. It is independent of reminder notifications. Existing completed attendance and dates before rollout are unchanged. Arrivals at or after the cutoff are not assigned a departure before arrival; those require correction.

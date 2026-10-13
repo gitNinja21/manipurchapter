@@ -15,27 +15,15 @@ async function main() {
     await prisma.user.create({data:{id:"test",name:"Test",employeeCode:"AUTO-TEST",passwordHash:"unused"}});
     const at=(date:string,time:string)=>new Date(`${date}T${time}:00+05:30`);
     for(const day of ["2026-09-26","2026-09-27","2026-09-28"]) await prisma.attendanceRecord.create({data:{userId:"test",workDate:day,clockInAt:at(day,"10:00"),...(day.endsWith("28")?{clockOutAt:at(day,"20:00")}:{}),approvalStatus:"REJECTED"}});
-    assert.equal(await closeForgottenShifts(at("2026-09-27","22:44")),0);
-    assert.equal(await closeForgottenShifts(at("2026-09-28","08:00")),1);
-    assert.equal(await closeForgottenShifts(at("2026-09-28","23:00")),0);
-    const records=await prisma.attendanceRecord.findMany({orderBy:{workDate:"asc"}});
-    assert.equal(records[0].clockOutAt,null);
-    assert.equal(+records[1].clockOutAt!,+at("2026-09-27","22:45"));
-    assert.equal(records[1].autoClockOut,true);assert.equal(records[1].approvalStatus,"REJECTED");
-    assert.equal(records[1].clockOutFaceMatch,null);
-    assert.equal(+records[2].clockOutAt!,+at("2026-09-28","20:00"));
-    assert.equal(await prisma.attendanceAudit.count(),1);
-    assert.equal(await prisma.notification.count(),1);
-    process.env.JWT_SECRET="test-auto-out-only";
-    const {monthlyPerformance}=await import("../src/lib/performanceServer");
-    let performance=await monthlyPerformance("2026-09","test");
-    assert.equal(performance.missedClockOutCounts.get("test"),1);
-    assert.equal(performance.totals.get("test")?.points,-0.5);
-    await prisma.attendanceRecord.update({where:{id:records[1].id},data:{autoClockOut:false,clockOutAt:at("2026-09-27","22:00")}});
-    performance=await monthlyPerformance("2026-09","test");
-    assert.equal(performance.totals.get("test")?.points,-0.5);
-    assert.equal((await monthlyPerformance("2026-10","test")).missedClockOutCounts.size,0);
-    console.log("PASS: migration, exact IST departure, restart catch-up, history/manual preservation, idempotency, audit and notification.");
+    const before=await prisma.attendanceRecord.findMany({orderBy:{workDate:"asc"}});
+    process.env.AUTO_CLOCK_OUT_ENABLED="true";
+    assert.equal(await closeForgottenShifts(),0);
+    assert.equal(await closeForgottenShifts(),0);
+    const after=await prisma.attendanceRecord.findMany({orderBy:{workDate:"asc"}});
+    assert.deepEqual(after,before);
+    assert.equal(await prisma.attendanceAudit.count(),0);
+    assert.equal(await prisma.notification.count(),0);
+    console.log("PASS: retired worker leaves open shifts and recorded departures untouched; no automatic audits or notifications.");
   } finally {await prisma.$disconnect();}
 }
 void main();

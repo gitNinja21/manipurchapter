@@ -222,7 +222,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
           {master ? <>
             <p>{schedule?.arrival}–{schedule?.finish} IST · Fixed finish · 15-minute paid arrival grace.</p>
             <p>{schedule?.durationHours} scheduled hours · {schedule?.breakExpectation}.</p>
-            <p>Clock-in opens at {schedule?.opening}. Record your actual leaving time; time after 10:45 pm needs admin review.</p>
+            <p>Clock-in opens at {schedule?.opening}. You must clock out yourself using location and selfie verification. There is no automatic clock-out. Record your actual leaving time; time after 10:45 pm needs admin review.</p>
             {lateness && <p className={lateness.lateWarning ? "text-accent font-medium" : ""}>{lateness.lateDays} late days this month · {Math.round(lateness.lateMinutes)} late minutes after grace. {lateness.awardEligible ? (lateness.lateWarning ? "Warning: five late days removes Best Employee eligibility." : "Eligible for Best Employee.") : "Not eligible for Best Employee this month. Your points and earned bonus pay are retained."}</p>}
           </> : <p>Complete {schedule?.durationHours} hours from actual clock-in. Required finish: {schedule?.finish}. This record retains its earlier rules.</p>}
           {!preview && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=SHIFT_CHANGE">Request an earlier start / shift change</Link>}

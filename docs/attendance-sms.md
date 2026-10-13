@@ -28,4 +28,4 @@ The feature is disabled by default. Production startup runs the normal Prisma de
 
 ## Automatic departure limitation
 
-The existing 10:45 pm automatic clock-out is a fallback time, not evidence of physical departure. Early departures require a correction using the actual leaving time. SMS reminders do not establish presence, and this change does not alter payroll or automatic clock-out.
+Automatic clock-out was retired on 13 October 2026. Employees must record their departure with location and selfie verification. Forgotten departures require a correction with the actual leaving time. Historical automatic timestamps are not evidence of physical departure.
