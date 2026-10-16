@@ -1,4 +1,4 @@
-import { scheduleVersion } from "@/lib/scheduleVersions";
+import { scheduleVersion, isOpenMonday } from "@/lib/scheduleVersions";
 import twilio from "twilio";
 import type { User } from "@prisma/client";
 import { prisma } from "./prisma";
@@ -40,7 +40,7 @@ export async function eligibleForArrivalSms(user: User, now: Date) {
   ]);
   if (record?.clockInAt || arrival || request) return false;
   const monday = new Date(`${date}T12:00:00+05:30`).getUTCDay() === 1;
-  if (!override && (monday || (!!(scheduleVersion(user,date) || user.weeklyScheduleJson || user.masterScheduleJson) && !schedule))) return false;
+  if (!override && ((monday && !isOpenMonday(user,date)) || (!!(scheduleVersion(user,date) || user.weeklyScheduleJson || user.masterScheduleJson) && !schedule))) return false;
   const midnight = +new Date(`${date}T00:00:00+05:30`);
   return arrivalSmsDue(now, schedule?.arrivalStart ?? new Date(midnight + user.attendanceLatestMinute * 60000),
     schedule?.end ?? new Date(midnight + user.attendanceEndMinute * 60000));

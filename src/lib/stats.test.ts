@@ -228,3 +228,20 @@ test("October go-live excludes September salary, missed days and all overtime ca
   assert.equal(result.bonusDays,0);assert.equal(result.overtimeBalanceHours,2); // October remainder still carries.
   assert.equal(records[0].workDate,"2026-09-30"); // Source data is untouched.
 });
+
+test("selected Monday has normal pay, overtime and absence rules; other Mondays stay paid off",async t=>{
+ const users=prisma.user.findMany,attendance=prisma.attendanceRecord.findMany;
+ t.after(()=>{prisma.user.findMany=users;prisma.attendanceRecord.findMany=attendance;});
+ const date="2026-12-07",at=(time:string)=>new Date(`${date}T${time}:00+05:30`);
+ const emp={id:"m",name:"Monday",employeeCode:"M",hourlyRateRs:100,createdAt:new Date("2026-10-01"),active:true,paidWeeklyOff:true,scheduleHistoryJson:JSON.stringify([{from:date,oneDay:true,days:{"1":{start:600,latest:600,duration:540,unpaidBreak:0,paidBreak:60}}}])} as User;
+ let records:AttendanceRecord[]=[];
+ prisma.user.findMany=(async()=>[emp]) as typeof users;
+ prisma.attendanceRecord.findMany=(async()=>records) as typeof attendance;
+ let [row]=await computeStatsForRange(date,date);
+ assert.equal(row.offDays,0);assert.equal(row.missedDays,1);assert.equal(row.salaryRs,0);
+ records=[{id:"m1",userId:"m",workDate:date,clockInAt:at("10:00"),clockOutAt:at("21:00"),scheduledStartAt:at("10:00"),scheduledEndAt:at("19:00"),shiftDurationMinutes:540,unpaidBreakMinutes:0,paidBreakMinutes:60,policyVersion:3,approvalStatus:"APPROVED"} as AttendanceRecord];
+ [row]=await computeStatsForRange(date,date);
+ assert.equal(row.offDays,0);assert.equal(row.missedDays,0);assert.equal(row.regularPayRs,900);assert.equal(row.overtimeHours,2);
+ [row]=await computeStatsForRange("2026-12-14","2026-12-14");
+ assert.equal(row.offDays,1);assert.equal(row.salaryRs,900);assert.equal(row.missedDays,0);
+});

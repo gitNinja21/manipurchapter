@@ -1,4 +1,4 @@
-import { scheduleVersion } from "./scheduleVersions";
+import { scheduleVersion, isOpenMonday } from "./scheduleVersions";
 import { STATISTICS_START_DATE } from "./statisticsStart";
 import { missedClockOutEntries } from "./missedClockOut";
 import { usesMasterPolicy, monthlyLateness } from "./masterPolicy";
@@ -227,10 +227,11 @@ export async function penaltyContext(db: Db, userId: string, date: string) {
 }
 export async function monthlyPerformance(month: string, userId?: string) {
   const where = userId ? { userId } : {};
-  const [records, referrals, customerReviews, missedClockOutAudits] = await Promise.all([
+  const [rawRecords, referrals, customerReviews, missedClockOutAudits] = await Promise.all([
     prisma.attendanceRecord.findMany({
       where: { ...where, workDate: { startsWith: month, gte: STATISTICS_START_DATE } },
       orderBy: { workDate: "desc" },
+      include: {user:{select:{scheduleHistoryJson:true}}},
     }),
     prisma.referralClaim.findMany({
       where: { ...where, billDate: { startsWith: month, gte: STATISTICS_START_DATE }, status: "APPROVED" },
@@ -238,6 +239,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
     prisma.customerReview.findMany({where:{...where,workDate:{startsWith:month,gte:STATISTICS_START_DATE}}}),
     prisma.attendanceAudit.findMany({where:{...where,action:"AUTO_CLOCK_OUT",workDate:{startsWith:month,gte:STATISTICS_START_DATE}},select:{recordId:true,userId:true,workDate:true}}),
   ]);
+  const records=rawRecords.map(r=>({...r,workingMonday:isOpenMonday(r.user ?? {},r.workDate)}));
   const missedClockOuts=missedClockOutEntries(missedClockOutAudits);
   const entries = records.flatMap((r) =>
     attendancePoints(r).map((p, i) => ({
@@ -260,11 +262,11 @@ export async function monthlyPerformance(month: string, userId?: string) {
   entries.push(...customerReviews.map(r => ({id:`review:${r.id}`,userId:r.userId,date:r.workDate,kind:`Customer review · ${r.totalStars}/25 stars`,points:r.points})));
   // A bonus working day is one point per earned eight-hour block. Use prior
   // approved overtime to preserve the existing carry-forward threshold.
-  const bonusHistory = await prisma.attendanceRecord.findMany({where:{...(userId ? {userId} : {}),workDate:{gte:STATISTICS_START_DATE,lt:`${month}-01`},clockOutAt:{not:null}}});
+  const bonusHistory = await prisma.attendanceRecord.findMany({where:{...(userId ? {userId} : {}),workDate:{gte:STATISTICS_START_DATE,lt:`${month}-01`},clockOutAt:{not:null}},include:{user:{select:{scheduleHistoryJson:true}}}});
   const extraByUser = new Map<string,number>();
-  for (const r of bonusHistory) if (countsForPayroll(r) && !offDay(r.workDate)) extraByUser.set(r.userId,(extraByUser.get(r.userId) ?? 0)+overtimeMs(r));
+  for (const r of bonusHistory) if (countsForPayroll(r) && !offDay(r.workDate,isOpenMonday(r.user ?? {},r.workDate))) extraByUser.set(r.userId,(extraByUser.get(r.userId) ?? 0)+overtimeMs(r));
   for (const r of [...records].sort((a,b)=>a.workDate.localeCompare(b.workDate))) {
-    if (!countsForPayroll(r) || !r.clockOutAt || offDay(r.workDate)) continue;
+    if (!countsForPayroll(r) || !r.clockOutAt || offDay(r.workDate,r.workingMonday)) continue;
     const previous=extraByUser.get(r.userId) ?? 0, next=previous+overtimeMs(r);
     const days=Math.floor(next/(8*3600000))-Math.floor(previous/(8*3600000));
     if (r.policyVersion === 3 && days>0) entries.push({id:`bonus:${r.id}`,userId:r.userId,date:r.workDate,kind:"Bonus working days",points:days});
@@ -281,7 +283,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
       r.clockInAt &&
       r.clockOutAt &&
       countsForPayroll(r) &&
-      !offDay(r.workDate),
+      !offDay(r.workDate,r.workingMonday),
   )) {
     const t = totals.get(r.userId) ?? {
       points: 0,
@@ -315,7 +317,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
       .filter(
         (r) =>
           r.policyVersion &&
-          !offDay(r.workDate) &&
+          !offDay(r.workDate,r.workingMonday) &&
           r.approvalStatus !== "REJECTED",
       )
       .map((r) => ({

@@ -4,6 +4,7 @@ import { countsForPayroll } from "./attendanceApproval";
 import { netWorkMs, paidTimeMs } from "./workPolicy";
 export const HOUR = 3600000;
 export type PolicyRecord = Parameters<typeof netWorkMs>[0] & {
+  workingMonday?: boolean;
   policyVersion?: number;
   shiftDurationMinutes?: number;
   scheduledStartAt?: Date | string | null;
@@ -15,8 +16,8 @@ export type PolicyRecord = Parameters<typeof netWorkMs>[0] & {
   approvalStatus?: string;
   workDate?: string;
 };
-export const offDay = (date: string) =>
-  new Date(`${date}T12:00:00+05:30`).getUTCDay() === 1;
+export const offDay = (date: string, workingMonday = false) =>
+  !workingMonday && new Date(`${date}T12:00:00+05:30`).getUTCDay() === 1;
 export function deviations(r: PolicyRecord) {
   const lateMs = r.policyVersion === 3 ? masterLateMs(r) :
     r.scheduledStartAt && r.clockInAt && !r.lateExcused
@@ -61,7 +62,7 @@ export function attendancePoints(r: PolicyRecord) {
     !countsForPayroll(r) ||
     !r.clockInAt ||
     !r.clockOutAt ||
-    (r.workDate && offDay(r.workDate))
+    (r.workDate && offDay(r.workDate,r.workingMonday))
   )
     return result;
   const { lateMs, earlyMs } = deviations(r);

@@ -1,3 +1,4 @@
+import { isOpenMonday } from "@/lib/scheduleVersions";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -56,12 +57,12 @@ export async function GET(req: NextRequest) {
   const [records, total] = await prisma.$transaction([
     prisma.attendanceRecord.findMany({
       where,
-      include: { user: { select: { name: true, employeeCode: true } } },
+      include: { user: { select: { name: true, employeeCode: true, scheduleHistoryJson:true } } },
       orderBy: [{ workDate: "desc" }, { id: "desc" }],
       skip: (page - 1) * 50,
       take: 50,
     }),
     prisma.attendanceRecord.count({ where }),
   ]);
-  return NextResponse.json({ records, total });
+  return NextResponse.json({ records:records.map(r=>({...r,workingMonday:isOpenMonday(r.user,r.workDate)})), total });
 }

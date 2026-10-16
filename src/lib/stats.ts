@@ -1,4 +1,4 @@
-import { scheduleVersion } from "./scheduleVersions";
+import { scheduleVersion, isOpenMonday } from "./scheduleVersions";
 import { STATISTICS_START_DATE, statisticsFrom } from "./statisticsStart";
 import { salaryCredit, overtimeMs } from "./performance";
 import { paidTimeMs, recurringRule } from "./workPolicy";
@@ -111,7 +111,8 @@ export async function computeStatsForRange(
     // Mondays are paid off-days with no attendance expected, so they shouldn't
     // inflate "missed clock-ins" — only non-Monday calendar days count there.
     const weeklyApplies = (d: string) => !!scheduleVersion(emp,d) || (!!emp.masterScheduleJson && !!emp.masterScheduleFrom && d >= emp.masterScheduleFrom) || (!!emp.weeklyScheduleJson && !!emp.attendancePolicyFrom && d >= emp.attendancePolicyFrom);
-    const expectedDay = (d: string) => !isMonday(d) && (!weeklyApplies(d) || !!recurringRule(emp, d));
+    const paidOffDay = (d:string) => isMonday(d) && !isOpenMonday(emp,d);
+    const expectedDay = (d: string) => !paidOffDay(d) && (!weeklyApplies(d) || !!recurringRule(emp, d));
     const workingCalendarDays = allDays.filter(expectedDay).length;
 
     const empRecords = (recordsByUser.get(emp.id) || []).filter(
@@ -157,7 +158,7 @@ export async function computeStatsForRange(
     let paidWorkDays = 0;
 
     for (const day of allDays) {
-      if (isMonday(day)) {
+      if (paidOffDay(day)) {
         // Off day: paid leave, no attendance required.
         if (!weeklyApplies(day) || emp.paidWeeklyOff !== false) offDays += 1;
         continue;
@@ -192,7 +193,7 @@ export async function computeStatsForRange(
       if (
         record.workDate < joinWorkDate ||
         record.workDate > effectiveToDate ||
-        isMonday(record.workDate) ||
+        paidOffDay(record.workDate) ||
         !countsForPayroll(record) ||
         !record.clockInAt ||
         !record.clockOutAt

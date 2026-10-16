@@ -1,4 +1,5 @@
 "use client";
+import { isOpenMonday } from "@/lib/scheduleVersions";
 import { recurringDescription, recurringRule, policyApplies, type PolicySchedule } from "@/lib/workPolicy";
 import { useState } from "react";
 import { api, useAction, useTeamData } from "./useTeamData";
@@ -44,7 +45,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
   );
   const action = useAction(reload);
   const recurringForDay = (day: string) => (data?.recurring ?? []).filter(person =>
-    policyApplies(person,day) && new Date(`${day}T12:00:00Z`).getUTCDay() !== 1 && !!recurringRule(person, day) &&
+    policyApplies(person,day) && (new Date(`${day}T12:00:00Z`).getUTCDay() !== 1 || isOpenMonday(person,day)) && !!recurringRule(person, day) &&
     !data?.shifts.some(shift => shift.userId === person.id && shift.workDate === day) &&
     !data?.leave.some(leave => leave.userId === person.id && leave.fromDate <= day && leave.toDate >= day)
   );
@@ -66,7 +67,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
           <p>{recurringDescription(person)}</p>
           <p className="text-foreground/60">Actual clock-out determines hours. {person.attendanceAllowEarly ? "Early clock-in is allowed." : "Clock-in opens at the start time."}</p>
         </div>)}
-        <p className="text-xs text-foreground/60">Monday remains an off-day for regular staff. Part-time staff work only their listed days. Approved temporary shifts set the start and finish for that date.</p>
+        <p className="text-xs text-foreground/60">Monday is an off-day unless the admin opens that specific date. Part-time staff work only their listed days. Approved temporary shifts set the start and finish for that date.</p>
       </section>}
       <div className="flex flex-wrap gap-2 items-center">
         <button

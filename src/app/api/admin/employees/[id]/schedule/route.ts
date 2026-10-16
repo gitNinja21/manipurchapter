@@ -18,7 +18,7 @@ export async function GET(req:NextRequest,{params}:Context) {
   const days:Record<string,EditableDay>={};
   // Read each weekday using the policy effective on the chosen date, without
   // accidentally crossing a later version boundary while previewing the week.
-  const version=(JSON.parse(user.scheduleHistoryJson || "[]") as ScheduleVersion[]).filter(v=>v.from<=from).sort((a,b)=>b.from.localeCompare(a.from))[0];
+  const version=(JSON.parse(user.scheduleHistoryJson || "[]") as ScheduleVersion[]).filter(v=>!v.oneDay && v.from<=from).sort((a,b)=>b.from.localeCompare(a.from))[0];
   for(let day=0;day<7;day++) {
     if(day===1) continue;
     const date=new Date(`${from}T12:00:00Z`);
@@ -27,7 +27,7 @@ export async function GET(req:NextRequest,{params}:Context) {
     const rule=version ? version.days[String(day)] : recurringRule({...user,scheduleHistoryJson:null,masterScheduleFrom:user.masterScheduleFrom && user.masterScheduleFrom<=from ? "0000-01-01" : null},sample);
     if(rule) days[String(day)]={...rule,paidBreak:rule.paidBreak ?? (["LACHIT","PANKAJ"].includes(user.employeeCode) ? 0 : user.employeeCode==="TOKI" && day===5 ? 30 : 60)};
   }
-  return NextResponse.json({days,from,minDate:todayWorkDate(),revision:user.updatedAt.toISOString(),current:recurringDescription(user),versions:(JSON.parse(user.scheduleHistoryJson || "[]") as ScheduleVersion[]).map(v=>v.from).sort()});
+  return NextResponse.json({days,from,minDate:todayWorkDate(),revision:user.updatedAt.toISOString(),current:recurringDescription(user),versions:(JSON.parse(user.scheduleHistoryJson || "[]") as ScheduleVersion[]).filter(v=>!v.oneDay).map(v=>v.from).sort()});
 }
 export async function PUT(req:NextRequest,{params}:Context) {
   const admin=await requireAdmin();
@@ -46,7 +46,7 @@ export async function PUT(req:NextRequest,{params}:Context) {
       if(await tx.arrivalAttempt.count({where:{userId:id,workDate:{gte:body.from}}})) throw new Error("An arrival attempt already exists from this date. Choose a later effective date.");
       if(await tx.staffRequest.count({where:{userId:id,kind:"GPS_CLOCK_IN",status:"PENDING",fromDate:{gte:body.from}}})) throw new Error("A clock-in verification request already exists from this date. Resolve it or choose a later effective date.");
       const history=JSON.parse(user.scheduleHistoryJson || "[]") as ScheduleVersion[];
-      const next=[...history.filter(v=>v.from!==body.from),{from:body.from,days}].sort((a,b)=>a.from.localeCompare(b.from));
+      const next=[...history.filter(v=>v.oneDay || v.from!==body.from),{from:body.from,days}].sort((a,b)=>a.from.localeCompare(b.from));
       const updated=await tx.user.updateMany({where:{id,updatedAt:new Date(body.revision)},data:{scheduleHistoryJson:JSON.stringify(next)}});
       if(!updated.count) throw new Error("Employee details changed. Reload before saving your shift changes.");
       await policyAudit(tx,admin,id,id,"SCHEDULE_UPDATED",history,next);

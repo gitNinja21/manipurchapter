@@ -25,7 +25,7 @@ export default function EmployeeShiftEditor({employeeId}:{employeeId:string}) {
   }
   return <section className="mt-6 border-t border-border pt-4 max-w-4xl">
     <h3 className="font-semibold">Shift timings</h3>
-    <p className="text-sm text-foreground/70 mt-1">Times are in IST. Monday stays off. Today is allowed if no attendance or arrival attempt has been recorded. Existing attendance stays unchanged. Approved date-specific shifts take priority.</p>
+    <p className="text-sm text-foreground/70 mt-1">Times are in IST. Monday stays off unless opened separately for a selected date. Today is allowed if no attendance or arrival attempt has been recorded. Existing attendance stays unchanged. Approved date-specific shifts take priority.</p>
     {data && <fieldset disabled={busy} className="mt-3 space-y-3">
       <details className="text-sm"><summary>Current schedule</summary><p className="mt-2">{data.current}</p></details>
       <label className="block text-sm">Effective from <input aria-label="Schedule effective date" type="date" min={data.minDate} value={data.from} onChange={e=>{if(e.target.value){setMessage("");void load(e.target.value);}}} className="input ml-2 w-auto"/></label>

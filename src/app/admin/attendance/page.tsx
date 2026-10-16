@@ -229,7 +229,7 @@ export default function AdminAttendancePage() {
                     </td>
                     <td className="px-4 py-4 tabular-nums">
                       <p className="font-medium">{durationLabel(clockedMs(r))} clocked</p>
-                      {r.clockOutAt && !offDay(r.workDate) && r.approvalStatus !== "REJECTED" && <>
+                      {r.clockOutAt && !offDay(r.workDate,r.workingMonday) && r.approvalStatus !== "REJECTED" && <>
                         <p className="text-xs">Regular: {durationLabel(salaryCredit(r)*3600000)}</p>
                         <p className="text-xs">Bonus: {durationLabel(overtimeMs(r))}</p>
                       </>}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import MondayOpening from "@/components/MondayOpening";
 import EmployeeShiftEditor from "@/components/EmployeeShiftEditor";
 
 type Employee = {
@@ -85,6 +86,8 @@ export default function EmployeesPage() {
           in.
         </p>
       </div>
+
+      <MondayOpening />
 
       <div className="admin-panel p-4 flex flex-wrap gap-3">
         <label className="flex-1 min-w-48">
