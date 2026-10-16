@@ -1,6 +1,10 @@
 # Customer analytics
 
-Open **Analytics** on the public landing page and use an existing active ADMIN login. Ordinary employee logins cannot read or change visits. The captain uses admin access as requested. Admin navigation also contains Analytics.
+Open **Analytics · Captain login** on the public landing page. Analytics now has its own dashboard at `/analytics`, outside both employee and admin layouts.
+
+The admin creates separate credentials under **Admin → Captain logins**. Captain accounts live in a separate table and use a scoped 12-hour cookie, never the staff session. Signing in as captain clears any existing staff/admin cookie on that browser. Captain credentials cannot access payroll, employees, attendance or admin APIs. Admins can still open Analytics using their admin session. Disabling a captain or resetting their password immediately invalidates existing sessions. Five failed login attempts lock a captain account for 15 minutes. Account creation and resets are admin-only.
+
+If a laptop previously used the admin password, sign out and use the new captain credentials. Creating a captain account does not change existing admin credentials or revoke admin sessions on other browsers.
 
 ## Daily workflow
 
@@ -28,3 +32,7 @@ Saturday/Sunday are weekend flags, independent of the restaurant's Monday closur
 ## Validation
 
 `npm test` includes catalog/price validation, group counts, snapshots, weather failures and time matching, IST boundaries and aggregation checks. `node --import tsx scripts/test-customer-analytics.ts` tests real HTTP routes using an isolated SQLite database after a production build. It never sends live messages or uses production attendance.
+
+## Visible visit details
+
+Daily records now shows the saved date, weekday, IST time, table, temperature, conditions, rain, humidity and provider observation time. Insights includes a Saved visit details table, in addition to broad context summaries. The saved-entry confirmation includes date/time and temperature when available. Reading, reopening or editing a visit preserves its original timestamp and weather. The original schema already stored these fields; no existing records are overwritten. Missing historical readings are not invented. Provider failures now retain a safe explanation (invalid key, quota, disabled account, stale reading or connection/data failure).

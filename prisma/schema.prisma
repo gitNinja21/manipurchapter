@@ -491,3 +491,17 @@ model AnalyticsCalendarDay {
   updatedById String
   updatedAt DateTime @updatedAt
 }
+
+// Separate from User: a captain login never grants employee/payroll access.
+model CaptainAccount {
+  id String @id @default(cuid())
+  username String @unique
+  name String
+  passwordHash String
+  active Boolean @default(true)
+  authVersion Int @default(0)
+  failedAttempts Int @default(0)
+  lockedUntil DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

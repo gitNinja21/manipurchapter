@@ -50,7 +50,7 @@ export default async function LandingPage() {
             </div>
             <div className="bg-surface rounded-2xl border border-border shadow-sm p-6 sm:p-7">
               <LoginForm />
-              <Link className="block text-center text-brand font-medium text-sm mt-6" href="/analytics">Analytics · Admin access</Link>
+              <Link className="block text-center text-brand font-medium text-sm mt-6" href="/analytics">Analytics · Captain login</Link>
               <Link className="block text-center text-brand underline text-sm mt-6" href="/review">Customer? Rate your service</Link>
             </div>
           </div>
