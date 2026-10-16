@@ -36,3 +36,11 @@ Saturday/Sunday are weekend flags, independent of the restaurant's Monday closur
 ## Visible visit details
 
 Daily records now shows the saved date, weekday, IST time, table, temperature, conditions, rain, humidity and provider observation time. Insights includes a Saved visit details table, in addition to broad context summaries. The saved-entry confirmation includes date/time and temperature when available. Reading, reopening or editing a visit preserves its original timestamp and weather. The original schema already stored these fields; no existing records are overwritten. Missing historical readings are not invented. Provider failures now retain a safe explanation (invalid key, quota, disabled account, stale reading or connection/data failure).
+
+## Table workspaces and retention
+
+Each of the 13 table buttons now opens an independent workspace instead of changing the label of the current visit. Switching tables keeps unsaved inputs, quantities, item selections and the saved visit ID separate. Workspaces persist in this browser's localStorage under the authenticated account's ID and have no timer-based expiry. Reloading or signing in again as the same account on the same browser restores them. Clearing browser/site storage, private browsing cleanup or a different device can remove or hide local drafts. Use Save to persist visits to the server; local drafts alone are not server backups.
+
+Saved visits do not expire when the 12-hour captain login expires. They remain in the database until explicitly deleted. Daily records filters by the displayed IST date, refreshes when opened, on window focus and every 30 seconds while visible, and has Today/Refresh controls. New visit creates a fresh group for the selected table; after completion, reselecting a table starts a new workspace. The API rejects changing the table label of an already saved visit, preventing an outdated browser from overwriting another table's entry. Existing records already overwritten in earlier versions cannot be reconstructed without a prior database backup.
+
+Recurring shift editing now defaults to today. Past effective dates remain blocked, and existing attendance, arrival attempts or pending GPS clock-in requests prevent changes from affecting recorded arrivals. Future dates remain available.

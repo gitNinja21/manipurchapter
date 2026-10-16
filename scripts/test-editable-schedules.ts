@@ -28,7 +28,7 @@ async function main(){
   const initial=await (await request("admin")).json();assert.ok(initial.revision);assert.equal(initial.days["1"],undefined);
   const payload={from:date(1),revision:initial.revision,days};
   assert.equal((await request("employee")).status,403);assert.equal((await request("employee",payload)).status,403);assert.equal((await request("anonymous",payload)).status,403);
-  assert.equal((await request("admin",{...payload,from:date(0)})).status,400);
+  assert.equal((await request("admin",{...payload,from:date(-1)})).status,400);
   assert.equal((await request("admin",{...payload,days:{"1":days["2"]}})).status,400);
   const saved=await request("admin",payload);assert.equal(saved.status,200,await saved.text());
   assert.equal((await request("admin",payload)).status,409);
@@ -42,6 +42,16 @@ async function main(){
   assert.equal((await effectiveSchedule(prisma,user,date(offset)))?.durationMinutes,540);
   await prisma.attendanceRecord.create({data:{userId:user.id,workDate:date(2)}});
   const current=await (await request("admin")).json();assert.equal((await request("admin",{...payload,revision:current.revision})).status,409);
+  const sameDay=await prisma.user.create({data:{id:"today-employee",role:"EMPLOYEE",name:"Today",employeeCode:"TODAY",passwordHash:"unused",approved:true,mustChangePassword:false}});
+  const sameDayRequest=(body?:unknown)=>fetch("http://127.0.0.1:3197/api/admin/employees/today-employee/schedule",{method:body?"PUT":"GET",headers:{cookie:cookies.admin,"content-type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
+  const currentDay=await (await sameDayRequest()).json();assert.equal(currentDay.from,date(0));assert.equal(currentDay.minDate,date(0));
+  assert.equal((await sameDayRequest({from:date(0),days,revision:currentDay.revision})).status,200);
+  const fresh=await (await sameDayRequest()).json();
+  await prisma.arrivalAttempt.create({data:{userId:sameDay.id,workDate:date(0),arrivedAt:new Date(),photo:"test-only"}});
+  assert.equal((await sameDayRequest({from:date(0),days,revision:fresh.revision})).status,409);
+  await prisma.arrivalAttempt.deleteMany({where:{userId:sameDay.id}});
+  await prisma.staffRequest.create({data:{userId:sameDay.id,kind:"GPS_CLOCK_IN",fromDate:date(0),toDate:date(0),reason:"test"}});
+  assert.equal((await sameDayRequest({from:date(0),days,revision:fresh.revision})).status,409);
   console.log("Editable schedules: migration, admin authorization, validation, concurrency, audit, effective date, historical preservation, overrides and attendance protection passed.");
  }finally{server.kill("SIGTERM");await new Promise<void>(resolve=>{if(server.exitCode!==null)resolve();else server.once("exit",()=>resolve());});await prisma.$disconnect();rmSync(dir,{recursive:true,force:true});}
 }

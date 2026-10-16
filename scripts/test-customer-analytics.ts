@@ -42,6 +42,9 @@ async function main(){
   const simultaneous={...draft,submissionKey:crypto.randomUUID()};const duplicates=await Promise.all([request("admin",path,simultaneous),request("admin",path,simultaneous)]);for(const res of duplicates)assert.equal(res.status,200,await res.clone().text());assert.equal(await prisma.customerVisit.count({where:{submissionKey:simultaneous.submissionKey}}),1);
   const other=await prisma.customerVisit.findUniqueOrThrow({where:{submissionKey:simultaneous.submissionKey}});await prisma.customerVisit.delete({where:{id:other.id}});
   for(const user of ["anonymous","employee"]){assert.equal((await request(user,`${path}/${v.id}`,{...draft,revision:v.revision},"PUT")).status,403);assert.equal((await request(user,`${path}/${v.id}`,{revision:v.revision},"DELETE")).status,403);}
+  // A stale client must not relabel another table's existing visit.
+  assert.equal((await request("captain",`${path}/${v.id}`,{...draft,tableLabel:"Table 2",revision:v.revision},"PUT")).status,409);
+  assert.equal((await prisma.customerVisit.findUniqueOrThrow({where:{id:v.id}})).tableLabel,"Table 4");
   const updated=await request("captain",`${path}/${v.id}`,{...draft,revision:v.revision,status:"COMPLETE",items:[{...draft.items[0],quantity:3}]},"PUT");assert.equal(updated.status,200);const {visit:u}=await updated.json();assert.equal(u.totalRs,1755);assert.equal(u.visitedAt,v.visitedAt);assert.deepEqual(u.weather,v.weather);
   assert.equal((await request("admin",`${path}/${v.id}`,{...draft,revision:v.revision},"PUT")).status,409);
   assert.equal((await request("admin","/api/analytics/calendar",{date,names:["Local food festival"],isHoliday:true},"PUT")).status,200);

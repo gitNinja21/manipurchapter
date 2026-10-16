@@ -9,6 +9,7 @@ export async function PUT(req:NextRequest,{params}:Context){
  const {id}=await params;const old=await prisma.customerVisit.findUnique({where:{id},include:{items:true}});
  if(!old || old.deletedAt)return NextResponse.json({error:"Visit not found."},{status:404});
  let parsed,body;try{body=await req.json();parsed=validateVisit(body,old.items);if(!Number.isInteger(body.revision))throw new Error("Reload this visit before saving.");}catch(e){return badRequest(e);}
+ if(old.tableLabel && parsed.data.tableLabel!==old.tableLabel)return NextResponse.json({error:"This saved visit belongs to another table. Select the table tab to start or resume its own visit."},{status:409});
  try{await prisma.$transaction(async tx=>{
   const result=await tx.customerVisit.updateMany({where:{id,revision:body.revision,deletedAt:null},data:{...parsed.data,updatedById:admin.id,revision:{increment:1}}});
   if(!result.count)throw new Error("CONFLICT");
