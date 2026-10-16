@@ -45,7 +45,12 @@ async function main(){
   // A stale client must not relabel another table's existing visit.
   assert.equal((await request("captain",`${path}/${v.id}`,{...draft,tableLabel:"Table 2",revision:v.revision},"PUT")).status,409);
   assert.equal((await prisma.customerVisit.findUniqueOrThrow({where:{id:v.id}})).tableLabel,"Table 4");
-  const updated=await request("captain",`${path}/${v.id}`,{...draft,revision:v.revision,status:"COMPLETE",items:[{...draft.items[0],quantity:3}]},"PUT");assert.equal(updated.status,200);const {visit:u}=await updated.json();assert.equal(u.totalRs,1755);assert.equal(u.visitedAt,v.visitedAt);assert.deepEqual(u.weather,v.weather);
+  // Additional orders keep the same running bill, arrival time and daily-record row.
+  const running=await request("captain",`${path}/${v.id}`,{...draft,revision:v.revision,items:[{...draft.items[0],quantity:3}]},"PUT");
+  assert.equal(running.status,200);const {visit:r}=await running.json();
+  assert.equal(r.id,v.id);assert.equal(r.status,"OPEN");assert.equal(r.totalRs,1755);assert.equal(r.visitedAt,v.visitedAt);
+  assert.equal((await (await request("captain",`${path}?date=${date}`)).json()).visits.length,1);
+  const updated=await request("captain",`${path}/${v.id}`,{...draft,revision:r.revision,status:"COMPLETE",items:[{...draft.items[0],quantity:3}]},"PUT");assert.equal(updated.status,200);const {visit:u}=await updated.json();assert.equal(u.id,v.id);assert.equal(u.status,"COMPLETE");assert.equal(u.totalRs,1755);assert.equal(u.visitedAt,v.visitedAt);assert.deepEqual(u.weather,v.weather);
   assert.equal((await request("admin",`${path}/${v.id}`,{...draft,revision:v.revision},"PUT")).status,409);
   assert.equal((await request("admin","/api/analytics/calendar",{date,names:["Local food festival"],isHoliday:true},"PUT")).status,200);
   const list=await (await request("admin",`${path}?date=${date}`)).json();assert.deepEqual(list.visits[0].calendar.names,["Local food festival"]);

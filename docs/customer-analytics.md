@@ -44,3 +44,7 @@ Each of the 13 table buttons now opens an independent workspace instead of chang
 Saved visits do not expire when the 12-hour captain login expires. They remain in the database until explicitly deleted. Daily records filters by the displayed IST date, refreshes when opened, on window focus and every 30 seconds while visible, and has Today/Refresh controls. New visit creates a fresh group for the selected table; after completion, reselecting a table starts a new workspace. The API rejects changing the table label of an already saved visit, preventing an outdated browser from overwriting another table's entry. Existing records already overwritten in earlier versions cannot be reconstructed without a prior database backup.
 
 Recurring shift editing now defaults to today. Past effective dates remain blocked, and existing attendance, arrival attempts or pending GPS clock-in requests prevent changes from affecting recorded arrivals. Future dates remain available.
+
+### Running bills
+
+Each table keeps its saved visit ID until Save as complete succeeds. Save running bill updates that same row with added orders. Completion marks the row Complete and immediately resets the selected table to a fresh draft for the next group. Daily records labels unfinished visits Running. There is no New visit shortcut that can abandon a running bill.
