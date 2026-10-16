@@ -7,7 +7,7 @@ function choice<T extends string>(value:unknown,allowed:readonly T[],label:strin
 export function validateVisit(body:unknown,existingItems:ItemSnapshot[]=[]){
  if(!body || typeof body!=="object" || Array.isArray(body))throw new Error("Invalid visit.");
  const b=body as Record<string,unknown>;
- const maleCount=integer(b.maleCount,"Male count"),femaleCount=integer(b.femaleCount,"Female count"),unrecordedCount=integer(b.unrecordedCount,"Not recorded count");
+ const maleCount=integer(b.maleCount,"Male count"),femaleCount=integer(b.femaleCount,"Female count"),unrecordedCount=integer(b.unrecordedCount ?? 0,"Legacy group count");
  const groupSize=integer(maleCount+femaleCount+unrecordedCount,"Group size",1,300);
  const groupType=unrecordedCount===groupSize ? "NOT_RECORDED" : maleCount===groupSize ? "MALE" : femaleCount===groupSize ? "FEMALE" : "MIXED";
  if(!Array.isArray(b.items) || b.items.length>100)throw new Error("Choose up to 100 items.");
