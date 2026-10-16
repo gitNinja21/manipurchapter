@@ -440,3 +440,54 @@ model AnnouncementSms {
   @@unique([announcementId, userId])
   @@index([status, createdAt])
 }
+
+// Immutable visit time/weather and menu-price snapshots keep historical analytics stable.
+model CustomerVisit {
+  id String @id @default(cuid())
+  submissionKey String @unique
+  visitedAt DateTime @default(now())
+  workDate String
+  weekday Int
+  isWeekend Boolean
+  monthPeriod String
+  groupSize Int
+  groupType String
+  maleCount Int
+  femaleCount Int
+  unrecordedCount Int
+  visitType String @default("NOT_SURE")
+  discovery String @default("NOT_ASKED")
+  discoveryOther String @default("")
+  unavailableJson String @default("[]")
+  feedback String @default("")
+  tableLabel String @default("")
+  status String @default("OPEN")
+  weatherJson String
+  createdById String
+  updatedById String
+  revision Int @default(1)
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  items CustomerVisitItem[]
+  @@index([workDate, deletedAt])
+}
+model CustomerVisitItem {
+  id String @id @default(cuid())
+  visitId String
+  visit CustomerVisit @relation(fields:[visitId], references:[id], onDelete:Cascade)
+  menuId String
+  name String
+  category String
+  diet String
+  unitPriceRs Int
+  quantity Int
+  favourite Boolean @default(false)
+  @@unique([visitId,menuId,diet])
+}
+model AnalyticsCalendarDay {
+  date String @id
+  namesJson String
+  isHoliday Boolean
+  updatedById String
+  updatedAt DateTime @updatedAt
+}

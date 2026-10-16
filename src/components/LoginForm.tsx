@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { employeeLoginDestination } from "@/lib/loginDestination";
 
-export default function LoginForm() {
+export default function LoginForm({adminDestination = "/admin"}: {adminDestination?: "/admin" | "/admin/analytics"}) {
   const router = useRouter();
   const [employeeCode, setEmployeeCode] = useState("");
   const [password, setPassword] = useState("");
@@ -41,7 +41,7 @@ export default function LoginForm() {
         return;
       }
       if (data.user.role === "ADMIN") {
-        router.push("/admin");
+        router.push(adminDestination);
       } else if (data.user.mustChangePassword) {
         router.push("/onboarding");
       } else if (!data.user.approved) {
