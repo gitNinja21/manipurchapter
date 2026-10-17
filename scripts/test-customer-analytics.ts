@@ -65,6 +65,14 @@ async function main(){
   const roundtrip=await (await request("captain",`${path}?date=${date}`)).json();assert.deepEqual(roundtrip.visits[0].weather,weather);assert.equal(roundtrip.visits[0].visitedAt,fv.visitedAt);
   const details=await (await request("captain",report)).json();assert.equal(details.entries[0].weather.temperatureC,29.7);assert.equal(details.entries[0].weekday,new Date(`${date}T12:00:00Z`).getUTCDay());
   const editWeather=await request("captain",`${path}/${fv.id}`,{...draft,revision:fv.revision,feedback:"Updated feedback"},"PUT");assert.equal(editWeather.status,200);assert.deepEqual((await editWeather.json()).visit.weather,weather);
+  // Fractional quantities must survive the database, bill edits, daily list and CSV.
+  const halfDraft={...draft,submissionKey:crypto.randomUUID(),tableLabel:"Table 7",items:[{...draft.items[0],quantity:0.5},{menuId:"open-pork",diet:"NON_VEG",quantity:0.5,favourite:false,unitPriceRs:1}]};
+  const halfResponse=await request("captain",path,halfDraft);assert.equal(halfResponse.status,200,await halfResponse.clone().text());
+  const {visit:halfVisit}=await halfResponse.json();assert.equal(halfVisit.totalRs,492.5);assert.ok(halfVisit.items.every((i:{quantity:number})=>i.quantity===0.5));
+  assert.equal((await request("captain",`${path}/${halfVisit.id}`,{...halfDraft,revision:halfVisit.revision,items:[{menuId:"open-pork",diet:"NON_VEG",quantity:1,favourite:false}]},"PUT")).status,400);
+  const halfUpdated=await request("captain",`${path}/${halfVisit.id}`,{...halfDraft,revision:halfVisit.revision,status:"COMPLETE"},"PUT");assert.equal(halfUpdated.status,200);assert.equal((await halfUpdated.json()).visit.totalRs,492.5);
+  const halfList=await (await request("captain",`${path}?date=${date}`)).json();assert.equal(halfList.visits.find((v:{id:string})=>v.id===halfVisit.id).totalRs,492.5);
+  const halfCsv=await (await request("captain",`${report}&format=csv`)).text();assert.ok(halfCsv.includes("292.5"));assert.ok(halfCsv.includes("0.5"));
   assert.equal((await request("admin",`/api/admin/captains/${captain.id}`,{active:false},"PATCH")).status,200);assert.equal((await request("captain",path)).status,403);
   await request("admin",`/api/admin/captains/${captain.id}`,{active:true,password:"CaptainDemo456!"},"PATCH");assert.equal((await request("captain",path)).status,403);
   assert.equal((await request("anonymous","/api/analytics/auth/login",{username:"captain",password:"CaptainDemo123!"})).status,401);

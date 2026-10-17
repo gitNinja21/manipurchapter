@@ -48,3 +48,11 @@ Recurring shift editing now defaults to today. Past effective dates remain block
 ### Running bills
 
 Each table keeps its saved visit ID until Save as complete succeeds. Save running bill updates that same row with added orders. Completion marks the row Complete and immediately resets the selected table to a fresh draft for the next group. Daily records labels unfinished visits Running. There is no New visit shortcut that can abandon a running bill.
+
+### Half quantities and Open Items
+
+Menu Items retains the original prices and adds Snacks Platter (₹595), Sareng Fish Thali (₹475), and Chicken Stew Thali (₹415). New selections default to 0.5 and allow half-step quantities. Half a menu item costs half its full menu price, with paise retained in displays.
+
+Open Items is a separate selector below Menu Items. Each entry uses quantity 0.5 and charges the owner's listed price for that half entry. This includes both Eromba (full) ₹100 and Eromba (half) ₹60 labels as supplied. Selecting quantity 1 directs the captain to Menu Items. Open entries cannot be increased or duplicated into a full quantity; use the corresponding menu item for full portions. No additional full-price items are inferred from the open list.
+
+The server owns prices and validates quantities. Open prices are normalized internally to a full-unit rate so rate × 0.5 equals the listed charge. The quantity migration preserves existing line IDs, prices and quantities while changing the quantity column to REAL. Existing saved prices remain unchanged on edits.

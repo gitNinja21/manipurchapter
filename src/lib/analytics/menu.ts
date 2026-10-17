@@ -13,8 +13,30 @@ const sections: [string,MenuItem["diet"],[string,number][]][]=[
  ["Rice","VEG",[["Rice (small)",50],["Rice (big)",100]]],
  ["Meitei non-veg","NON_VEG",[["Ngaringkha Ngouba",70],["Nga Ataoba Thongba",250],["Nga Atoiba Thongba",300],["Sareng Thongba",415],["Tharoi Thongba - Spicy Snail Curry",190],["Nga Ataoba - Fried Fish",90]]],
  ["Meitei veg","VEG",[["Kanghou - Bitter Gourd, Brinjal, Peanuts",60],["Mairongbi Thongba - Arhar Dal",120],["Pakora Thongba",150],["Ooti Angouba",120],["Ooti Asangba",140],["Gobi Saag",60],["Paneer Thongba",175],["Aloo Gobi Saag",90],["Khechri",125],["Khechri Platter",195]]],
+ ["Additional menu items","NON_VEG",[["Sareng Fish Thali",475],["Chicken Stew Thali",415]]],
+ ["Additional menu items","CHOICE",[["Snacks Platter",595]]],
  ["Snacks","VEG",[["Bora - Fritters",165],["Aloo Chop",115]]],
  ["Snacks","CHOICE",[["Singju (Small)",80],["Singju (Large)",150]]],
  ["Beverages","VEG",[["Bottled Water (0.5 litre)",15],["Bottled Water (1 litre)",30],["Fruit Beer",180],["Kombucha",160],["Milk Tea",70],["Red Tea",50],["Roselle Tea",80],["Heimang Tea",80],["Buckwheat Tea",80],["Green Tea",60],["Lemon Soda",100],["Lemon Water",100],["Heimang Iced Tea",145],["Mocktail Strawberry Bleu",190],["Mocktail Blue Lagoon",175],["Mocktail Virgin Mojito",150]]],
 ];
 export const MENU:MenuItem[]=sections.flatMap(([category,diet,items])=>items.map(([name,price])=>({id:name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/-$/,""),name,price,category,diet})));
+
+// Open-item prices are for one half portion. Normalize the stored unit price
+// so quantity 0.5 charges exactly the supplied half-portion price.
+export const OPEN_ITEMS:MenuItem[]=[
+ {id:"open-pork",name:"Pork",diet:"NON_VEG",price:200},
+ {id:"open-smoked-pork",name:"Smoked Pork",diet:"NON_VEG",price:240},
+ {id:"open-chicken",name:"Chicken",diet:"NON_VEG",price:180},
+ {id:"open-smoked-chicken",name:"Smoked Chicken",diet:"NON_VEG",price:220},
+ {id:"open-nga-atoiba",name:"Nga Atoiba",diet:"NON_VEG",price:180},
+ {id:"open-sareng-thongba",name:"Sareng Thongba",diet:"NON_VEG",price:210},
+ {id:"open-eromba-full",name:"Eromba (full)",diet:"CHOICE",price:100},
+ {id:"open-eromba-half",name:"Eromba (half)",diet:"CHOICE",price:60},
+ {id:"open-black-rice-kheer",name:"Black Rice Kheer",diet:"VEG",price:90},
+ {id:"open-boiled-veggies",name:"Boiled Veggies (full)",diet:"VEG",price:60},
+ {id:"open-sougri-kangshoi",name:"Sougri Kangshoi",diet:"CHOICE",price:60},
+ {id:"open-fried-brinjal",name:"Fried Brinjal",diet:"VEG",price:20},
+ {id:"open-packing-charges",name:"Packing Charges",diet:"VEG",price:50},
+].map(item=>({...item,diet:item.diet as MenuItem["diet"],category:"Open Items"}));
+export const CATALOG:MenuItem[]=[...MENU,...OPEN_ITEMS.map(item=>({...item,price:item.price*2}))];
+export const isOpenItem=(id:string)=>OPEN_ITEMS.some(item=>item.id===id);
