@@ -56,3 +56,13 @@ Menu Items retains the original prices and adds Snacks Platter (₹595), Sareng 
 Open Items is a separate selector below Menu Items. Each entry uses quantity 0.5 and charges the owner's listed price for that half entry. This includes both Eromba (full) ₹100 and Eromba (half) ₹60 labels as supplied. Selecting quantity 1 directs the captain to Menu Items. Open entries cannot be increased or duplicated into a full quantity; use the corresponding menu item for full portions. No additional full-price items are inferred from the open list.
 
 The server owns prices and validates quantities. Open prices are normalized internally to a full-unit rate so rate × 0.5 equals the listed charge. The quantity migration preserves existing line IDs, prices and quantities while changing the quantity column to REAL. Existing saved prices remain unchanged on edits.
+
+### Daily, weekly and monthly Insights
+
+Insights defaults to Daily. Weekly covers Monday–Sunday containing the chosen date; Monthly covers the full calendar month. All time buckets use IST and the original visit timestamp. A group with several dishes counts as one visit. Crowd includes running and completed visits; completed sales and top-item rankings exclude running bills. Running value is displayed separately. Bill averages and spend per guest use completed bills and their guests only.
+
+Weekly/monthly hourly charts divide totals by the number of distinct dates with recorded visits, including zero-order or running visits. Weekday averages use the recorded occurrence count of that weekday. Dates without records are marked No data; they are not assumed closed or zero-sales. Incomplete recorded days can affect averages, and the dashboard states this limitation.
+
+Top three items rank by total quantity across completed bills, with revenue as a tie-breaker. Half portions count as 0.5. Open Items and veg/non-veg variants remain separate. Packing charges contribute to bill value but never to the top-item ranking. The top-three hourly chart tracks those same period-wide winners. Unavailable-item rankings count distinct visits mentioning each normalized name, not lost-sale quantities. First/repeat/unknown counts are per visit.
+
+Charts include hover/focus values and expandable data tables. Existing CSV export, saved weather readings, and weather/calendar comparisons remain accessible. The old comparisons include running menu value and are labelled separately from completed sales.
