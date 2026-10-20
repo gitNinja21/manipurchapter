@@ -1,4 +1,4 @@
-import { lateClockOutRule } from "@/lib/attendanceTime";
+import { hourlySnapshot } from "@/lib/hourlyPay";
 import { prisma } from "@/lib/prisma";
 import {
   teamRoute,
@@ -10,13 +10,6 @@ import {
 } from "@/lib/team";
 import { validRange } from "@/lib/reporting";
 import { todayWorkDate, workDateFor } from "@/lib/time";
-import {
-  effectiveSchedule,
-  penaltyContext,
-  syncMeetings,
-  policyAudit,
-} from "@/lib/performanceServer";
-import { extraCutoff, durationSnapshot } from "@/lib/performance";
 import { retireExtraTimeRequests } from "@/lib/workPolicyServer";
 import { auditData } from "@/lib/attendanceAudit";
 
@@ -29,7 +22,8 @@ export const GET = teamRoute(async (u, req) => {
   const record = await prisma.attendanceRecord.findUnique({
     where: { userId_workDate: { userId, workDate } },
   });
-  return { record };
+  const day=await prisma.workDayOverride.findUnique({where:{workDate}});
+  return { record, day };
 });
 
 export const POST = teamRoute(async (u, req) => {
@@ -63,6 +57,11 @@ export const POST = teamRoute(async (u, req) => {
   if (!("expectedUpdatedAt" in b) || !("expectedRecordId" in b))
     throw new TeamError("Load the employee's attendance before saving.", 409);
   const result = await prisma.$transaction(async (tx) => {
+    const day=await tx.workDayOverride.findUnique({where:{workDate}});
+    if(day?.mode!=="HOURLY")throw new TeamError("Enable correction mode for this date first. This removes automatic off-day pay for everyone.",409);
+    if(day.revision!==b.expectedDayRevision)throw new TeamError("The date rule changed. Reload attendance.",409);
+    const unpaid=Number(b.unpaidBreakMinutes);
+    if(typeof b.unpaidBreakMinutes!=="number" || !Number.isInteger(unpaid) || unpaid<0 || unpaid>1440 || (clockOutAt && unpaid*60000>+clockOutAt-+clockInAt))throw new TeamError("Unpaid break must be a valid duration no longer than the clocked time.");
     const employee = await tx.user.findUnique({ where: { id: userId } });
     if (!employee || employee.role !== "EMPLOYEE" || !employee.approved)
       throw new TeamError("Choose an approved employee.");
@@ -116,88 +115,14 @@ export const POST = teamRoute(async (u, req) => {
         "This date has approved leave. Resolve the leave before adding attendance.",
         409,
       );
-    if (!record?.clockInAt && workDate === today) {
-      const pending = await syncMeetings(tx, userId);
-      if (pending.length && b.managerMeetingCompleted !== true)
-        throw new TeamError(
-          "A manager meeting is required. Complete it, then select the meeting confirmation before recording today's arrival.",
-          409,
-        );
-      for (const meeting of pending) {
-        const after = await tx.managerMeeting.update({
-          where: { id: meeting.id },
-          data: {
-            status: "CLEARED",
-            clearedDate: today,
-            reviewedAt: new Date(),
-            reviewedBy: u.name,
-            note: reason,
-          },
-        });
-        await policyAudit(
-          tx,
-          u,
-          userId,
-          meeting.id,
-          "MEETING_CLEARED_MANUALLY",
-          meeting,
-          after,
-        );
-      }
-    }
-    const schedule = await effectiveSchedule(tx, employee, workDate);
-    const recalculate = b.applyCurrentPolicy === true;
-    if (recalculate && (!record?.clockInAt || !record.clockOutAt || !clockOutAt))
-      throw new TeamError("Load a completed attendance record to recalculate its policy.");
-    const policyVersion = recalculate ? 2 : record?.policyVersion ?? 2;
-    const unpaidBreakMinutes =
-      record?.unpaidBreakMinutes ?? schedule?.breakMinutes ?? 60;
-    const scheduledEndAt = record
-      ? record.scheduledEndAt
-      : (schedule?.end ?? null);
-    const v2 = policyVersion >= 2 ? durationSnapshot(clockInAt, schedule, recalculate ? null : record) : null;
-    const cutoff = v2 ? v2.extraTimeCutoff : policyVersion
-      ? extraCutoff(clockInAt, unpaidBreakMinutes, scheduledEndAt)
-      : (record?.extraTimeCutoff ?? null);
-    const needsExtra = !!clockOutAt && !!cutoff && clockOutAt > cutoff;
-    const exceptions = await tx.staffRequest.findMany({
-      where: {
-        userId,
-        fromDate: workDate,
-        status: "APPROVED",
-        kind: { in: ["LATE_ARRIVAL", "EARLY_DEPARTURE"] },
-      },
-    });
-    const data = {
-      clockInAt,
-      clockOutAt,
-      policyVersion,
-      unpaidBreakMinutes,
-      scheduledEndAt,
-      scheduledStartAt: record
-        ? record.scheduledStartAt
-        : (schedule?.start ?? null),
-      ...(record ? {} : await penaltyContext(tx, userId, workDate)),
-      lateExcused:
-        record?.lateExcused ||
-        exceptions.some((r) => r.kind === "LATE_ARRIVAL"),
-      earlyExcused:
-        record?.earlyExcused ||
-        exceptions.some((r) => r.kind === "EARLY_DEPARTURE"),
-      ...(v2 ?? {}),
-      extraTimeCutoff: cutoff,
-      extraTimeStatus: needsExtra ? "AUTOMATIC" : "NOT_REQUIRED",
-      ...lateClockOutRule(workDate, clockOutAt, true),
-      extraTimeReason: needsExtra ? reason : null,
-      approvalStatus: "PENDING",
-    };
+    const data = {clockInAt,clockOutAt,...hourlySnapshot(unpaid),approvalStatus:"PENDING"};
     const after = await tx.attendanceRecord.upsert({
       where: { userId_workDate: { userId, workDate } },
       create: { userId, workDate, ...data },
       update: data,
     });
     const audit = record
-      ? auditData(record, employee, u, recalculate ? "POLICY_RECALCULATED" : "ADMIN_TIME_CORRECTION", after)
+      ? auditData(record, employee, u, "ADMIN_HOURLY_TIME_CORRECTION", after)
       : {
           recordId: after.id,
           userId,
@@ -221,7 +146,6 @@ export const POST = teamRoute(async (u, req) => {
       },
     });
     await retireExtraTimeRequests(tx, userId, workDate);
-    await syncMeetings(tx, userId);
     await notify(
       tx,
       [employee],

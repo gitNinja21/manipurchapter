@@ -12,6 +12,7 @@ function plus(date: string, n: number) {
   return d.toISOString().slice(0, 10);
 }
 type ScheduleData = {
+  dayRules:{workDate:string;mode:string}[];
   recurring: ({id: string; name: string; employeeCode: string; attendancePolicyFrom: string} & PolicySchedule)[];
   shifts: {
     id: string;
@@ -44,8 +45,9 @@ export default function Schedule({ admin }: { admin: boolean }) {
     30000,
   );
   const action = useAction(reload);
+  const modeForDay=(day:string)=>data?.dayRules?.find(d=>d.workDate===day)?.mode;
   const recurringForDay = (day: string) => (data?.recurring ?? []).filter(person =>
-    policyApplies(person,day) && (new Date(`${day}T12:00:00Z`).getUTCDay() !== 1 || isOpenMonday(person,day)) && !!recurringRule(person, day) &&
+    !modeForDay(day) && policyApplies(person,day) && (new Date(`${day}T12:00:00Z`).getUTCDay() !== 1 || isOpenMonday(person,day)) && !!recurringRule(person, day) &&
     !data?.shifts.some(shift => shift.userId === person.id && shift.workDate === day) &&
     !data?.leave.some(leave => leave.userId === person.id && leave.fromDate <= day && leave.toDate >= day)
   );
@@ -195,8 +197,9 @@ export default function Schedule({ admin }: { admin: boolean }) {
               {formatWorkDate(day)}
               {day === todayWorkDate() ? " · Today" : ""}
             </h3>
+            {modeForDay(day) && <p className="text-sm font-medium">{modeForDay(day)==="HOURLY"?"Flexible hourly day for all employees. Clock in/out at actual times; admin enters unpaid breaks.":"Closed — usual paid-off-day salary applies."}</p>}
             {data?.shifts
-              .filter((s) => s.workDate === day)
+              .filter((s) => s.workDate === day && !modeForDay(day))
               .map((s) => (
                 <div
                   key={s.id}
@@ -246,7 +249,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
                   {l.user.name} · Approved leave
                 </p>
               ))}
-            {data &&
+            {data && !modeForDay(day) &&
               !recurringForDay(day).length &&
               !data.shifts.some((s) => s.workDate === day) &&
               !data.leave.some((l) => l.fromDate <= day && l.toDate >= day) && (

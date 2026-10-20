@@ -1,3 +1,4 @@
+import { workDayMode } from "./workDays";
 import { statisticsFrom } from "./statisticsStart";
 import { recurringDescription } from "@/lib/workPolicy";
 import { prisma } from "@/lib/prisma";
@@ -55,13 +56,14 @@ export async function getHomeSummary(u: User) {
         },
       }),
     ]);
+  const dateMode=await workDayMode(prisma,today);
   return {
     today,
     month,
     summary: u.role === "EMPLOYEE" ? {clockedMinutes: Math.round(records.reduce((sum,r)=>sum+(clockedMs(r) ?? 0),0)/60000),completedShifts:records.length} : null,
     nextShift,
     attendancePolicyFrom: u.attendancePolicyFrom,
-    scheduleDescription: u.attendancePolicyFrom || u.masterScheduleFrom ? recurringDescription(u) : null,
+    scheduleDescription: dateMode==="PAID_OFF" ? "Today is closed. Usual paid-off-day rules apply." : dateMode==="HOURLY" ? "Today: flexible clock-in/out. Hourly pay minus admin-entered unpaid break; one-hour paid break included." : u.attendancePolicyFrom || u.masterScheduleFrom ? recurringDescription(u) : null,
     requests,
     unread,
     chatUnread,

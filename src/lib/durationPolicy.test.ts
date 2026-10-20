@@ -16,7 +16,7 @@ test("clock duration determines pay, finish and bonus, including the paid break"
 });
 test("late start moves finish; post-meeting flags never deduct pay twice", () => {
   const r = {...record("10:30","19:00"),latePenaltyActive:true,earlyPenaltyActive:true};
-  assert.equal(r.scheduledEndAt.toISOString(),at("19:30").toISOString());
+  assert.equal(r.scheduledEndAt!.toISOString(),at("19:30").toISOString());
   assert.equal(deviations(r).lateMs,30*60000);
   assert.equal(deviations(r).earlyMs,30*60000);
   assert.equal(salaryCredit(r),8.5);
@@ -39,7 +39,7 @@ test("pending overtime counts automatically; historical rejections remain exclud
     assert.equal(salaryCredit({...r,extraTimeStatus:status}),9);
   }
   const corrected=durationSnapshot(at("11:00"),{...schedule,durationMinutes:420},r);
-  assert.equal(corrected.scheduledEndAt.toISOString(),at("20:00").toISOString());
+  assert.equal(corrected.scheduledEndAt!.toISOString(),at("20:00").toISOString());
   assert.equal(corrected.shiftDurationMinutes,540);
 });
 test("weekly rules skip unassigned days and preserve Friday duration", () => {

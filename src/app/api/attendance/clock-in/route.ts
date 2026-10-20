@@ -1,3 +1,4 @@
+import { workDayMode } from "@/lib/workDays";
 import { scheduleVersion } from "@/lib/scheduleVersions";
 import { usesMasterPolicy } from "@/lib/masterPolicy";
 import { effectiveSchedule, syncMeetings, penaltyContext } from "@/lib/performanceServer";
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
 
   const now = new Date();
   const workDate = todayWorkDate();
+  if(await workDayMode(prisma,workDate)==="PAID_OFF")return NextResponse.json({error:"The restaurant is closed on this date. Paid-off rules apply."},{status:403});
   const schedule = await effectiveSchedule(prisma, user, workDate);
   if ((scheduleVersion(user,workDate) || user.weeklyScheduleJson || user.masterScheduleJson) && !schedule) return NextResponse.json({error: "You have no scheduled shift today. Ask your admin to assign one."}, {status: 403});
   if (schedule && now < schedule.opens) return NextResponse.json({error: "Clock-in opens 15 minutes before your scheduled start. For an earlier start, submit a shift-change request and obtain admin approval; same-day requests are allowed."}, {status: 403});
@@ -123,6 +125,7 @@ export async function POST(req: NextRequest) {
     }
     const attempt = await tx.arrivalAttempt.findUnique({where: {userId_workDate: {userId: user.id, workDate}}});
     const clockInAt = attempt?.approvedAt ?? now;
+    if(await workDayMode(tx,workDate)==="PAID_OFF")return {dayChanged:true};
     const currentSchedule = await effectiveSchedule(tx, user, workDate);
     const approval = await tx.staffRequest.findFirst({where: {userId: user.id, kind: "LATE_ARRIVAL", fromDate: workDate, status: "APPROVED"}});
     const rules = {
@@ -135,6 +138,7 @@ export async function POST(req: NextRequest) {
       create: {userId: user.id, workDate, ...rules}, update: rules});
 
   });
+  if(record && "dayChanged" in record){await deletePhotoByKey(photoKey);return NextResponse.json({error:"This date was closed. Refresh the page."},{status:409});}
   if (!record) await deletePhotoByKey(photoKey);
   if (record && "meetingRequired" in record && record.arrivalPhoto !== photoKey) await deletePhotoByKey(photoKey);
   if (!record) return NextResponse.json({error: "A clock-in has already been recorded. Refresh the page."}, {status: 409});

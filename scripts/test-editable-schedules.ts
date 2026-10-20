@@ -52,41 +52,7 @@ async function main(){
   await prisma.arrivalAttempt.deleteMany({where:{userId:sameDay.id}});
   await prisma.staffRequest.create({data:{userId:sameDay.id,kind:"GPS_CLOCK_IN",fromDate:date(0),toDate:date(0),reason:"test"}});
   assert.equal((await sameDayRequest({from:date(0),days,revision:fresh.revision})).status,409);
-  // Selected Monday: preview, authorization, stale data, one-day shifts and guardrails.
-  let mondayOffset=14;while(new Date(`${date(mondayOffset)}T12:00:00Z`).getUTCDay()!==1)mondayOffset++;
-  const monday=date(mondayOffset),sunday=date(mondayOffset-1);
-  const mondayRequest=(actor:string,body?:unknown,selected=monday)=>fetch(`http://127.0.0.1:3197/api/admin/monday-opening?date=${selected}`,{method:body?"POST":"GET",headers:{cookie:cookies[actor]||"","content-type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});
-  assert.equal((await mondayRequest("employee")).status,403);
-  assert.equal((await mondayRequest("employee",{date:monday})).status,403);
-  assert.equal((await mondayRequest("admin",undefined,sunday)).status,400);
-  let preview=await (await mondayRequest("admin")).json();
-  assert.equal((await mondayRequest("admin",{date:monday,preview:JSON.stringify(preview)})).status,409); // missing Sunday
-  const sundayDays={"0":days["2"],"2":days["2"]};
-  await prisma.user.updateMany({where:{role:"EMPLOYEE"},data:{scheduleHistoryJson:JSON.stringify([{from:date(0),days:sundayDays}])}});
-  assert.equal((await mondayRequest("admin",{date:monday,preview:JSON.stringify(preview)})).status,409); // stale preview
-  await prisma.scheduledShift.create({data:{userId:sameDay.id,workDate:monday,startsAt:new Date(`${monday}T11:00:00+05:30`),endsAt:new Date(`${monday}T23:30:00+05:30`)}});
-  preview=await (await mondayRequest("admin")).json();
-  assert.equal(preview.rows.find((r:{id:string})=>r.id===sameDay.id).override,true);
-  assert.equal(preview.rows.length,2);assert.equal(preview.rows[0].rule.unpaidBreak,150);
-  await prisma.arrivalAttempt.create({data:{userId:user.id,workDate:monday,arrivedAt:new Date(),photo:"test-only"}});
-  assert.equal((await mondayRequest("admin",{date:monday,preview:JSON.stringify(preview)})).status,409);
-  await prisma.arrivalAttempt.deleteMany({where:{workDate:monday}});
-  const opened=await mondayRequest("admin",{date:monday,preview:JSON.stringify(preview)});assert.equal(opened.status,200,await opened.clone().text());
-  const mondayUser=await prisma.user.findUniqueOrThrow({where:{id:user.id}});
-  const mondayShift=await effectiveSchedule(prisma,mondayUser,monday);
-  assert.equal(mondayShift?.durationMinutes,750);assert.equal(mondayShift?.breakMinutes,150);assert.equal(mondayShift?.paidBreakMinutes,0);
-  assert.equal(mondayShift?.start.toISOString(),new Date(`${monday}T10:00:00+05:30`).toISOString());
-  assert.equal(await effectiveSchedule(prisma,mondayUser,date(mondayOffset+7)),null);
-  assert.equal((await effectiveSchedule(prisma,mondayUser,date(mondayOffset+1)))?.durationMinutes,750);
-  assert.equal((await effectiveSchedule(prisma,await prisma.user.findUniqueOrThrow({where:{id:sameDay.id}}),monday))?.start.toISOString(),new Date(`${monday}T11:00:00+05:30`).toISOString());
-  const mondayPreview=await (await mondayRequest("admin")).json();assert.ok(mondayPreview.rows.every((r:{opened:boolean})=>r.opened));
-  const repeat=await mondayRequest("admin",{date:monday,preview:JSON.stringify(mondayPreview)});assert.equal(repeat.status,200);assert.equal((await repeat.json()).count,0);
-  const editor=await (await request("admin")).json();
-  const editWeekly=await request("admin",{from:monday,days:sundayDays,revision:editor.revision});assert.equal(editWeekly.status,200,await editWeekly.clone().text());
-  assert.equal((await effectiveSchedule(prisma,await prisma.user.findUniqueOrThrow({where:{id:user.id}}),monday))?.durationMinutes,750);
-  const {eligibleForArrivalSms}=await import("../src/lib/attendanceSms");
-  assert.equal(await eligibleForArrivalSms(mondayUser,new Date(`${monday}T10:20:00+05:30`)),true);
-  assert.equal(await eligibleForArrivalSms(mondayUser,new Date(`${date(mondayOffset+7)}T10:20:00+05:30`)),false);
+  assert.equal((await fetch("http://127.0.0.1:3197/api/admin/monday-opening",{headers:{cookie:cookies.admin}})).status,410);
   console.log("Editable schedules: migration, admin authorization, validation, concurrency, audit, effective date, historical preservation, overrides and attendance protection passed.");
  }finally{server.kill("SIGTERM");await new Promise<void>(resolve=>{if(server.exitCode!==null)resolve();else server.once("exit",()=>resolve());});await prisma.$disconnect();rmSync(dir,{recursive:true,force:true});}
 }

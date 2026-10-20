@@ -1,3 +1,4 @@
+import { paidClosureDates } from "@/lib/workDays";
 import { isOpenMonday } from "@/lib/scheduleVersions";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
@@ -64,5 +65,6 @@ export async function GET(req: NextRequest) {
     }),
     prisma.attendanceRecord.count({ where }),
   ]);
-  return NextResponse.json({ records:records.map(r=>({...r,workingMonday:isOpenMonday(r.user,r.workDate)})), total });
+  const closed=await paidClosureDates(prisma);
+  return NextResponse.json({ records:records.map(r=>({...r,paidClosure:closed.has(r.workDate),workingMonday:r.policyVersion===4 || isOpenMonday(r.user,r.workDate)})), total });
 }

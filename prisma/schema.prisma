@@ -505,3 +505,12 @@ model CaptainAccount {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// Date-wide payroll choice; applies to every employee and survives roster changes.
+model WorkDayOverride {
+  workDate String @id
+  mode String // HOURLY | PAID_OFF
+  revision Int @default(1)
+  updatedById String
+  updatedAt DateTime @updatedAt
+}

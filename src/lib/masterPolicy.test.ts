@@ -15,7 +15,7 @@ test("full long shift pays ten hours; unpaid break is proportional on short shif
 test("grace is paid, counted once and cannot create bonus; finish stays fixed",()=>{
   for(const [arrival,paid,late] of [["10:10",10,0],["10:15",10,0],["10:30",9.8,15],["11:00",9.4,45]] as const) {
     const record=r(arrival); near(salaryCredit(record),paid);near(deviations(record).lateMs/60000,late);
-    assert.equal(record.scheduledEndAt.toISOString(),at("22:30").toISOString()); near(overtimeMs(record),0);
+    assert.equal(record.scheduledEndAt!.toISOString(),at("22:30").toISOString()); near(overtimeMs(record),0);
   }
   assert.deepEqual(attendancePoints({...r("10:15"),latePenaltyActive:true}),[{kind:"Base-hour completion",points:0.5}]);
   assert.deepEqual(attendancePoints({...r("10:30"),latePenaltyActive:true}),[]);

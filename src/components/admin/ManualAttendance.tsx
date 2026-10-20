@@ -1,4 +1,5 @@
 "use client";
+import WorkDayControls from "@/components/WorkDayControls";
 import { useState } from "react";
 import { api, useAction, useTeamData } from "@/components/team/useTeamData";
 import { todayWorkDate } from "@/lib/time";
@@ -6,6 +7,7 @@ type RecordTimes = {
   id: string;
   updatedAt: string;
   policyVersion: number;
+  unpaidBreakMinutes: number;
   clockInAt: string | null;
   clockOutAt: string | null;
 };
@@ -29,14 +31,14 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
   const [start, setStart] = useState(""),
     [end, setEnd] = useState(""),
     [reason, setReason] = useState("");
-  const [applyCurrentPolicy, setApplyCurrentPolicy] = useState(false);
-  const [meeting, setMeeting] = useState(false),
-    [message, setMessage] = useState("");
+  const [unpaidHours,setUnpaidHours]=useState("0");
+  const [day,setDay]=useState<{mode:string;revision:number}|null>(null);
+  const [message, setMessage] = useState("");
   const action = useAction();
   return (
     <details className="admin-panel p-5">
       <summary className="font-semibold cursor-pointer">
-        Add / correct attendance — system issue
+        Add / correct attendance & hourly pay
       </summary>
       <p className="text-sm text-foreground/60 mt-3">
         Record the employee’s actual arrival or leaving time when login,
@@ -82,6 +84,7 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
           />
         </label>
       </div>
+      <div className="mt-4"><WorkDayControls date={date} onChanged={()=>{setLoaded(false);onSaved();}}/></div>
       <button
         className="admin-button mt-3"
         disabled={!userId || !date || action.busy}
@@ -89,15 +92,15 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
           void action.run(async () => {
             setLoaded(false);
             setMessage("");
-            const d = await api<{ record: RecordTimes | null }>(
+            const d = await api<{ record: RecordTimes | null;day:{mode:string;revision:number}|null }>(
               `/api/admin/attendance/manual?${new URLSearchParams({ userId, workDate: date })}`,
             );
             setRecord(d.record);
             setStart(localTime(d.record?.clockInAt ?? null));
             setEnd(localTime(d.record?.clockOutAt ?? null));
             setReason("");
-            setMeeting(false);
-            setApplyCurrentPolicy(false);
+            setDay(d.day);
+            setUnpaidHours(String(d.record?.policyVersion===4 ? (d.record.unpaidBreakMinutes ?? 0)/60 : 0));
             setLoaded(true);
           })
         }
@@ -115,15 +118,15 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
                 workDate: date,
                 clockInAt: record?.clockInAt && start === localTime(record.clockInAt) ? record.clockInAt : `${start}:00+05:30`,
                 clockOutAt: record?.clockOutAt && end === localTime(record.clockOutAt) ? record.clockOutAt : end ? `${end}:00+05:30` : null,
-                applyCurrentPolicy,
+                expectedDayRevision:day?.revision,
+                unpaidBreakMinutes:Math.round(Number(unpaidHours)*60),
                 reason,
                 expectedRecordId: record?.id ?? null,
                 expectedUpdatedAt: record?.updatedAt ?? null,
-                managerMeetingCompleted: meeting,
               });
               setLoaded(false);
               setMessage(
-                "Attendance saved. Completed shifts and eligible extra hours count automatically. An open shift can be clocked out normally by the employee.",
+                "Attendance saved. Completed hours minus unpaid breaks count at the hourly rate. An open shift can be clocked out normally by the employee.",
               );
               onSaved();
             });
@@ -173,26 +176,13 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
               placeholder="For example: location permission failed; I verified arrival at 11:30 am."
             />
           </label>
-          {record?.clockInAt && record.clockOutAt && <label className="flex gap-2 text-sm">
-            <input type="checkbox" checked={applyCurrentPolicy} disabled={action.busy} onChange={e => setApplyCurrentPolicy(e.target.checked)} />
-            <span>Recalculate this record using the current pay policy.
-              <span className="block text-xs text-foreground/60">From 26 September, the master timetable sets the fixed finish, paid grace and proportional breaks. Recalculates pay, bonus hours and incidents. Leave times unchanged if they are correct. Updates payroll automatically.</span>
-            </span>
-          </label>}
-          <label className="flex gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={meeting}
-              onChange={(e) => setMeeting(e.target.checked)}
-            />
-            If a manager meeting is pending, I confirm it has taken place. The
-            reason above includes the meeting outcome.
-          </label>
+          <p className="text-sm">Paid break: 1 hour included within the clocked time. No extra hour is added.</p>
+          <label className="block text-sm">Unpaid break (hours)<input className="input mt-1" type="number" min="0" max="24" step="any" required value={unpaidHours} onChange={e=>setUnpaidHours(e.target.value)} /></label>
+          {day?.mode!=="HOURLY" && <p role="alert" className="text-red-700">Apply correction mode above, then reload attendance before saving.</p>}
           <p className="text-sm text-foreground/60">
-            Saving updates payroll automatically. Breaks, scheduled hours
-            and the usual bonus-hour rules still apply. Saving a leaving time after 10:45 pm also approves that late time.
+            Saving updates payroll using actual clocked hours minus your unpaid break. There is no shift cap, late deduction or overtime conversion.
           </p>
-          <button className="admin-button" disabled={action.busy}>
+          <button className="admin-button" disabled={action.busy || day?.mode!=="HOURLY"}>
             Save actual attendance times
           </button>
         </form>

@@ -13,6 +13,7 @@ export function unpaidFraction(r: MasterRecord) {
   return Math.min(1,Math.max(0,(r.unpaidBreakMinutes ?? 0)/(r.shiftDurationMinutes || 540)));
 }
 export function masterLateMs(r: MasterRecord) {
+  if(r.policyVersion===4)return 0;
   return r.clockInAt && r.scheduledStartAt && !r.lateExcused
     ? Math.max(0,+new Date(r.clockInAt)-+new Date(r.scheduledStartAt)-ARRIVAL_GRACE_MS) : 0;
 }

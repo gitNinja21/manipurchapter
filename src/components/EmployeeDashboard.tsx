@@ -94,6 +94,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       .finally(() => setAnnouncementsLoading(false));
   }, []);
 
+  const hourly = record ? record.policyVersion===4 : schedule?.policyVersion===4;
   const master = record ? record.policyVersion === 3 : schedule?.policyVersion === 3;
   const hasClockedIn = !!record?.clockInAt;
   const hasClockedOut = !!record?.clockOutAt;
@@ -214,21 +215,21 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       </div>
 
       <Link className="text-brand underline block" href={preview ? `/admin/team?view=performance&employeeId=${employeeQuery}` : "/employee/team?view=performance"}>My points and award eligibility</Link>
-      {!policy && <p className="text-sm text-foreground/60">{arrival === "OFF" ? "No shift is scheduled today. Ask your admin to assign a shift if you are working." : "Complete your scheduled hours from clock-in, including the one-hour break."}</p>}
+      {!policy && <p className="text-sm text-foreground/60">{arrival === "OFF" ? "Today is closed or has no scheduled shift. Ask your admin to review the date if you are working." : "Complete your scheduled hours from clock-in, including the one-hour break."}</p>}
       {record && record.policyVersion < 2 && <p className="text-sm text-accent">This record uses an earlier attendance policy. Ask your manager if its schedule needs correction.</p>}
       {policy && (!record || record.policyVersion >= 2) && (
         <section className="admin-panel p-4 space-y-2 text-sm">
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>
-          {master ? <>
+          {hourly ? <p>Flexible hourly day: clock in and out at your actual times. Pay includes the one-hour paid break and deducts only the unpaid break entered by admin. No fixed finish, late penalty or overtime conversion.</p> : master ? <>
             <p>{schedule?.arrival}–{schedule?.finish} IST · Fixed finish · 15-minute paid arrival grace.</p>
             <p>{schedule?.durationHours} scheduled hours · {schedule?.breakExpectation}.</p>
             <p>Clock-in opens at {schedule?.opening}. You must clock out yourself using location and selfie verification. There is no automatic clock-out. Record your actual leaving time; time after 10:45 pm needs admin review.</p>
             {lateness && <p className={lateness.lateWarning ? "text-accent font-medium" : ""}>{lateness.lateDays} late days this month · {Math.round(lateness.lateMinutes)} late minutes after grace. {lateness.awardEligible ? (lateness.lateWarning ? "Warning: five late days removes Best Employee eligibility." : "Eligible for Best Employee.") : "Not eligible for Best Employee this month. Your points and earned bonus pay are retained."}</p>}
           </> : <p>Complete {schedule?.durationHours} hours from actual clock-in. Required finish: {schedule?.finish}. This record retains its earlier rules.</p>}
-          {!preview && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=SHIFT_CHANGE">Request an earlier start / shift change</Link>}
+          {!preview && !hourly && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=SHIFT_CHANGE">Request an earlier start / shift change</Link>}
           {!hasClockedIn && arrival === "EARLY" && <p>Clock-in opens at {schedule?.opening}.</p>}
           {!hasClockedIn && lateStatus && <p>Today’s late-arrival request: <strong>{lateStatus}</strong>.</p>}
-          {!hasClockedIn && !preview && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request an excused late arrival</Link>}
+          {!hasClockedIn && !preview && !hourly && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request an excused late arrival</Link>}
           {!master && !hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Clock in when you arrive. More than 15 minutes late is an incident; after three consecutive incidents, manager clearance is required. After that meeting, further late arrivals receive negative points.</p>}
         </section>
       )}
@@ -236,7 +237,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
         <label className="admin-panel p-4 block text-sm">
           Reason (optional)
           <textarea className="input mt-2" rows={3} maxLength={1000} value={extraTimeReason} onChange={e => setExtraTimeReason(e.target.value)} placeholder="Add a note about your clock-out, if needed" />
-          <span className="block text-xs text-foreground/60 mt-2">You can leave this blank. If you leave after 10:45 pm, your clock-out will be sent for admin approval.</span>
+          <span className="block text-xs text-foreground/60 mt-2">{hourly ? "You can leave this blank. All clocked time counts, minus the unpaid break entered by admin." : "You can leave this blank. If you leave after 10:45 pm, your clock-out will be sent for admin approval."}</span>
         </label>
       )}
       {pendingGps && !hasClockedOut && <section className="admin-panel p-4 space-y-2" role="status">

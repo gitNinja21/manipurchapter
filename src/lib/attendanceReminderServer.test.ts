@@ -1,7 +1,10 @@
-import test from "node:test";
+import test, {beforeEach,afterEach} from "node:test";
 import assert from "node:assert/strict";
 import type { User, AttendanceRecord, ScheduledShift } from "@prisma/client";
 import { prisma } from "./prisma";
+const originalDayFind=prisma.workDayOverride.findUnique,originalDayList=prisma.workDayOverride.findMany;
+beforeEach(()=>{prisma.workDayOverride.findUnique=(async()=>null) as typeof originalDayFind;prisma.workDayOverride.findMany=(async()=>[]) as typeof originalDayList;});
+afterEach(()=>{prisma.workDayOverride.findUnique=originalDayFind;prisma.workDayOverride.findMany=originalDayList;});
 import webpush from "web-push";
 
 test("server respects account eligibility, Monday, leave and shift overrides; dispatch is deduplicated and stops after clock-in",async t=>{

@@ -13,6 +13,7 @@ export type StreakDay = {
 type StreakRecord = PolicyRecord & {workDate:string};
 type Meeting = {kind:string;status:string;triggerDate:string;clearedDate:string|null};
 type Input = {
+  dayModes?: Map<string,string>;
   user: PolicySchedule & {attendancePolicyFrom?:string|null};
   records: StreakRecord[];
   leave: {fromDate:string;toDate:string}[];
@@ -21,7 +22,7 @@ type Input = {
   from: string; to: string; today: string;
 };
 /** One rule engine for manager triggers and the date-wise report. Today's rows are provisional. */
-export function attendanceStreaks({user,records,leave,shifts,meetings,from,to,today}:Input) {
+export function attendanceStreaks({dayModes,user,records,leave,shifts,meetings,from,to,today}:Input) {
   const byDay=new Map(records.map(r=>[r.workDate,r]));
   const shiftDays=new Set(shifts.map(s=>s.workDate));
   const first=records.reduce((day,r)=>r.workDate<day ? r.workDate : day,from);
@@ -30,10 +31,10 @@ export function attendanceStreaks({user,records,leave,shifts,meetings,from,to,to
   for(let time=Date.parse(first);time<=Date.parse(to);time+=86400000) {
     const date=new Date(time).toISOString().slice(0,10),r=byDay.get(date);
     const onLeave=leave.some(l=>l.fromDate<=date && l.toDate>=date);
-    const eligible=(!offDay(date) || isOpenMonday(user,date)) && !onLeave &&
+    const eligible=!dayModes?.has(date) && (!offDay(date) || isOpenMonday(user,date)) && !onLeave &&
       (!(scheduleVersion(user,date) || user.weeklyScheduleJson || (user.masterScheduleFrom && date>=user.masterScheduleFrom && user.masterScheduleJson)) || !!recurringRule(user,date) || shiftDays.has(date)) &&
       (!!r?.scheduledStartAt || policyApplies(user,date) || shiftDays.has(date));
-    const d=r ? deviations(r) : {lateMs:0,earlyMs:0};
+    const d=r && !dayModes?.has(date) ? deviations(r) : {lateMs:0,earlyMs:0};
     const states:Record<"LATE"|"EARLY",TalkStatus>={LATE:"NONE",EARLY:"NONE"};
     for(const kind of ["LATE","EARLY"] as const) {
       if (usesMasterPolicy(date)) { counters[kind]={actual:0,cycle:0,awaiting:false}; continue; }

@@ -1,3 +1,4 @@
+import { workDayMode } from "./workDays";
 import { scheduleVersion, isOpenMonday } from "@/lib/scheduleVersions";
 import twilio from "twilio";
 import type { User } from "@prisma/client";
@@ -29,6 +30,7 @@ export function arrivalSmsDue(now: Date, start: Date | null, end: Date | null) {
 
 export async function eligibleForArrivalSms(user: User, now: Date) {
   const date = workDateFor(now);
+  if(await workDayMode(prisma,date))return false;
   if (!user.active || !user.approved || user.mustChangePassword || user.role !== "EMPLOYEE" || workDateFor(user.createdAt) > date) return false;
   const [schedule, override, record, arrival, request] = await Promise.all([
     effectiveSchedule(prisma, user, date),

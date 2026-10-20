@@ -1,3 +1,4 @@
+import { workDayMode } from "./workDays";
 import { scheduleVersion } from "@/lib/scheduleVersions";
 import type { Prisma, User, StaffRequest } from "@prisma/client";
 import { TeamError, notify } from "./team";
@@ -7,6 +8,7 @@ import { lateClockOutRule } from "./attendanceTime";
 import { auditData } from "./attendanceAudit";
 
 export async function checkFallbackIn(tx: Prisma.TransactionClient, user: User, date: string, at: Date) {
+  if(await workDayMode(tx,date)==="PAID_OFF")throw new TeamError("The restaurant is closed on this date.",409);
   const schedule = await effectiveSchedule(tx,user,date);
   if ((scheduleVersion(user,date) || user.weeklyScheduleJson || user.masterScheduleJson) && !schedule) throw new TeamError("Ask your manager to assign your shift first.",409);
   if (schedule && at < schedule.opens) throw new TeamError("Your shift has not opened. Request a shift change first.",409);
@@ -35,7 +37,7 @@ export async function approveLocationFallback(tx: Prisma.TransactionClient, requ
     const at = request.proposedOut!;
     if (!before?.clockInAt || before.clockOutAt || at <= before.clockInAt || +at - +before.clockInAt > 86400000) throw new TeamError("The open shift changed or is over 24 hours. Use an attendance correction.",409);
     const exception = await tx.staffRequest.findFirst({where:{userId:user.id,kind:"EARLY_DEPARTURE",status:"APPROVED",fromDate:request.fromDate}});
-    after = await tx.attendanceRecord.update({where:{id:before.id},data:{clockOutAt:at,clockOutPhoto:request.verificationPhoto,clockOutFaceMatch:true,clockOutFaceDistance:request.verificationDistance,earlyExcused:before.earlyExcused || !!exception,extraTimeStatus:before.extraTimeCutoff && at > before.extraTimeCutoff ? "AUTOMATIC":"NOT_REQUIRED",...lateClockOutRule(request.fromDate,at)}});
+    after = await tx.attendanceRecord.update({where:{id:before.id},data:{clockOutAt:at,clockOutPhoto:request.verificationPhoto,clockOutFaceMatch:true,clockOutFaceDistance:request.verificationDistance,earlyExcused:before.earlyExcused || !!exception,extraTimeStatus:before.extraTimeCutoff && at > before.extraTimeCutoff ? "AUTOMATIC":"NOT_REQUIRED",...lateClockOutRule(request.fromDate,at,before.policyVersion===4)}});
     if (after.lateClockOutStatus === "PENDING") {
       const late = await tx.staffRequest.create({data:{userId:user.id,kind:"LATE_CLOCK_OUT",fromDate:request.fromDate,toDate:request.fromDate,reason:"GPS fallback clock-out after 10:45 pm. Late time needs separate approval.",proposedIn:before.clockInAt,proposedOut:at,expectedRecordId:after.id,expectedUpdatedAt:after.updatedAt}});
       await notify(tx,await tx.user.findMany({where:{role:"ADMIN",active:true},select:{id:true,role:true}}),"REQUEST",late.id,`${user.name}: late clock-out needs approval`,"team?view=requests");

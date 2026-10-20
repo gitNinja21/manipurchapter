@@ -1,3 +1,4 @@
+import { hourlyPaidMs } from "./hourlyPay";
 import { scheduleVersion } from "./scheduleVersions";
 import { masterPay, unpaidFraction } from "./masterPolicy";
 import { todayWorkDate, workDateFor } from "./time";
@@ -70,6 +71,7 @@ type WorkRecord = {
 /** Exact net time; only historically rejected extra time stays capped at the saved cutoff. */
 export function netWorkMs(record: WorkRecord): number | null {
   if (!record.clockInAt || !record.clockOutAt) return null;
+  if (record.policyVersion === 4) return Math.max(0,hourlyPaidMs(record)-(record.paidBreakMinutes ?? 60)*60000);
   const start = +new Date(record.clockInAt);
   let end = +new Date(record.clockOutAt);
   if (record.lateClockOutCutoff && ["PENDING", "REJECTED"].includes(record.lateClockOutStatus ?? ""))
@@ -117,6 +119,7 @@ export function recurringDescription(user: PolicySchedule, date = todayWorkDate(
 }
 /** Payroll time includes the paid break under version 2; actual work does not. */
 export function paidTimeMs(record: WorkRecord): number | null {
+  if (record.policyVersion === 4) return record.clockInAt && record.clockOutAt ? hourlyPaidMs(record) : null;
   if (record.policyVersion === 3) { if (!record.clockInAt || !record.clockOutAt) return null; const pay=masterPay(record); return pay.regularMs+pay.bonusMs; }
   if (!record.clockInAt || !record.clockOutAt) return null;
   let end = +new Date(record.clockOutAt);

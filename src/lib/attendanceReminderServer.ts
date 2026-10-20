@@ -1,3 +1,4 @@
+import { workDayMode } from "./workDays";
 import { scheduleVersion, isOpenMonday } from "@/lib/scheduleVersions";
 import type { User } from "@prisma/client";
 import { prisma } from "./prisma";
@@ -10,6 +11,7 @@ import { claimNotification } from "./notificationClaim";
 export async function reminderForUser(user: User, now = new Date()) {
   if (!user.active || !user.approved || user.mustChangePassword || user.role !== "EMPLOYEE") return null;
   const date = workDateFor(now);
+  if(await workDayMode(prisma,date))return null;
   if (workDateFor(user.createdAt) > date) return null;
   const [open, record, schedule, leave, arrival, override] = await Promise.all([
     prisma.attendanceRecord.findFirst({where:{userId:user.id,clockInAt:{not:null},clockOutAt:null},orderBy:{workDate:"desc"}}),

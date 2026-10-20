@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
       where: { id: existing.id, clockOutAt: null, updatedAt: existing.updatedAt },
       data: {
         clockOutAt: now,
-        ...lateClockOutRule(existing.workDate, now),
+        ...lateClockOutRule(existing.workDate, now, existing.policyVersion===4),
         earlyExcused: existing.earlyExcused || !!exception,
         clockOutPhoto: photoKey,
         clockOutFaceMatch: faceMatch,

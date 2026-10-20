@@ -18,6 +18,7 @@ type AttendanceRecord = PolicyRecord & {
   workDate: string;
   unpaidBreakMinutes: number;
   policyVersion: number;
+  paidClosure?: boolean;
   shiftDurationMinutes: number;
   extraTimeCutoff: string | null;
   extraTimeStatus: string;
@@ -229,15 +230,16 @@ export default function AdminAttendancePage() {
                     </td>
                     <td className="px-4 py-4 tabular-nums">
                       <p className="font-medium">{durationLabel(clockedMs(r))} clocked</p>
-                      {r.clockOutAt && !offDay(r.workDate,r.workingMonday) && r.approvalStatus !== "REJECTED" && <>
-                        <p className="text-xs">Regular: {durationLabel(salaryCredit(r)*3600000)}</p>
-                        <p className="text-xs">Bonus: {durationLabel(overtimeMs(r))}</p>
+                      {r.paidClosure && <p className="text-xs">Closed date: paid-off salary applies instead of attendance pay.</p>}
+                      {!r.paidClosure && r.clockOutAt && !offDay(r.workDate,r.workingMonday) && r.approvalStatus !== "REJECTED" && <>
+                        <p className="text-xs">{r.policyVersion===4 ? "Hourly pay time" : "Regular"}: {durationLabel(salaryCredit(r)*3600000)}</p>
+                        {r.policyVersion!==4 && <p className="text-xs">Bonus: {durationLabel(overtimeMs(r))}</p>}
                       </>}
                       {r.approvalStatus === "REJECTED" && <p className="text-xs text-danger">Regular and bonus time excluded</p>}
-                      {r.policyVersion >= 2 && !r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">1-hour break included</p>}
+                      {(r.policyVersion===4 || (r.policyVersion >= 2 && !r.unpaidBreakMinutes)) && <p className="text-xs text-foreground/55">1-hour break included</p>}
                       {r.policyVersion === 3 ? <p className="text-xs text-foreground/55">{(unpaidFraction(r)*100).toFixed(2)}% unpaid · {durationLabel(masterPay(r).unpaidMs)} deducted · {durationLabel(masterPay(r).graceMs)} arrival grace</p> : !!r.unpaidBreakMinutes && <p className="text-xs text-foreground/55">{r.unpaidBreakMinutes}m unpaid break</p>}
-                      {r.lateClockOutStatus === "PENDING" && <a className="text-xs text-accent underline" href="/admin/team?view=requests">Time after 10:45 pm awaiting approval</a>}
-                      {r.lateClockOutStatus === "REJECTED" && <p className="text-xs text-danger">Time after 10:45 pm excluded</p>}
+                      {!r.paidClosure && r.policyVersion!==4 && r.lateClockOutStatus === "PENDING" && <a className="text-xs text-accent underline" href="/admin/team?view=requests">Time after 10:45 pm awaiting approval</a>}
+                      {!r.paidClosure && r.policyVersion!==4 && r.lateClockOutStatus === "REJECTED" && <p className="text-xs text-danger">Time after 10:45 pm excluded</p>}
                       {r.extraTimeReason && <p className="text-xs max-w-48 whitespace-pre-wrap">{r.extraTimeReason}</p>}
                     </td>
                     <td className="px-4 py-4">
@@ -315,7 +317,7 @@ export default function AdminAttendancePage() {
         </div>
       </div>
       <p className="text-xs text-foreground/60">
-        Completed shifts count automatically toward hours and salary, unless explicitly excluded. Time after 10:45 pm requires admin approval.
+        Completed shifts count according to the selected date’s payroll rule, unless explicitly excluded. On scheduled days, time after 10:45 pm requires admin approval; flexible hourly dates have no such cutoff.
         Attendance decisions and deletions are recorded in Audit history.
       </p>
       {lightbox && (

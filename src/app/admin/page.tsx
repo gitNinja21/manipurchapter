@@ -1,3 +1,5 @@
+import { workDayMode } from "@/lib/workDays";
+import { isOpenMonday } from "@/lib/scheduleVersions";
 import { STATISTICS_START_DATE } from "@/lib/statisticsStart";
 import { monthlyPerformance } from "@/lib/performanceServer";
 import Link from "next/link";
@@ -27,6 +29,7 @@ export default async function AdminOverviewPage() {
         id: true,
         name: true,
         employeeCode: true,
+        scheduleHistoryJson:true,
         attendance: {
           where: { workDate: today },
           select: { clockInAt: true, clockOutAt: true },
@@ -63,7 +66,10 @@ export default async function AdminOverviewPage() {
     e.attendance.some((r) => r.clockInAt),
   ).length;
   const monday = new Date(`${today}T00:00:00Z`).getUTCDay() === 1;
-  const missing = monday ? 0 : employees.length - present;
+  const dateMode=await workDayMode(prisma,today);
+  const paidOffFor=(e:typeof employees[number])=>dateMode==="PAID_OFF" || (dateMode!=="HOURLY" && monday && !isOpenMonday(e,today));
+  const offToday=dateMode==="PAID_OFF" || (monday && dateMode!=="HOURLY" && employees.every(paidOffFor));
+  const missing=employees.filter(e=>!paidOffFor(e) && !e.attendance.some(r=>r.clockInAt)).length;
   const salary = new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
@@ -81,7 +87,7 @@ export default async function AdminOverviewPage() {
           <h1 className="text-3xl font-semibold tracking-tight">Overview</h1>
           <p className="text-sm text-foreground/60 mt-2">
             {formatWorkDate(today)} · IST
-            {monday ? " · Paid Monday off-day" : ""}
+            {offToday ? " · Paid off-day" : dateMode==="HOURLY" ? " · Flexible hourly day" : ""}
           </p>
         </div>
         <Link
@@ -102,7 +108,7 @@ export default async function AdminOverviewPage() {
           label="Missing clock-ins"
           value={missing}
           detail={
-            monday ? "No attendance expected today" : "Not clocked in yet today"
+            offToday ? "No attendance expected today" : "Not clocked in yet today"
           }
           href="#today-team"
         />
@@ -194,8 +200,8 @@ export default async function AdminOverviewPage() {
           <div>
             <h2 className="text-lg font-semibold">Today’s team</h2>
             <p className="text-sm text-foreground/60 mt-1">
-              {monday
-                ? "Monday is a paid off-day."
+              {offToday
+                ? "Today follows the usual paid-off-day rules."
                 : "Live clock-in status; a missing clock-in is not a final absence."}
             </p>
           </div>
@@ -227,7 +233,7 @@ export default async function AdminOverviewPage() {
                         ? "Shift finished"
                         : e.attendance[0]?.clockInAt
                           ? "Clocked in"
-                          : monday
+                          : paidOffFor(e)
                             ? "Paid off-day"
                             : "Not clocked in"}
                     </span>
@@ -253,7 +259,7 @@ export default async function AdminOverviewPage() {
       </section>
       <HomeSummary admin />
       <p className="text-xs text-foreground/60">
-        Salary includes completed work, paid Mondays, and earned overtime
+        Salary includes completed work, paid off days, and earned overtime
         bonuses. Review the full breakdown in Payroll.
       </p>
     </div>

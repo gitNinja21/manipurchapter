@@ -72,6 +72,7 @@ export async function computeStatsForRange(
   const today = todayWorkDate();
   const effectiveToDate = toDate > today ? today : toDate;
 
+  const dayModes = new Map((await prisma.workDayOverride.findMany()).map(d=>[d.workDate,d.mode]));
   const employees = await prisma.user.findMany({
     where: { role: "EMPLOYEE", ...(preview ? { id: preview.userId } : {}) },
     orderBy: { name: "asc" },
@@ -111,8 +112,8 @@ export async function computeStatsForRange(
     // Mondays are paid off-days with no attendance expected, so they shouldn't
     // inflate "missed clock-ins" — only non-Monday calendar days count there.
     const weeklyApplies = (d: string) => !!scheduleVersion(emp,d) || (!!emp.masterScheduleJson && !!emp.masterScheduleFrom && d >= emp.masterScheduleFrom) || (!!emp.weeklyScheduleJson && !!emp.attendancePolicyFrom && d >= emp.attendancePolicyFrom);
-    const paidOffDay = (d:string) => isMonday(d) && !isOpenMonday(emp,d);
-    const expectedDay = (d: string) => !paidOffDay(d) && (!weeklyApplies(d) || !!recurringRule(emp, d));
+    const paidOffDay = (d:string) => dayModes.get(d)==="PAID_OFF" || (dayModes.get(d)!=="HOURLY" && isMonday(d) && !isOpenMonday(emp,d));
+    const expectedDay = (d: string) => !paidOffDay(d) && (dayModes.get(d)==="HOURLY" || !weeklyApplies(d) || !!recurringRule(emp, d));
     const workingCalendarDays = allDays.filter(expectedDay).length;
 
     const empRecords = (recordsByUser.get(emp.id) || []).filter(
@@ -143,7 +144,7 @@ export async function computeStatsForRange(
 
     // Completion automatically enables regular pay; eligible extra time counts automatically.
     const totalHours = complete
-      .filter(countsForPayroll)
+      .filter(r=>countsForPayroll(r) && !paidOffDay(r.workDate))
       .reduce(
         (sum, r) => sum + (paidTimeMs(r) ?? 0) / 3600000,
         0,
@@ -175,7 +176,7 @@ export async function computeStatsForRange(
       paidWorkDays += Math.min(creditedHours / FULL_DAY_HOURS, 1);
       if (creditedHours >= FULL_DAY_HOURS) {
         fullDaysWorked += 1;
-        regularPayRs += record?.policyVersion === 3 ? creditedHours * emp.hourlyRateRs : dailyRateRs;
+        regularPayRs += record && [3,4].includes(record.policyVersion) ? creditedHours * emp.hourlyRateRs : dailyRateRs;
       } else {
         // Short day: pro-rated for actual hours worked, not a full day's pay.
         regularPayRs += creditedHours * emp.hourlyRateRs;

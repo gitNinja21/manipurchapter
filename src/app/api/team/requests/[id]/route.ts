@@ -123,12 +123,8 @@ export const PATCH = teamRoute(async (u, req) => {
       const extraTimeCutoff = v2 ? v2.extraTimeCutoff : version ? extraCutoff(r.proposedIn!, breakMinutes, end) : record?.extraTimeCutoff ?? null;
       const needsExtra = !!extraTimeCutoff && !!r.proposedOut && r.proposedOut > extraTimeCutoff;
       const workRules = {
-        policyVersion: version,
-        scheduledStartAt: record ? record.scheduledStartAt : schedule?.start,
-        scheduledEndAt: end,
         ...(record ? {} : await penaltyContext(tx, r.userId, r.fromDate)),
-        unpaidBreakMinutes: breakMinutes,
-        ...(v2 ?? {}),
+        ...(v2 ?? {policyVersion:version,scheduledStartAt:record ? record.scheduledStartAt : schedule?.start,scheduledEndAt:end,unpaidBreakMinutes:breakMinutes}),
         extraTimeCutoff,
         extraTimeStatus: needsExtra ? "AUTOMATIC" : "NOT_REQUIRED",
         ...lateClockOutRule(r.fromDate, r.proposedOut, true),

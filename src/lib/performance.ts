@@ -1,3 +1,4 @@
+import { hourlyPaidMs, hourlySnapshot } from "./hourlyPay";
 import { masterPay, masterLateMs, usesMasterPolicy } from "./masterPolicy";
 import { workDateFor } from "./time";
 import { countsForPayroll } from "./attendanceApproval";
@@ -19,6 +20,7 @@ export type PolicyRecord = Parameters<typeof netWorkMs>[0] & {
 export const offDay = (date: string, workingMonday = false) =>
   !workingMonday && new Date(`${date}T12:00:00+05:30`).getUTCDay() === 1;
 export function deviations(r: PolicyRecord) {
+  if (r.policyVersion===4) return {lateMs:0,earlyMs:0};
   const lateMs = r.policyVersion === 3 ? masterLateMs(r) :
     r.scheduledStartAt && r.clockInAt && !r.lateExcused
       ? Math.max(0, +new Date(r.clockInAt) - +new Date(r.scheduledStartAt))
@@ -32,6 +34,7 @@ export function deviations(r: PolicyRecord) {
 }
 /** Salary credit never becomes actual overtime. Each missing minute is deducted once. */
 export function salaryCredit(r: PolicyRecord) {
+  if (r.policyVersion===4) return hourlyPaidMs(r)/HOUR;
   if (r.lateClockOutCutoff && ["PENDING", "REJECTED"].includes(r.lateClockOutStatus ?? "") && r.clockOutAt && +new Date(r.clockOutAt) > +new Date(r.lateClockOutCutoff)) return salaryCredit({...r,clockOutAt:r.lateClockOutCutoff,lateClockOutStatus:"APPROVED"});
   if (r.policyVersion === 3) return masterPay(r).regularMs / HOUR;
   if (r.policyVersion === 2) return Math.min(regularTarget(r), (paidTimeMs(r) ?? 0) / HOUR);
@@ -56,6 +59,7 @@ export function salaryCredit(r: PolicyRecord) {
   return Math.max(0, 9 - deduction / HOUR);
 }
 export function attendancePoints(r: PolicyRecord) {
+  if (r.policyVersion===4) return [];
   const result: { kind: string; points: number }[] = [];
   if (
     !r.policyVersion ||
@@ -104,6 +108,7 @@ export function regularTarget(r: PolicyRecord) {
   return Math.max(0, ((r.shiftDurationMinutes ?? 540) - (r.unpaidBreakMinutes ?? 0)) / 60);
 }
 export function overtimeMs(r: PolicyRecord) {
+  if (r.policyVersion===4) return 0;
   if (r.policyVersion === 3) return masterPay(r).bonusMs;
   return Math.max(0, r.policyVersion === 2
     ? (paidTimeMs(r) ?? 0) - regularTarget(r) * HOUR
@@ -111,6 +116,7 @@ export function overtimeMs(r: PolicyRecord) {
 }
 /** Reused by normal clock-in and both correction paths. */
 export function durationSnapshot(clockIn: Date, schedule?: { start: Date; durationMinutes: number; breakMinutes: number; paidBreakMinutes?: number; end?: Date; policyVersion?: number } | null, existing?: PolicyRecord | null) {
+  if (schedule?.policyVersion===4 || existing?.policyVersion===4) return hourlySnapshot(existing?.policyVersion===4 ? existing.unpaidBreakMinutes ?? 0 : 0);
   const duration = existing?.shiftDurationMinutes ?? schedule?.durationMinutes ?? 540;
   const version = existing?.policyVersion ?? schedule?.policyVersion ?? (usesMasterPolicy(workDateFor(clockIn)) ? 3 : 2);
   const fixedStart = existing?.scheduledStartAt ? new Date(existing.scheduledStartAt) : schedule?.start ?? clockIn;

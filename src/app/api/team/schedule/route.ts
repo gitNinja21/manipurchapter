@@ -48,7 +48,8 @@ export const GET = teamRoute(async (u, req) => {
     role: "EMPLOYEE", active: true, OR:[{scheduleHistoryJson:{not:null}},{attendancePolicyFrom: {not: null, lte: to}},{masterScheduleFrom:{not:null,lte:to}}],
     ...(u.role === "ADMIN" ? {} : {id: u.id}),
   }, select: {id: true, name: true, employeeCode: true, unpaidBreakFrom: true, scheduledUnpaidBreakMinutes: true, scheduleHistoryJson: true, masterScheduleFrom: true, masterScheduleJson: true, weeklyScheduleJson: true, attendancePolicyFrom: true, attendanceStartMinute: true, attendanceLatestMinute: true, attendanceEndMinute: true, attendanceAllowEarly: true}, orderBy: {name: "asc"}});
-  return { shifts, leave, employees, recurring, admin: u.role === "ADMIN" };
+  const dayRules=await prisma.workDayOverride.findMany({where:{workDate:{gte:from,lte:to}},select:{workDate:true,mode:true}});
+  return { dayRules, shifts, leave, employees, recurring, admin: u.role === "ADMIN" };
 });
 export const POST = teamRoute(async (u, req) => {
   adminOnly(u);

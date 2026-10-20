@@ -1,3 +1,4 @@
+import { workDayMode, paidClosureDates } from "./workDays";
 import { scheduleVersion, isOpenMonday } from "./scheduleVersions";
 import { STATISTICS_START_DATE } from "./statisticsStart";
 import { missedClockOutEntries } from "./missedClockOut";
@@ -27,6 +28,12 @@ type ScheduleUser = Pick<
   | "attendanceAllowEarly"
 >;
 export async function effectiveSchedule(db: Db, u: ScheduleUser, date: string) {
+  const mode=await workDayMode(db,date);
+  if(mode==="PAID_OFF")return null;
+  if(mode==="HOURLY") {
+    const start=new Date(`${date}T00:00:00+05:30`);
+    return {policyVersion:4,start,arrivalStart:start,opens:start,end:new Date(+start+86400000),durationMinutes:1440,paidBreakMinutes:60,breakMinutes:0};
+  }
   const shift = await db.scheduledShift.findUnique({
     where: { userId_workDate: { userId: u.id, workDate: date } },
   });
@@ -226,6 +233,7 @@ export async function penaltyContext(db: Db, userId: string, date: string) {
   };
 }
 export async function monthlyPerformance(month: string, userId?: string) {
+  const closedDates=await paidClosureDates(prisma);
   const where = userId ? { userId } : {};
   const [rawRecords, referrals, customerReviews, missedClockOutAudits] = await Promise.all([
     prisma.attendanceRecord.findMany({
@@ -239,7 +247,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
     prisma.customerReview.findMany({where:{...where,workDate:{startsWith:month,gte:STATISTICS_START_DATE}}}),
     prisma.attendanceAudit.findMany({where:{...where,action:"AUTO_CLOCK_OUT",workDate:{startsWith:month,gte:STATISTICS_START_DATE}},select:{recordId:true,userId:true,workDate:true}}),
   ]);
-  const records=rawRecords.map(r=>({...r,workingMonday:isOpenMonday(r.user ?? {},r.workDate)}));
+  const records=rawRecords.filter(r=>!closedDates.has(r.workDate)).map(r=>({...r,workingMonday:r.policyVersion===4 || isOpenMonday(r.user ?? {},r.workDate)}));
   const missedClockOuts=missedClockOutEntries(missedClockOutAudits);
   const entries = records.flatMap((r) =>
     attendancePoints(r).map((p, i) => ({
@@ -264,7 +272,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
   // approved overtime to preserve the existing carry-forward threshold.
   const bonusHistory = await prisma.attendanceRecord.findMany({where:{...(userId ? {userId} : {}),workDate:{gte:STATISTICS_START_DATE,lt:`${month}-01`},clockOutAt:{not:null}},include:{user:{select:{scheduleHistoryJson:true}}}});
   const extraByUser = new Map<string,number>();
-  for (const r of bonusHistory) if (countsForPayroll(r) && !offDay(r.workDate,isOpenMonday(r.user ?? {},r.workDate))) extraByUser.set(r.userId,(extraByUser.get(r.userId) ?? 0)+overtimeMs(r));
+  for (const r of bonusHistory) if (!closedDates.has(r.workDate) && countsForPayroll(r) && !offDay(r.workDate,isOpenMonday(r.user ?? {},r.workDate))) extraByUser.set(r.userId,(extraByUser.get(r.userId) ?? 0)+overtimeMs(r));
   for (const r of [...records].sort((a,b)=>a.workDate.localeCompare(b.workDate))) {
     if (!countsForPayroll(r) || !r.clockOutAt || offDay(r.workDate,r.workingMonday)) continue;
     const previous=extraByUser.get(r.userId) ?? 0, next=previous+overtimeMs(r);

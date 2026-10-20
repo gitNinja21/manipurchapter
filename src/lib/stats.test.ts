@@ -4,6 +4,9 @@ beforeEach(() => mock.timers.enable({apis:["Date"],now:new Date("2027-01-31T12:0
 afterEach(() => mock.timers.reset());
 import type { AttendanceRecord, User } from "@prisma/client";
 import { prisma } from "./prisma";
+const originalDayFind=prisma.workDayOverride.findUnique,originalDayList=prisma.workDayOverride.findMany;
+beforeEach(()=>{prisma.workDayOverride.findUnique=(async()=>null) as typeof originalDayFind;prisma.workDayOverride.findMany=(async()=>[]) as typeof originalDayList;});
+afterEach(()=>{prisma.workDayOverride.findUnique=originalDayFind;prisma.workDayOverride.findMany=originalDayList;});
 import { computeStatsForRange } from "./stats";
 import { todayWorkDate } from "./time";
 
@@ -244,4 +247,30 @@ test("selected Monday has normal pay, overtime and absence rules; other Mondays 
  assert.equal(row.offDays,0);assert.equal(row.missedDays,0);assert.equal(row.regularPayRs,900);assert.equal(row.overtimeHours,2);
  [row]=await computeStatsForRange("2026-12-14","2026-12-14");
  assert.equal(row.offDays,1);assert.equal(row.salaryRs,900);assert.equal(row.missedDays,0);
+});
+
+test("date-wide hourly correction and paid closure replace rather than stack salary",async t=>{
+ const users=prisma.user.findMany,attendance=prisma.attendanceRecord.findMany;
+ t.after(()=>{prisma.user.findMany=users;prisma.attendanceRecord.findMany=attendance;});
+ const date="2026-10-19",at=(time:string)=>new Date(`${date}T${time}:00+05:30`);
+ const emp={id:"flex",name:"Flexible",hourlyRateRs:100,createdAt:new Date("2026-10-01"),active:false,paidWeeklyOff:true} as User;
+ let mode:string|null=null,records:AttendanceRecord[]=[];
+ prisma.workDayOverride.findMany=(async()=>mode?[{workDate:date,mode}]:[]) as typeof prisma.workDayOverride.findMany;
+ prisma.user.findMany=(async()=>[emp]) as typeof users;
+ prisma.attendanceRecord.findMany=(async()=>records) as typeof attendance;
+ assert.equal((await computeStatsForRange(date,date))[0].salaryRs,900);
+ mode="HOURLY";
+ assert.equal((await computeStatsForRange(date,date))[0].salaryRs,0);
+ records=[{userId:emp.id,workDate:date,clockInAt:at("10:00"),clockOutAt:at("20:00"),policyVersion:4,paidBreakMinutes:60,unpaidBreakMinutes:120,approvalStatus:"PENDING"} as AttendanceRecord];
+ let [row]=await computeStatsForRange(date,date);
+ assert.equal(row.salaryRs,800);assert.equal(row.offDaysPayRs,0);assert.equal(row.overtimeHours,0);
+ records[0].clockOutAt=at("23:30");
+ assert.equal((await computeStatsForRange(date,date))[0].salaryRs,1150);
+ mode="PAID_OFF";
+ [row]=await computeStatsForRange(date,date);
+ assert.equal(row.salaryRs,900);assert.equal(row.regularPayRs,0);assert.equal(row.overtimeHours,0);assert.equal(row.totalHours,0);
+ const weekday="2026-10-20";
+ prisma.workDayOverride.findMany=(async()=>[{workDate:weekday,mode:"PAID_OFF"}]) as typeof prisma.workDayOverride.findMany;
+ assert.equal((await computeStatsForRange(weekday,weekday))[0].salaryRs,900);
+ assert.equal((await computeStatsForRange("2026-10-21","2026-10-21"))[0].salaryRs,0);
 });

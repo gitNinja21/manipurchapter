@@ -1,7 +1,10 @@
-import test from "node:test";
+import test, {beforeEach,afterEach} from "node:test";
 import assert from "node:assert/strict";
 import type { User, ScheduledShift } from "@prisma/client";
 import { prisma } from "./prisma";
+const originalDayFind=prisma.workDayOverride.findUnique,originalDayList=prisma.workDayOverride.findMany;
+beforeEach(()=>{prisma.workDayOverride.findUnique=(async()=>null) as typeof originalDayFind;prisma.workDayOverride.findMany=(async()=>[]) as typeof originalDayList;});
+afterEach(()=>{prisma.workDayOverride.findUnique=originalDayFind;prisma.workDayOverride.findMany=originalDayList;});
 import { arrivalSmsDue, attendanceSmsBody, attendanceSmsConfig, dispatchAttendanceSms, eligibleForArrivalSms } from "./attendanceSms";
 import { employeeLoginDestination } from "./loginDestination";
 const at = (time: string) => new Date(`2026-10-02T${time}:00+05:30`);
