@@ -1,3 +1,4 @@
+import {withAdminCopies,isAdminCopy} from "./announcementAdminCopies";
 import twilio from "twilio";
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
@@ -20,7 +21,7 @@ export function voicePhone(value:string|null) {
 export async function queueAnnouncementCalls(tx:Prisma.TransactionClient,announcementId:string, recipients?: {id:string;phone:string|null}[]) {
   const configured=!!voiceConfig();
   const employees=recipients ?? await tx.user.findMany({where:{role:"EMPLOYEE",active:true,approved:true},select:{id:true,phone:true}});
-  for(const employee of employees) {
+  for(const employee of withAdminCopies(employees.map(r=>({...r,phone:voicePhone(r.phone)})))) {
     const phone=voicePhone(employee.phone);
     await tx.announcementCall.create({data:{announcementId,userId:employee.id,phone,
       status:!phone ? "INVALID_NUMBER" : configured ? "QUEUED" : "NOT_CONFIGURED",
@@ -51,7 +52,7 @@ export async function dispatchAnnouncementCalls(now=new Date(), send?: (options:
   const jobs=await prisma.announcementCall.findMany({where:{status:{in:["QUEUED","RETRY_WAIT"]},nextAttemptAt:{lte:now}},orderBy:{nextAttemptAt:"asc"},take:20,include:{user:{select:{active:true,approved:true,role:true,phone:true}},announcement:{select:{title:true,body:true,acknowledgements:{select:{userId:true}}}}}});
   for(const job of jobs) {
     const acknowledged=job.announcement.acknowledgements.some(a=>a.userId===job.userId);
-    if(!job.user.active || !job.user.approved || job.user.role!=="EMPLOYEE" || acknowledged || voicePhone(job.user.phone)!==job.phone) {
+    if(acknowledged || (!isAdminCopy(job.userId,job.phone) && (!job.user || !job.user.active || !job.user.approved || job.user.role!=="EMPLOYEE" || voicePhone(job.user.phone)!==job.phone))) {
       await prisma.announcementCall.updateMany({where:{id:job.id,status:job.status,attempts:job.attempts},data:{status:acknowledged ? "ACKNOWLEDGED_ON_WEB" : "SKIPPED",error:acknowledged ? null : "Employee eligibility or phone number changed."}});continue;
     }
     const key=randomUUID();
@@ -75,8 +76,10 @@ export async function processVoiceCallback(key:string,event:string,params:Record
     if(!job || (job.callSid && job.callSid!==params.CallSid) || job.phone!==params.To) return false;
     if(event==="ack" && params.Digits==="1") {
       await tx.announcementCall.update({where:{id:job.id},data:{status:"ACKNOWLEDGED",callSid:params.CallSid,acknowledgedAt:job.acknowledgedAt ?? now,error:null}});
+      if(job.userId){
       await tx.announcementAck.upsert({where:{announcementId_userId:{announcementId:job.announcementId,userId:job.userId}},create:{announcementId:job.announcementId,userId:job.userId,acknowledgedAt:now},update:{}});
       await tx.notification.updateMany({where:{userId:job.userId,kind:"ANNOUNCEMENT",entityKey:job.announcementId,readAt:null},data:{readAt:now}});
+      }
     } else if(event==="status" && !job.acknowledgedAt && ["SENDING","CALLING","UNKNOWN"].includes(job.status)) {
       const outcome=callOutcome(params.CallStatus,job.attempts,now);
       if(outcome) await tx.announcementCall.update({where:{id:job.id},data:{...outcome,callSid:params.CallSid,error:null}});

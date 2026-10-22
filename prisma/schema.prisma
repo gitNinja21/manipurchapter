@@ -381,8 +381,8 @@ model AnnouncementCall {
   id String @id @default(cuid())
   announcementId String
   announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String?
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
   phone String?
   status String @default("QUEUED")
   attempts Int @default(0)
@@ -429,8 +429,8 @@ model AnnouncementSms {
   id String @id @default(cuid())
   announcementId String
   announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String?
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
   phone String?
   status String @default("QUEUED")
   messageSid String? @unique

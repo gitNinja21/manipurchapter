@@ -1,3 +1,4 @@
+import {withAdminCopies,isAdminCopy} from "./announcementAdminCopies";
 import twilio from "twilio";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
@@ -17,7 +18,7 @@ export function announcementSmsConfig() {
 }
 export async function queueAnnouncementSms(tx: Prisma.TransactionClient, announcementId: string, recipients: {id:string;phone:string|null}[]) {
   const configured = !!announcementSmsConfig();
-  for (const recipient of recipients) {
+  for (const recipient of withAdminCopies(recipients.map(r=>({...r,phone:voicePhone(r.phone)})))) {
     const phone = voicePhone(recipient.phone);
     await tx.announcementSms.create({data:{announcementId,userId:recipient.id,phone,
       status:!phone ? "INVALID_NUMBER" : configured ? "QUEUED" : "NOT_CONFIGURED",
@@ -32,7 +33,7 @@ export async function dispatchAnnouncementSms(now = new Date(), send?: SendSms) 
     include:{user:{select:{active:true,approved:true,role:true,phone:true}},announcement:{select:{title:true,body:true}}}});
   const client = send ? null : twilio(config.sid,config.token,{timeout:15000,autoRetry:false});
   for (const job of jobs) {
-    if (!job.user.active || !job.user.approved || job.user.role !== "EMPLOYEE" || voicePhone(job.user.phone) !== job.phone) {
+    if (!isAdminCopy(job.userId,job.phone) && (!job.user || !job.user.active || !job.user.approved || job.user.role !== "EMPLOYEE" || voicePhone(job.user.phone) !== job.phone)) {
       await prisma.announcementSms.updateMany({where:{id:job.id,status:"QUEUED"},data:{status:"SKIPPED",error:"Employee eligibility or phone number changed."}});
       continue;
     }

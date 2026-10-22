@@ -87,7 +87,7 @@ export default function Announcements({ admin }: { admin: boolean }) {
               <label className="flex items-center gap-2"><input type="checkbox" checked={sendCall} onChange={e=>setSendCall(e.target.checked)} />Phone call</label>
             </fieldset>
             {sendSms && data && !data.smsConfigured && <p className="text-sm text-accent" role="status">SMS is not configured. The announcement will be saved, but texts will not be sent. Delivery reports will show “SMS not configured”.</p>}
-            <p className="text-xs text-foreground/60">Only recipients and admins can read this announcement. Website notifications are included. “All employees” includes active, approved employees at posting time.</p>
+            <p className="text-xs text-foreground/60">Only recipients and admins can read this announcement. Website notifications are included. Both admin phone contacts automatically receive copies through the SMS/call channels you choose, even for selected employees. “All employees” includes active, approved employees at posting time.</p>
             <label className="block text-sm">
               Title
               <input

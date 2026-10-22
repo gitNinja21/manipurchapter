@@ -42,7 +42,8 @@ export const GET = teamRoute(async (u, req) => {
     },
     orderBy: { name: "asc" },
   });
-  const calls=await prisma.announcementCall.findMany({where:{announcementId:id},select:{userId:true,status:true,attempts:true,nextAttemptAt:true,acknowledgedAt:true,error:true,user:{select:{name:true,employeeCode:true}}},orderBy:{createdAt:"asc"}});
-  const sms = await prisma.announcementSms.findMany({where:{announcementId:id},select:{userId:true,status:true,error:true,user:{select:{name:true,employeeCode:true}}},orderBy:{createdAt:"asc"}});
-  return { people, calls, sms };
+  const calls=await prisma.announcementCall.findMany({where:{announcementId:id},select:{id:true,phone:true,userId:true,status:true,attempts:true,nextAttemptAt:true,acknowledgedAt:true,error:true,user:{select:{name:true,employeeCode:true}}},orderBy:{createdAt:"asc"}});
+  const sms = await prisma.announcementSms.findMany({where:{announcementId:id},select:{id:true,phone:true,userId:true,status:true,error:true,user:{select:{name:true,employeeCode:true}}},orderBy:{createdAt:"asc"}});
+  const delivery = <T extends {id:string;userId:string|null;phone:string|null;user:{name:string;employeeCode:string}|null}>(row:T)=>({...row,userId:row.userId ?? row.id,user:row.user ?? {name:`Admin copy · ${row.phone}`,employeeCode:"ADMIN COPY"}});
+  return { people, calls:calls.map(delivery), sms:sms.map(delivery) };
 });
