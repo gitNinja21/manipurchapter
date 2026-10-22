@@ -1,6 +1,6 @@
 "use client";
 import WorkDayControls from "@/components/WorkDayControls";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, useAction, useTeamData } from "@/components/team/useTeamData";
 import { todayWorkDate } from "@/lib/time";
 type RecordTimes = {
@@ -35,8 +35,11 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
   const [day,setDay]=useState<{mode:string;revision:number}|null>(null);
   const [message, setMessage] = useState("");
   const action = useAction();
+  const [expanded,setExpanded]=useState(false);
+  useEffect(()=>{const d=new URLSearchParams(window.location.search).get("correctionDate");if(d && /^\d{4}-\d{2}-\d{2}$/.test(d)){setDate(d);setExpanded(true);}},[]);
+  const paidOff=day?.mode==="PAID_OFF" || (!day && new Date(`${date}T12:00:00Z`).getUTCDay()===1);
   return (
-    <details className="admin-panel p-5">
+    <details className="admin-panel p-5" open={expanded} onToggle={e=>setExpanded(e.currentTarget.open)}>
       <summary className="font-semibold cursor-pointer">
         Add / correct attendance & hourly pay
       </summary>
@@ -118,7 +121,7 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
                 workDate: date,
                 clockInAt: record?.clockInAt && start === localTime(record.clockInAt) ? record.clockInAt : `${start}:00+05:30`,
                 clockOutAt: record?.clockOutAt && end === localTime(record.clockOutAt) ? record.clockOutAt : end ? `${end}:00+05:30` : null,
-                expectedDayRevision:day?.revision,
+                expectedDayRevision:day?.revision ?? 0,
                 unpaidBreakMinutes:Math.round(Number(unpaidHours)*60),
                 reason,
                 expectedRecordId: record?.id ?? null,
@@ -178,11 +181,11 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
           </label>
           <p className="text-sm">Paid break: 1 hour included within the clocked time. No extra hour is added.</p>
           <label className="block text-sm">Unpaid break (hours)<input className="input mt-1" type="number" min="0" max="24" step="any" required value={unpaidHours} onChange={e=>setUnpaidHours(e.target.value)} /></label>
-          {day?.mode!=="HOURLY" && <p role="alert" className="text-red-700">Apply correction mode above, then reload attendance before saving.</p>}
+          {paidOff && <p role="alert" className="text-red-700">This is a paid off day. For Monday attendance, open that Monday first, then reload.</p>}
           <p className="text-sm text-foreground/60">
             Saving updates payroll using actual clocked hours minus your unpaid break. There is no shift cap, late deduction or overtime conversion.
           </p>
-          <button className="admin-button" disabled={action.busy || day?.mode!=="HOURLY"}>
+          <button className="admin-button" disabled={action.busy || paidOff}>
             Save actual attendance times
           </button>
         </form>

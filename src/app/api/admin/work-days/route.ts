@@ -22,6 +22,7 @@ export const POST=teamRoute(async(u,req)=>{
  if(action==="OPEN_MONDAY" && new Date(`${date}T12:00:00Z`).getUTCDay()!==1)throw new TeamError("Only Mondays can be opened with this action.");
  if(action==="CORRECTION" && date>todayWorkDate())throw new TeamError("Correction mode is for today or a past date.");
  if(!Number.isInteger(b.revision) || b.confirm!==true)throw new TeamError("Review and confirm the date-wide payroll change.");
+ if(action==="CORRECTION")return {day:await prisma.workDayOverride.findUnique({where:{workDate:date}}),correctionDate:date};
  const mode=action==="CLOSE"?"PAID_OFF":"HOURLY";
  const day=await prisma.$transaction(async tx=>{
   const before=await tx.workDayOverride.findUnique({where:{workDate:date}});

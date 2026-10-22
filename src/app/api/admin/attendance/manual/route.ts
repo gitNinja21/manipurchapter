@@ -58,8 +58,8 @@ export const POST = teamRoute(async (u, req) => {
     throw new TeamError("Load the employee's attendance before saving.", 409);
   const result = await prisma.$transaction(async (tx) => {
     const day=await tx.workDayOverride.findUnique({where:{workDate}});
-    if(day?.mode!=="HOURLY")throw new TeamError("Enable correction mode for this date first. This removes automatic off-day pay for everyone.",409);
-    if(day.revision!==b.expectedDayRevision)throw new TeamError("The date rule changed. Reload attendance.",409);
+    if(day?.mode==="PAID_OFF" || (!day && new Date(`${workDate}T12:00:00Z`).getUTCDay()===1))throw new TeamError("This date is a paid off day. Open the Monday before recording hourly attendance.",409);
+    if((day?.revision ?? 0)!==b.expectedDayRevision)throw new TeamError("The date rule changed. Reload attendance.",409);
     const unpaid=Number(b.unpaidBreakMinutes);
     if(typeof b.unpaidBreakMinutes!=="number" || !Number.isInteger(unpaid) || unpaid<0 || unpaid>1440 || (clockOutAt && unpaid*60000>+clockOutAt-+clockInAt))throw new TeamError("Unpaid break must be a valid duration no longer than the clocked time.");
     const employee = await tx.user.findUnique({ where: { id: userId } });

@@ -27,7 +27,7 @@ async function main(){
  async function ok(path:string,body?:unknown){const r=await request(path,body);assert.equal(r.status,200,await r.clone().text());return r.json();}
  async function change(date:string,action:string){const p=await ok(`/api/admin/work-days?date=${date}`);return ok("/api/admin/work-days",{date,action,revision:p.day?.revision??0,confirm:true});}
  async function stats(date:string){return (await ok(`/api/admin/stats?from=${date}&to=${date}`)).stats as {userId:string;salaryRs:number;offDaysPayRs:number;overtimeHours:number}[];}
- async function manual(date:string,id:string,start:string,end:string,unpaid=0){const p=await ok(`/api/admin/attendance/manual?userId=${id}&workDate=${date}`);return {userId:id,workDate:date,clockInAt:`${date}T${start}:00+05:30`,clockOutAt:`${date}T${end}:00+05:30`,unpaidBreakMinutes:unpaid,reason:"Verified actual times and break",expectedDayRevision:p.day?.revision,expectedRecordId:p.record?.id??null,expectedUpdatedAt:p.record?.updatedAt??null};}
+ async function manual(date:string,id:string,start:string,end:string,unpaid=0){const p=await ok(`/api/admin/attendance/manual?userId=${id}&workDate=${date}`);return {userId:id,workDate:date,clockInAt:`${date}T${start}:00+05:30`,clockOutAt:`${date}T${end}:00+05:30`,unpaidBreakMinutes:unpaid,reason:"Verified actual times and break",expectedDayRevision:p.day?.revision??0,expectedRecordId:p.record?.id??null,expectedUpdatedAt:p.record?.updatedAt??null};}
  try{
   const passwordHash=await hash("DayPreview123!",10);
   for(const id of ["admin","employee","other"]){
@@ -64,31 +64,44 @@ async function main(){
   assert.equal(await effectiveSchedule(prisma,employee,monday),null);
   await assert.rejects(()=>checkFallbackIn(prisma,employee,monday,new Date(`${monday}T09:00:00+05:30`)),/closed/);
   assert.equal((await request("/api/admin/attendance/manual",await manual(monday,"other","10:00","18:00"))).status,409);
-  await change(monday,"CORRECTION");assert.equal((await stats(monday)).find(r=>r.userId==="employee")?.salaryRs,1250);
-  // Weekly paid closure, inactive historical employee, audit, stale rule, and no double pay.
+  await change(monday,"CORRECTION");assert.equal((await stats(monday)).find(r=>r.userId==="employee")?.salaryRs,900);
+  await change(monday,"OPEN_MONDAY");assert.equal((await stats(monday)).find(r=>r.userId==="employee")?.salaryRs,1250);
+  // Correction never changes the schedule, off-day credit, or other employees.
   await prisma.user.update({where:{id:"other"},data:{active:false}});
-  await change(tuesday,"CLOSE");assert.ok((await stats(tuesday)).every(r=>r.salaryRs===900));
-  const stale=await manual(tuesday,"other","10:00","17:00",120);
-  await change(tuesday,"CORRECTION");assert.ok((await stats(tuesday)).every(r=>r.salaryRs===0));
-  assert.equal((await request("/api/admin/attendance/manual",stale)).status,409);
+  const scheduleBefore=await effectiveSchedule(prisma,employee,tuesday);
+  await change(tuesday,"CORRECTION");
+  assert.equal(await prisma.workDayOverride.findUnique({where:{workDate:tuesday}}),null);
+  assert.deepEqual(await effectiveSchedule(prisma,employee,tuesday),scheduleBefore);
   await ok("/api/admin/attendance/manual",await manual(tuesday,"other","10:00","17:00",120));
   assert.equal((await stats(tuesday)).find(r=>r.userId==="other")?.salaryRs,500);
+  assert.equal((await stats(tuesday)).find(r=>r.userId==="employee")?.salaryRs,0);
+  const stale=await manual(tuesday,"other","10:00","18:00",120);
+  await change(tuesday,"CLOSE");assert.ok((await stats(tuesday)).every(r=>r.salaryRs===900));
+  await change(tuesday,"CORRECTION");assert.ok((await stats(tuesday)).every(r=>r.salaryRs===900));
+  assert.equal((await request("/api/admin/attendance/manual",stale)).status,409);
   assert.equal((await request("/api/admin/work-days",{date:tuesday,action:"CLOSE",revision:0,confirm:true})).status,409);
-  // Converting an old scheduled record removes caps, retains times/photos, and is audited.
   const past="2026-10-12";
   const old=await prisma.attendanceRecord.create({data:{userId:"employee",workDate:past,clockInAt:new Date(`${past}T10:00:00+05:30`),clockOutAt:new Date(`${past}T22:00:00+05:30`),clockInPhoto:"retained-photo",policyVersion:3,unpaidBreakMinutes:150}});
   await change(past,"CORRECTION");
+  assert.deepEqual(await prisma.attendanceRecord.findUnique({where:{id:old.id}}),old);
+  assert.equal(await prisma.workDayOverride.findUnique({where:{workDate:past}}),null);
+  await change(past,"OPEN_MONDAY");
   const converted=await prisma.attendanceRecord.findUniqueOrThrow({where:{id:old.id}});
-  assert.equal(converted.policyVersion,4);assert.equal(converted.unpaidBreakMinutes,0);assert.equal(converted.clockInPhoto,old.clockInPhoto);assert.equal(+converted.clockInAt!,+old.clockInAt!);
-  assert.equal((await stats(past)).find(r=>r.userId==="employee")?.salaryRs,1200);
+  assert.equal(converted.policyVersion,4);assert.equal(converted.clockInPhoto,old.clockInPhoto);
   assert.ok(await prisma.attendanceAudit.count({where:{recordId:old.id,action:"DATE_HOURLY_PAY"}}));
-  // Today's dashboard and real clock-in/out endpoints use the new date mode.
-  const today=todayWorkDate();await change(today,"CORRECTION");
-  const view=await getAttendanceToday(employee);assert.equal(view.arrivalState,"ON_TIME");assert.equal(view.schedule?.arrival,"Any time");
+  // Today's correction action must not turn scheduled clock-in into anytime clock-in.
+  const today=todayWorkDate();
+  const weekday=new Date(`${today}T12:00:00Z`).getUTCDay();
+  const scheduledEmployee=await prisma.user.update({where:{id:"employee"},data:{weeklyScheduleJson:JSON.stringify({[weekday]:{start:1439,latest:1439,duration:1,unpaidBreak:0}})}});
+  const before=await effectiveSchedule(prisma,scheduledEmployee,today);
+  await change(today,"CORRECTION");
+  assert.deepEqual(await effectiveSchedule(prisma,scheduledEmployee,today),before);
+  assert.notEqual((await getAttendanceToday(scheduledEmployee)).schedule?.arrival,"Any time");
   const photo={lat:0,lng:0,photoDataUrl:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jJ1sAAAAASUVORK5CYII=",descriptor:Array(128).fill(0)};
-  const clockIn=await request("/api/attendance/clock-in",photo,"employee");assert.equal(clockIn.status,200,await clockIn.clone().text());assert.equal((await clockIn.json()).record.policyVersion,4);
-  const clockOut=await request("/api/attendance/clock-out",photo,"employee");assert.equal(clockOut.status,200,await clockOut.clone().text());
-  await change(today,"CLOSE");assert.equal((await getAttendanceToday(employee)).arrivalState,"OFF");
+  if(before && new Date()<before.opens){
+   const clockIn=await request("/api/attendance/clock-in",photo,"employee");assert.equal(clockIn.status,403);assert.match((await clockIn.json()).error,/15 minutes/);
+  }
+  await change(today,"CLOSE");assert.equal((await getAttendanceToday(scheduledEmployee)).arrivalState,"OFF");
   assert.equal((await request("/api/attendance/clock-in",photo,"employee")).status,403);
   console.log("PASS: date controls, past dates, authorization, clock-in/out, hourly breaks, closures, payroll, inactive staff, concurrency, reminders and audit.");
   if(process.argv.includes("--preview")){console.log("Preview http://127.0.0.1:3198/ — ADMIN / DayPreview123!");await new Promise(()=>{});}
