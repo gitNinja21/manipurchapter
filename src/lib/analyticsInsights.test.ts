@@ -28,3 +28,15 @@ test("weekday averages use recorded occurrences, and empty days remain missing",
  assert.equal(d.daily.length,31);assert.equal(d.daily.filter(d=>d.data===null).length,29);
  const empty=buildInsights([],"2026-10-01","2026-10-01");assert.equal(empty.averageBill,null);assert.equal(empty.spendPerGuest,null);assert.equal(empty.recordedDays,0);assert.deepEqual(empty.peakHours,[]);
 });
+test("top five excludes bottled water while separate water totals retain size and bill status",()=>{
+ const small={...item("water-small",8,15),name:"Bottled Water (0.5 litre)"};
+ const large={...item("water-large",3,30),name:"Bottled Water (1 litre)"};
+ const food=Array.from({length:6},(_,i)=>item(`dish-${i}`,6-i,100));
+ const visits=[visit("a","2026-10-17",{items:[small,large,...food,item("Lemon Water",0.5,100)]}),visit("b","2026-10-18",{items:[small]}),visit("running","2026-10-17",{status:"OPEN",items:[large]})];
+ const daily=buildInsights(visits,"2026-10-17","2026-10-17");
+ assert.equal(daily.top.length,5);assert.deepEqual(daily.top.map(d=>d.key),food.slice(0,5).map(d=>`${d.menuId}:VEG`));
+ assert.equal(daily.water.quantity,11);assert.equal(daily.water.sales,210);assert.equal(daily.water.items.length,2);
+ assert.equal(daily.sales,2360);assert.equal(daily.runningValue,90);
+ const weekly=buildInsights(visits,"2026-10-12","2026-10-18");assert.equal(weekly.water.quantity,19);assert.equal(weekly.water.sales,330);
+ const lemon=buildInsights([visit("lemon","2026-10-17",{items:[item("Lemon Water")]})],"2026-10-17","2026-10-17");assert.equal(lemon.top.length,1);assert.equal(lemon.water.quantity,0);
+});
