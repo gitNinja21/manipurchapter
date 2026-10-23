@@ -531,7 +531,7 @@ function EmployeeRow({
           )}
         </td>
         <td className="px-4 py-2.5 text-right">
-          <Link href={`/admin/employee-dashboard?employeeId=${encodeURIComponent(employee.id)}`} className="text-sm text-brand underline underline-offset-2 mr-4">View dashboard</Link>
+          <Link href={`/admin/employee-dashboard?employeeId=${encodeURIComponent(employee.id)}`} className="text-sm text-brand underline underline-offset-2 mr-4">Employee Dashboard</Link>
           <button
             onClick={onToggleEdit}
             className="text-sm text-brand underline underline-offset-2 hover:text-brand-dark"

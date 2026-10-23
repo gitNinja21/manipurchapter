@@ -10,7 +10,7 @@ export default function EmployeeView({ employees, employee }: { employees: Emplo
   return (
     <div className="space-y-6">
       <section className="admin-panel p-5 space-y-3">
-        <h1 className="text-2xl font-semibold">Employee view</h1>
+        <h1 className="text-2xl font-semibold">Employee Dashboard</h1>
         <label className="block text-sm">
           Choose employee
           <select className="input mt-2" value={employee.id} onChange={e => router.push(`/admin/employee-dashboard?employeeId=${encodeURIComponent(e.target.value)}`)}>
