@@ -11,7 +11,6 @@ import {
 } from "@/lib/time";
 import { validRange, weekStart } from "@/lib/reporting";
 import ReportControls from "@/components/admin/ReportControls";
-import ManualAttendance from "@/components/admin/ManualAttendance";
 import AttendanceReview from "@/components/admin/AttendanceReview";
 type AttendanceRecord = PolicyRecord & {
   id: string;
@@ -36,6 +35,7 @@ type AttendanceRecord = PolicyRecord & {
   user: { name: string; employeeCode: string };
 };
 export default function AdminAttendancePage() {
+  useEffect(()=>{const d=new URLSearchParams(window.location.search).get("correctionDate");if(d && /^\d{4}-\d{2}-\d{2}$/.test(d))window.location.replace(`/admin/attendance-management?correctionDate=${d}`);},[]);
   const today = todayWorkDate();
   const [filters, setFilters] = useState({
     from: weekStart(today),
@@ -130,10 +130,9 @@ export default function AdminAttendancePage() {
       <div>
         <h1 className="text-3xl font-semibold">Attendance</h1>
         <p className="text-sm text-foreground/60 mt-2">
-          Completed shifts count automatically. Review records and correct mistakes here.
+          Completed shifts count automatically. Use Attendance Management to correct clock-in, clock-out or unpaid breaks.
         </p>
       </div>
-      <ManualAttendance onSaved={() => setReload(n => n+1)} />
       <section className="admin-panel p-4 space-y-4">
         <ReportControls
           from={filters.from}

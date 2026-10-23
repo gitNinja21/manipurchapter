@@ -1,12 +1,13 @@
 // Disposable SQLite database and mocked providers. No calls or SMS are sent.
 import assert from 'node:assert/strict';
-import {mkdtempSync,rmSync} from 'node:fs';
+import {mkdtempSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
 async function main(){
  const dir=mkdtempSync(join(tmpdir(),'mc-admin-copies-'));
  Object.assign(process.env,{DATABASE_URL:`file:${join(dir,'test.db')}`,ANNOUNCEMENT_SMS_ENABLED:'true',ANNOUNCEMENT_VOICE_ENABLED:'true',TWILIO_ACCOUNT_SID:'AC'+'0'.repeat(32),TWILIO_AUTH_TOKEN:'test-only',TWILIO_SMS_FROM:'+12232176231',TWILIO_VOICE_FROM:'+12232176231',TWILIO_MESSAGING_SERVICE_SID:'',ANNOUNCEMENT_SMS_BASE_URL:'https://example.test',ANNOUNCEMENT_VOICE_BASE_URL:'https://example.test'});
+ writeFileSync(join(dir,'test.db'),'');
  const migrate=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{env:process.env,encoding:'utf8'});assert.equal(migrate.status,0,migrate.stderr);
  const {prisma}=await import('../src/lib/prisma');
  const {queueAnnouncementCalls,dispatchAnnouncementCalls,processVoiceCallback}=await import('../src/lib/announcementVoice');

@@ -1,5 +1,4 @@
 "use client";
-import WorkDayControls from "@/components/WorkDayControls";
 import { useEffect, useState } from "react";
 import { api, useAction, useTeamData } from "@/components/team/useTeamData";
 import { todayWorkDate } from "@/lib/time";
@@ -15,7 +14,7 @@ const localTime = (value: string | null) =>
   value
     ? new Date(+new Date(value) + 330 * 60000).toISOString().slice(0, 16)
     : "";
-export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
+export default function ManualAttendance({ onSaved, dateRevision = 0 }: { onSaved: () => void; dateRevision?: number }) {
   const { data } = useTeamData<{
     employees: {
       id: string;
@@ -37,11 +36,12 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
   const action = useAction();
   const [expanded,setExpanded]=useState(false);
   useEffect(()=>{const d=new URLSearchParams(window.location.search).get("correctionDate");if(d && /^\d{4}-\d{2}-\d{2}$/.test(d)){setDate(d);setExpanded(true);}},[]);
+  useEffect(()=>{setLoaded(false);},[dateRevision]);
   const paidOff=day?.mode==="PAID_OFF" || (!day && new Date(`${date}T12:00:00Z`).getUTCDay()===1);
   return (
     <details className="admin-panel p-5" open={expanded} onToggle={e=>setExpanded(e.currentTarget.open)}>
       <summary className="font-semibold cursor-pointer">
-        Add / correct attendance & hourly pay
+        Correct Employee Attendance
       </summary>
       <p className="text-sm text-foreground/60 mt-3">
         Record the employee’s actual arrival or leaving time when login,
@@ -87,7 +87,6 @@ export default function ManualAttendance({ onSaved }: { onSaved: () => void }) {
           />
         </label>
       </div>
-      <div className="mt-4"><WorkDayControls date={date} onChanged={()=>{setLoaded(false);onSaved();}}/></div>
       <button
         className="admin-button mt-3"
         disabled={!userId || !date || action.busy}

@@ -1,10 +1,10 @@
 # Working dates and paid closures
 
-Admin → All employees → Working dates & paid closures provides three actions:
+Admin → Attendance Management provides three actions:
 
 - **Open a Monday:** a selected Monday uses the Flexible Hourly Schedule. Employees can clock in/out at any time with the usual selfie/location verification. Off-day credit is replaced by actual hourly attendance pay.
 - **Close a Date:** apply the existing Paid Off Day eligibility and salary rules. Attendance stays saved, but does not add attendance pay while closed.
-- **Correct a Date:** open the attendance editor for today or a past date. This action does not change anyone’s schedule, convert existing records, or remove anyone’s off-day pay.
+- **Correct Employee Attendance:** open the attendance editor for today or a past date. This action does not change anyone’s schedule, convert existing records, or remove anyone’s off-day pay.
 
 The default is the **Normal Hourly Schedule**: existing employee shifts, clock-in windows, lateness and payroll rules apply. Only explicitly opening a Monday enables flexible attendance. Paid closures are a separate off-day rule.
 
