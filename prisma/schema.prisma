@@ -514,3 +514,26 @@ model WorkDayOverride {
   updatedById String
   updatedAt DateTime @updatedAt
 }
+
+model AnalyticsDayReview {
+  date String @id
+  status String // COMPLETE | CLOSED
+  fingerprint String
+  reviewedBy String
+  reviewedAt DateTime @default(now())
+}
+model AnalyticsForecast {
+  date String @id
+  modelVersion String
+  forecastJson String
+  createdAt DateTime @default(now())
+}
+model AnalyticsHourlyForecast {
+  id String @id @default(cuid())
+  date String
+  asOfHour String
+  forecastJson String
+  createdAt DateTime @default(now())
+  @@unique([date,asOfHour])
+  @@index([date,createdAt])
+}
