@@ -25,6 +25,8 @@ export default function PayrollPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [pdfBusy, setPdfBusy] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState("");
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -66,6 +68,18 @@ export default function PayrollPage() {
   const sum = (
     key: "salaryRs" | "regularPayRs" | "offDaysPayRs" | "bonusPayRs",
   ) => visible.reduce((n, s) => n + s[key], 0);
+  async function downloadPdf(userId: string) {
+    setPdfBusy(userId); setPdfError("");
+    try {
+      const r = await fetch(`/api/admin/payroll/pdf?${new URLSearchParams({...range,userId})}`);
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || "Could not create PDF."); }
+      const blob = await r.blob(), url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url;
+      a.download = r.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] || "Manipur-Chapter-payroll.pdf";
+      a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+    } catch (e) { setPdfError(e instanceof Error ? e.message : "Could not create PDF. Please retry."); }
+    finally { setPdfBusy(null); }
+  }
   function download() {
     const headers = [
       "Employee",
@@ -177,6 +191,7 @@ export default function PayrollPage() {
           </label>
         </div>
       </section>
+      {pdfError && <p role="alert" className="admin-panel p-4 text-danger">{pdfError}</p>}
       {error && (
         <div role="alert" className="admin-panel p-4 text-danger">
           {error}{" "}
@@ -225,6 +240,7 @@ export default function PayrollPage() {
                   "Extra hours",
                   "Bonus days",
                   "Total salary",
+                  "Payslip",
                 ].map((h) => (
                   <th key={h} className="text-left px-5 py-3">
                     {h}
@@ -282,10 +298,16 @@ export default function PayrollPage() {
                     <td className="px-5 py-4 font-semibold whitespace-nowrap">
                       {money(s.salaryRs)}
                     </td>
+                    <td className="px-5 py-4">
+                      <button className="admin-button whitespace-nowrap" disabled={pdfBusy !== null || loading || !!error}
+                        onClick={()=>downloadPdf(s.userId)} aria-label={`Download payroll PDF for ${s.name}`}>
+                        {pdfBusy===s.userId ? "Creating PDF…" : "Download PDF"}
+                      </button>
+                    </td>
                   </tr>
                   {expanded === s.userId && (
                     <tr id={`breakdown-${s.userId}`}>
-                      <td colSpan={6} className="!static !bg-background p-5">
+                      <td colSpan={7} className="!static !bg-background p-5">
                         <div className="grid sm:grid-cols-2 gap-6">
                           <div>
                             <h3 className="font-semibold mb-3">

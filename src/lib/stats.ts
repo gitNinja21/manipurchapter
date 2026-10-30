@@ -1,6 +1,7 @@
+import { masterPay } from "./masterPolicy";
 import { scheduleVersion, isOpenMonday } from "./scheduleVersions";
 import { STATISTICS_START_DATE, statisticsFrom } from "./statisticsStart";
-import { salaryCredit, overtimeMs } from "./performance";
+import { salaryCredit, overtimeMs, deviations } from "./performance";
 import { paidTimeMs, recurringRule } from "./workPolicy";
 import { prisma } from "./prisma";
 import { todayWorkDate, workDateFor } from "./time";
@@ -13,7 +14,14 @@ import { APPROVAL_STATUS, countsForPayroll } from "./attendanceApproval";
 const FULL_DAY_HOURS = 9;
 const OVERTIME_CHUNK_HOURS = 8;
 
+export type PayrollDay = {
+  date: string; status: string; clockIn: string | null; clockOut: string | null;
+  regularHours: number; overtimeHours: number; payRs: number;
+  unpaidHours: number; paidBreakMinutes: number | null; lateMinutes: number;
+};
 export type EmployeeStats = {
+  payrollDays?: PayrollDay[];
+
   userId: string;
   name: string;
   employeeCode: string;
@@ -68,6 +76,7 @@ export async function computeStatsForRange(
   fromDate: string,
   toDate: string,
   preview?: { userId: string; recordId?: string; approvalStatus?: string },
+  includeDaily = false,
 ): Promise<EmployeeStats[]> {
   const today = todayWorkDate();
   const effectiveToDate = toDate > today ? today : toDate;
@@ -84,6 +93,11 @@ export async function computeStatsForRange(
       userId: { in: employees.map((e) => e.id) },
     },
   });
+
+  const leaves = includeDaily ? await prisma.staffRequest.findMany({where: {
+    kind: "LEAVE", status: {in:["APPROVED","PENDING"]}, fromDate: {lte: effectiveToDate}, toDate: {gte: fromDate},
+    userId: {in: employees.map(e=>e.id)},
+  }, select: {userId:true,fromDate:true,toDate:true,status:true}}) : [];
 
   const recordsByUser = new Map<string, typeof records>();
   for (const original of records) {
@@ -158,7 +172,29 @@ export async function computeStatsForRange(
     let fullDaysWorked = 0;
     let paidWorkDays = 0;
 
+    const payrollDays: PayrollDay[] = [];
     for (const day of allDays) {
+      if (includeDaily) {
+      const r = recordsByDate.get(day);
+      const off = paidOffDay(day);
+      const offPaid = off && (!weeklyApplies(day) || emp.paidWeeklyOff !== false);
+      const eligible = !!r && countsForPayroll(r) && !!r.clockInAt && !!r.clockOutAt && !off;
+      const credit = eligible ? salaryCredit(r!) : 0;
+      const dailyPay = offPaid ? dailyRateRs : credit >= 9 && ![3,4].includes(r?.policyVersion ?? 0) ? dailyRateRs : credit * emp.hourlyRateRs;
+        const matchingLeaves = leaves.filter(l=>l.userId===emp.id && l.fromDate<=day && l.toDate>=day);
+        const leave = matchingLeaves.some(l=>l.status==="APPROVED");
+        const pendingLeave = matchingLeaves.some(l=>l.status==="PENDING");
+        const status = off ? (offPaid ? "Paid off day" : "Off day (unpaid)")
+          : r?.clockInAt ? (r.approvalStatus===APPROVAL_STATUS.REJECTED ? "Rejected" : !r.clockOutAt ? "Incomplete" : "Worked")
+          : !expectedDay(day) ? "Not scheduled" : leave ? "Approved leave" : pendingLeave ? "Leave pending" : day===today ? "Not clocked in yet" : "Missed shift";
+        const gross = r?.clockInAt && r.clockOutAt ? Math.max(0,+r.clockOutAt-+r.clockInAt) : 0;
+        const unpaid = !r || !gross ? 0 : r.policyVersion===3 ? masterPay(r).unpaidMs : Math.min(gross,(r.unpaidBreakMinutes??0)*60000);
+        payrollDays.push({date:day,status,clockIn:r?.clockInAt?.toISOString()??null,clockOut:r?.clockOutAt?.toISOString()??null,
+          regularHours:credit,overtimeHours:eligible?overtimeMs(r!)/3600000:0,payRs:dailyPay,
+          unpaidHours:unpaid/3600000,paidBreakMinutes:r?.paidBreakMinutes??null,
+          lateMinutes:r?.clockInAt&&!off ? deviations(r).lateMs/60000 : 0});
+      }
+
       if (paidOffDay(day)) {
         // Off day: paid leave, no attendance required.
         if (!weeklyApplies(day) || emp.paidWeeklyOff !== false) offDays += 1;
@@ -218,6 +254,7 @@ export async function computeStatsForRange(
     const round2 = (n: number) => Math.round(n * 100) / 100;
 
     return {
+      ...(includeDaily ? {payrollDays} : {}),
       userId: emp.id,
       name: emp.name,
       employeeCode: emp.employeeCode,
