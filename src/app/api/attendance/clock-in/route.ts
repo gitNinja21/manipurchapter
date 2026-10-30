@@ -1,3 +1,5 @@
+import {enforceSelfieTheme} from "@/lib/selfieThemeServer";
+import {SelfieThemeError} from "@/lib/selfieThemes";
 import { workDayMode } from "@/lib/workDays";
 import { scheduleVersion } from "@/lib/scheduleVersions";
 import { usesMasterPolicy } from "@/lib/masterPolicy";
@@ -11,7 +13,7 @@ import { saveDataUrlPhoto, deletePhotoByKey } from "@/lib/photoStorage";
 import { euclideanDistance, isFaceMatch, parseDescriptor } from "@/lib/faceMatch";
 import { checkWithinRestaurant, getRestaurantLocationConfig } from "@/lib/geofence";
 
-export async function POST(req: NextRequest) {
+async function handlePost(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   if (!user.approved) {
@@ -21,7 +23,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { photoDataUrl?: string; descriptor?: number[]; lat?: number; lng?: number };
+  let body: { photoDataUrl?: string; poseReceipt?: string; descriptor?: number[]; lat?: number; lng?: number };
   try {
     body = await req.json();
   } catch {
@@ -104,6 +106,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  await enforceSelfieTheme(prisma,user.id,"in",photoDataUrl,body.poseReceipt);
+
   let photoKey: string;
   try {
     photoKey = await saveDataUrlPhoto(photoDataUrl, user.id, "in");
@@ -117,6 +121,7 @@ export async function POST(req: NextRequest) {
   const record = await prisma.$transaction(async (tx) => {
     const duplicate = await tx.attendanceRecord.findFirst({where: {userId: user.id, OR: [{clockInAt: {not: null}, clockOutAt: null}, {workDate, clockInAt: {not: null}}]}});
     if (duplicate) return null;
+    await enforceSelfieTheme(tx,user.id,"in",photoDataUrl,body.poseReceipt,true);
     const pending = await syncMeetings(tx, user.id, workDate);
     if (pending.length) {
       const attempt = await tx.arrivalAttempt.upsert({where: {userId_workDate: {userId: user.id, workDate}},
@@ -137,7 +142,7 @@ export async function POST(req: NextRequest) {
     return tx.attendanceRecord.upsert({where: {userId_workDate: {userId: user.id, workDate}},
       create: {userId: user.id, workDate, ...rules}, update: rules});
 
-  });
+  }).catch(async error=>{await deletePhotoByKey(photoKey);throw error;});
   if(record && "dayChanged" in record){await deletePhotoByKey(photoKey);return NextResponse.json({error:"This date was closed. Refresh the page."},{status:409});}
   if (!record) await deletePhotoByKey(photoKey);
   if (record && "meetingRequired" in record && record.arrivalPhoto !== photoKey) await deletePhotoByKey(photoKey);
@@ -145,3 +150,5 @@ export async function POST(req: NextRequest) {
   if ("meetingRequired" in record) return NextResponse.json({error: "Your arrival has been recorded. Meet your manager, then open Team → Performance for clearance. Retry clock-in after approval; your approved arrival time will be used.", code: "MEETING_REQUIRED", arrivedAt: record.arrivedAt}, {status: 403});
   return NextResponse.json({ ok: true, record, faceMatch });
 }
+
+export async function POST(req:NextRequest){try{return await handlePost(req);}catch(e){if(e instanceof SelfieThemeError)return NextResponse.json({error:e.message},{status:e.status});throw e;}}

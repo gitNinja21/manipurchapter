@@ -1,3 +1,4 @@
+import {SelfieThemeError} from "./selfieThemes";
 import { NextRequest, NextResponse } from "next/server";
 import type { User, Prisma } from "@prisma/client";
 import { getCurrentUser } from "./auth";
@@ -22,7 +23,7 @@ export function teamRoute(
         throw new TeamError("An active, approved account is required.", 403);
       return NextResponse.json(await handler(user, req));
     } catch (e) {
-      if (e instanceof TeamError)
+      if (e instanceof TeamError || e instanceof SelfieThemeError)
         return NextResponse.json({ error: e.message }, { status: e.status });
       if (e && typeof e === "object" && "code" in e && ["P2002", "P2034", "P1008"].includes(String(e.code)))
         return NextResponse.json({error: "This item was changed or already exists. Refresh and try again."}, {status: 409});

@@ -1,13 +1,15 @@
+import {enforceSelfieTheme} from "@/lib/selfieThemeServer";
+import {SelfieThemeError} from "@/lib/selfieThemes";
 import { lateClockOutRule } from "@/lib/attendanceTime";
 import { notify } from "@/lib/team";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { saveDataUrlPhoto } from "@/lib/photoStorage";
+import { saveDataUrlPhoto, deletePhotoByKey } from "@/lib/photoStorage";
 import { euclideanDistance, isFaceMatch, parseDescriptor } from "@/lib/faceMatch";
 import { checkWithinRestaurant, getRestaurantLocationConfig } from "@/lib/geofence";
 
-export async function POST(req: NextRequest) {
+async function handlePost(req: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   if (!user.approved) {
@@ -17,7 +19,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { photoDataUrl?: string; descriptor?: number[]; lat?: number; lng?: number; extraTimeReason?: string };
+  let body: { photoDataUrl?: string; poseReceipt?: string; descriptor?: number[]; lat?: number; lng?: number; extraTimeReason?: string };
   try {
     body = await req.json();
   } catch {
@@ -99,6 +101,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  await enforceSelfieTheme(prisma,user.id,"out",photoDataUrl,body.poseReceipt);
+
   let photoKey: string;
   try {
     photoKey = await saveDataUrlPhoto(photoDataUrl, user.id, "out");
@@ -110,6 +114,7 @@ export async function POST(req: NextRequest) {
   }
 
   const record = await prisma.$transaction(async (tx) => {
+    await enforceSelfieTheme(tx,user.id,"out",photoDataUrl,body.poseReceipt,true);
     const exception = await tx.staffRequest.findFirst({where: {userId: user.id, kind: "EARLY_DEPARTURE", fromDate: existing.workDate, status: "APPROVED"}});
     const changed = await tx.attendanceRecord.updateMany({
       where: { id: existing.id, clockOutAt: null, updatedAt: existing.updatedAt },
@@ -133,8 +138,10 @@ export async function POST(req: NextRequest) {
       await notify(tx,admins,"REQUEST",request.id,`${user.name}: clock-out after 10:45 pm needs approval`,"team?view=requests");
     }
     return result;
-  });
+  }).catch(async error=>{await deletePhotoByKey(photoKey);throw error;});
   if (!record) return NextResponse.json({error: "This shift changed. Refresh before trying again."}, {status: 409});
 
   return NextResponse.json({ ok: true, record, faceMatch });
 }
+
+export async function POST(req:NextRequest){try{return await handlePost(req);}catch(e){if(e instanceof SelfieThemeError)return NextResponse.json({error:e.message},{status:e.status});throw e;}}

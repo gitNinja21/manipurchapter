@@ -1,0 +1,12 @@
+export const SELFIE_THEMES={
+ MINI_HEART:{name:"Mini Heart Day",instruction:"Cross your thumb and index finger to make a small heart. Hold it beside your cheek, with your face visible.",tip:"Other fingers stay folded. Either hand is fine.",criteria:"One hand beside the face makes a Korean finger heart: thumb and index finger cross near their tips to create a tiny heart; remaining fingers folded. Reject a simple pinch, OK circle, thumbs-up, peace sign or a drawn heart."},
+ BUNNY:{name:"Bunny Day",instruction:"Make a V with the index and middle fingers of BOTH hands. Hold one hand on each side of your head like bunny ears.",tip:"Keep both V signs and your whole face inside the frame.",criteria:"Both hands form V signs with index and middle extended and separated, remaining fingers folded. One hand on each side of the same person's head, approximately at temple height or above. Reject one hand only or hands below the head."},
+ POWER:{name:"Power Day",instruction:"Raise both arms and bend your elbows into a muscle-flex pose. Show your face, both elbows and both fists.",tip:"Move the phone farther away or ask someone to hold it.",criteria:"The person faces camera in a double-biceps flex: both upper arms raised out to the sides, both elbows bent, both fists near head height. Both arms and elbows visible. Do not assess strength, body shape or muscularity."},
+ SPREAD_LOVE:{name:"Spread Love Day",instruction:"Make a heart with BOTH hands in front of your chest. Curve your fingers for the top and join your thumbs for the bottom.",tip:"Show the heart-shaped opening. Keep your face uncovered.",criteria:"Both hands of the same person join in front of the chest forming a recognizable heart-shaped opening: curved fingers form the top lobes and thumbs meet to form the lower point. Reject finger hearts, a circle, crossed arms, drawn hearts or a heart emoji."},
+} as const;
+export type SelfieThemeKey=keyof typeof SELFIE_THEMES;
+export type SelfieAction="in"|"out";
+export function isSelfieTheme(value:unknown):value is SelfieThemeKey{return typeof value==="string"&&Object.hasOwn(SELFIE_THEMES,value);}
+export function isSelfieAction(value:unknown):value is SelfieAction{return value==="in"||value==="out";}
+export function themeApplies(theme:{enabled:boolean;appliesTo:string}|null,action:SelfieAction){return !!theme?.enabled&&(theme.appliesTo==="both"||theme.appliesTo===action);}
+export class SelfieThemeError extends Error{constructor(message:string,public status=422){super(message);}}

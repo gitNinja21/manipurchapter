@@ -537,3 +537,40 @@ model AnalyticsHourlyForecast {
   @@unique([date,asOfHour])
   @@index([date,createdAt])
 }
+
+model SelfieTheme {
+  date String @id
+  theme String
+  appliesTo String
+  enabled Boolean @default(true)
+  revision Int @default(1)
+  updatedById String
+  updatedAt DateTime @updatedAt
+}
+model SelfiePoseAttempt {
+  id String @id @default(cuid())
+  userId String
+  date String
+  action String
+  theme String
+  revision Int
+  photoHash String
+  status String @default("CHECKING")
+  reason String @default("")
+  model String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  consumedAt DateTime?
+  @@index([userId, createdAt])
+  @@index([date, createdAt])
+}
+model SelfieThemeException {
+  id String @id @default(cuid())
+  userId String
+  date String
+  action String
+  reason String
+  grantedById String
+  createdAt DateTime @default(now())
+  @@unique([userId, date, action])
+}

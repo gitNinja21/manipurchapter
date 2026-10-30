@@ -1,3 +1,4 @@
+import {enforceSelfieTheme} from "@/lib/selfieThemeServer";
 import { teamRoute, jsonBody, TeamError, notify } from "@/lib/team";
 import { prisma } from "@/lib/prisma";
 import { todayWorkDate } from "@/lib/time";
@@ -14,6 +15,7 @@ export const POST = teamRoute(async (user,req) => {
   const distance = euclideanDistance(enrolled,descriptor);
   if (!isFaceMatch(distance)) throw new TeamError("Selfie does not match. Please retake in good lighting.",422);
   if (typeof body.photoDataUrl !== "string") throw new TeamError("Selfie required.");
+  await enforceSelfieTheme(prisma,user.id,action,body.photoDataUrl,body.poseReceipt);
   const now = new Date(), kind = action === "in" ? "GPS_CLOCK_IN" : "GPS_CLOCK_OUT";
   const photo = await saveDataUrlPhoto(body.photoDataUrl,user.id,action);
   try {
@@ -24,6 +26,7 @@ export const POST = teamRoute(async (user,req) => {
       if (action === "in") await checkFallbackIn(tx,user,date,now);
       if (await tx.staffRequest.findFirst({where:{userId:user.id,kind,fromDate:date,status:"PENDING"}})) throw new TeamError("A GPS fallback request is already pending. Check Team → Requests.",409);
       const record = await tx.attendanceRecord.findUnique({where:{userId_workDate:{userId:user.id,workDate:date}}});
+      await enforceSelfieTheme(tx,user.id,action,body.photoDataUrl,body.poseReceipt,true);
       const request = await tx.staffRequest.create({data:{userId:user.id,kind,fromDate:date,toDate:date,reason:"Location unavailable. Please verify my physical presence at the restaurant.",proposedIn:action === "in" ? now : open!.clockInAt,proposedOut:action === "out" ? now : null,verificationPhoto:photo,verificationDistance:distance,expectedRecordId:record?.id ?? null,expectedUpdatedAt:record?.updatedAt ?? null}});
       if (action === "in" && (await syncMeetings(tx,user.id,date)).length) await tx.arrivalAttempt.upsert({where:{userId_workDate:{userId:user.id,workDate:date}},create:{userId:user.id,workDate:date,arrivedAt:now,photo},update:{}});
       await notify(tx,await tx.user.findMany({where:{role:"ADMIN",active:true},select:{id:true,role:true}}),"REQUEST",request.id,`${user.name}: GPS clock-${action} needs physical verification`,"team?view=requests");

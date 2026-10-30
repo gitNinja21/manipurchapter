@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import HomeSummary from "@/components/team/HomeSummary";
-import FaceCapture from "@/components/FaceCapture";
+import ThemedFaceCapture from "@/components/ThemedFaceCapture";
 import { locateDevice } from "@/lib/deviceLocation";
 import { formatIstTime } from "@/lib/time";
 
@@ -153,7 +153,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
     setMode("capturing");
   }
 
-  async function handleCaptured(photoDataUrl: string, descriptor: number[]) {
+  async function handleCaptured(photoDataUrl: string, descriptor: number[],poseReceipt?:string|null) {
     if (preview) return;
     setMode("submitting");
     try {
@@ -163,6 +163,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
         body: JSON.stringify({
           ...(gpsFallback ? {action} : {}),
           photoDataUrl,
+          poseReceipt,
           descriptor,
           lat: coordsRef.current?.lat,
           lng: coordsRef.current?.lng,
@@ -268,8 +269,8 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
           <p className="text-center text-sm font-medium text-foreground/70 mb-4">
             {gpsFallback ? "Selfie for manager verification" : action === "in" ? "Clocking in" : "Clocking out"}
           </p>
-          <FaceCapture
-            mode="verify"
+          <ThemedFaceCapture
+            action={action!}
             onCaptured={handleCaptured}
             onCancel={() => {
               setMode("idle");

@@ -14,11 +14,13 @@ type Status =
 type Props = {
   /** "enroll" shows onboarding copy; "verify" shows clock-in/out copy. Behavior is identical either way. */
   mode: "enroll" | "verify";
-  onCaptured: (photoDataUrl: string, descriptor: number[]) => void;
+  onCaptured: (photoDataUrl: string, descriptor: number[], poseReceipt?: string | null) => void;
+  verifyPhoto?: (photoDataUrl:string)=>Promise<string|null>;
   onCancel?: () => void;
 };
 
-export default function FaceCapture({ mode, onCaptured, onCancel }: Props) {
+export default function FaceCapture({ mode, onCaptured, onCancel, verifyPhoto }: Props) {
+  const highResolution = !!verifyPhoto;
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -58,7 +60,7 @@ export default function FaceCapture({ mode, onCaptured, onCancel }: Props) {
     (async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+          video: { facingMode: "user", width: { ideal: highResolution ? 1280 : 640 }, height: { ideal: highResolution ? 960 : 480 } },
           audio: false,
         });
         if (cancelled) {
@@ -83,7 +85,7 @@ export default function FaceCapture({ mode, onCaptured, onCancel }: Props) {
       cancelled = true;
       stopCamera();
     };
-  }, [stopCamera]);
+  }, [stopCamera, highResolution]);
 
   // Load face-recognition models, then start a lightweight "is a face
   // visible right now" check purely for UI feedback. The real check happens
@@ -111,7 +113,7 @@ export default function FaceCapture({ mode, onCaptured, onCancel }: Props) {
 
       const faceapi = await import("face-api.js");
       liveCheckRef.current = setInterval(async () => {
-        if (stoppedRef.current || cancelled) return;
+        if (stoppedRef.current) return;
         const video = videoRef.current;
         if (!video || video.readyState < 2) return;
         try {
@@ -119,7 +121,7 @@ export default function FaceCapture({ mode, onCaptured, onCancel }: Props) {
             video,
             new faceapi.TinyFaceDetectorOptions({ inputSize: 224 })
           );
-          if (!stoppedRef.current && !cancelled) setFaceDetected(!!detection);
+          if (!stoppedRef.current) setFaceDetected(!!detection);
         } catch {
           // Ignore transient detection hiccups — the authoritative check runs at capture time.
         }
@@ -157,9 +159,11 @@ export default function FaceCapture({ mode, onCaptured, onCancel }: Props) {
         return;
       }
       const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      const receipt=verifyPhoto?await verifyPhoto(dataUrl):null;
+      if(stoppedRef.current)return;
       stopCamera();
       setStatus("captured");
-      onCaptured(dataUrl, descriptor);
+      onCaptured(dataUrl, descriptor,receipt);
     } catch (e) {
       setCaptureError(
         `Couldn't process that photo. Exact error: "${e instanceof Error ? e.message : String(e)}"`
@@ -175,7 +179,7 @@ export default function FaceCapture({ mode, onCaptured, onCancel }: Props) {
           ref={videoRef}
           muted
           playsInline
-          className="w-full h-full object-cover -scale-x-100"
+          className="w-full h-full object-contain -scale-x-100"
         />
         <canvas ref={canvasRef} className="hidden" />
 
@@ -187,7 +191,7 @@ export default function FaceCapture({ mode, onCaptured, onCancel }: Props) {
 
         {status === "processing" && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white text-sm">
-            Checking photo…
+            {verifyPhoto?"Checking your face and theme pose…":"Checking photo…"}
           </div>
         )}
 
