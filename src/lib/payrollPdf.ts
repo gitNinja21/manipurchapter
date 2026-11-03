@@ -36,19 +36,19 @@ export async function createPayrollPdf(s:EmployeeStats, from:string, to:string, 
  page.drawRectangle({x:40,y:530,width:515,height:70,color:pale});
  text(56,576,"TOTAL CALCULATED SALARY",10,true);text(56,547,`INR ${money(s.salaryRs)}`,26,true);
  section(503,"01","Attendance at a glance");
- const counts=[['Worked',days.filter(d=>d.status==='Worked').length],['Missed shifts',days.filter(d=>d.status==='Missed shift').length],['Paid off days',s.offDays],['Approved leave',days.filter(d=>d.status==='Approved leave').length]] as const;
+ const counts=[['Worked',days.filter(d=>d.status==='Worked').length],['Missed shifts',days.filter(d=>['Missed shift',"Didn't show up"].includes(d.status)).length],['Paid off days',s.offDays],['Approved leave',days.filter(d=>d.status==='Approved leave').length]] as const;
  counts.forEach(([label,n],i)=>{text(40+i*132,474,String(n),22,true);text(40+i*132,456,label,9,false,muted);});
  text(40,434,`${s.incompleteDays} incomplete | ${s.rejectedDays} rejected | ${days.filter(d=>d.lateMinutes>0).length} late arrivals`,9,false,muted);
  line(420);section(398,"02","Salary breakdown");
- const salaryRows=[['Regular completed work',s.regularPayRs], [`Paid off days (${s.offDays})`,s.offDaysPayRs],[`Bonus days earned (${s.bonusDays})`,s.bonusPayRs]] as const;
- salaryRows.forEach(([label,n],i)=>{const y=367-i*36;text(40,y,label,11);right(555,y,`INR ${money(n)}`,11);line(y-13);});
+ const salaryRows=[['Regular completed work',s.regularPayRs], [`Paid off days (${s.offDays})`,s.offDaysPayRs],[`Bonus days earned (${s.bonusDays})`,s.bonusPayRs],[`Missing punches (${s.missingPunchIncidents} incidents / ${s.missingPunchDeductionDays} days)`,s.missingPunchDeductionRs ? -s.missingPunchDeductionRs : 0]] as const;
+ salaryRows.forEach(([label,n],i)=>{const y=367-i*26;text(40,y,label,11);right(555,y,`INR ${money(n)}`,11);line(y-10);});
  text(40,254,'Total calculated salary',12,true);right(555,254,`INR ${money(s.salaryRs)}`,14,true);
  section(218,"03","Hours and bonus balance");
  text(40,192,`${hours(s.totalHours)} counted time`,11,true);text(305,192,`${hours(s.overtimeBalanceHours)} carried forward`,11,true,ink,250);
  text(40,173,`${hours(s.overtimeHours)} eligible extra time in period`,9,false,muted);
  text(305,173,`${s.bonusDays} bonus days earned in period`,9,false,muted);
  text(40,150,'Every 8 eligible extra hours earns one bonus day; unused hours carry forward.',9,false,muted);
- text(40,131,'Short shifts and exclusions are already reflected in earnings, not deducted twice.',9,false,muted);
+ text(40,131,'From 4 Nov: each 2 missing punches per calendar month deduct 1 daily rate.',9,false,muted);
  text(40,112,`Billing from: ${s.billingFromDate?date(s.billingFromDate):'No employment overlap in this period'}`,9,false,muted);
  text(40,93,'Calculated earnings only. This statement does not confirm that payment was made.',9,false,muted);
  const chunks:PayrollDay[][]=[];for(let i=0;i<days.length;i+=18)chunks.push(days.slice(i,i+18));if(!chunks.length)chunks.push([]);
@@ -61,14 +61,14 @@ export async function createPayrollPdf(s:EmployeeStats, from:string, to:string, 
   ['Date','Status','In / Out','Unpaid','Regular','Extra','Pay INR'].forEach((v,i)=>text(xs[i],614,v,8,true,white));
   chunks[ci].forEach((d,i)=>{
    const y=604-(i+1)*23;if(i%2===0)page.drawRectangle({x:40,y,width:515,height:23,color:pale});
-   const vals=[date(d.date).slice(0,6),d.status,`${time(d.clockIn)} / ${time(d.clockOut)}`,hours(d.unpaidHours),hours(d.regularHours),hours(d.overtimeHours)];
+   const vals=[date(d.date).slice(0,6),d.missingPunch && d.missingPunch!=='NONE' ? (d.missingPunchWaived?'Corrected / waived':`Missing ${d.missingPunch.toLowerCase()}`) : d.status,`${time(d.clockIn)} / ${time(d.clockOut)}`,hours(d.unpaidHours),hours(d.regularHours),hours(d.overtimeHours)];
    vals.forEach((v,j)=>text(xs[j],y+8,v,7.5,false,ink,(xs[j+1]??555)-xs[j]-3));right(549,y+8,money(d.payRs),8);
   });
   const y=604-chunks[ci].length*23-24;
   text(40,y,'Daily pay subtotal (this page)',9,true);right(549,y,money(chunks[ci].reduce((n,d)=>n+d.payRs,0)),10,true);
-  text(40,146,'Daily pay excludes bonus-day awards; these appear in the salary summary.',9,false,muted);
+  text(40,146,'Daily pay is before bonus awards and missing-punch deductions in the summary.',9,false,muted);
   text(40,129,'Unpaid = applied break deduction. Paid break allowances are included, not added.',9,false,muted);
-  text(40,112,'Off days follow saved rules. Incomplete shifts and rejected records earn no regular pay.',9,false,muted);
+  text(40,112,'Missing in/out denotes a schedule-inferred time. Both missing: no working-day pay.',9,false,muted);
   text(40,95,'For a correction, contact your admin with the date and actual clock-in/out times.',9,false,muted);
  }
  // Per-record allowances are policy snapshots, not evidence of breaks actually taken.

@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { api, useAction, useTeamData } from "@/components/team/useTeamData";
 import { todayWorkDate } from "@/lib/time";
 type RecordTimes = {
+  missingPunch?: string;
+  missingPunchWaived?: boolean;
   id: string;
   updatedAt: string;
   policyVersion: number;
@@ -30,6 +32,7 @@ export default function ManualAttendance({ onSaved, dateRevision = 0 }: { onSave
   const [start, setStart] = useState(""),
     [end, setEnd] = useState(""),
     [reason, setReason] = useState("");
+  const [waiveMissingPunch,setWaiveMissingPunch]=useState(true);
   const [unpaidHours,setUnpaidHours]=useState("0");
   const [day,setDay]=useState<{mode:string;revision:number}|null>(null);
   const [message, setMessage] = useState("");
@@ -98,6 +101,7 @@ export default function ManualAttendance({ onSaved, dateRevision = 0 }: { onSave
               `/api/admin/attendance/manual?${new URLSearchParams({ userId, workDate: date })}`,
             );
             setRecord(d.record);
+            setWaiveMissingPunch(true);
             setStart(localTime(d.record?.clockInAt ?? null));
             setEnd(localTime(d.record?.clockOutAt ?? null));
             setReason("");
@@ -123,6 +127,7 @@ export default function ManualAttendance({ onSaved, dateRevision = 0 }: { onSave
                 expectedDayRevision:day?.revision ?? 0,
                 unpaidBreakMinutes:Math.round(Number(unpaidHours)*60),
                 reason,
+                waiveMissingPunch,
                 expectedRecordId: record?.id ?? null,
                 expectedUpdatedAt: record?.updatedAt ?? null,
               });
@@ -139,6 +144,7 @@ export default function ManualAttendance({ onSaved, dateRevision = 0 }: { onSave
               ? "Editing an existing attendance record"
               : "No attendance record found — this will create one"}
           </p>
+          {record?.missingPunch && record.missingPunch!=="NONE" && <label className="block text-sm"><input type="checkbox" checked={waiveMissingPunch} onChange={e=>setWaiveMissingPunch(e.target.checked)}/> Waive this missing-clock-{record.missingPunch.toLowerCase()} incident and recalculate monthly deductions. Uncheck to retain the incident.</label>}
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="text-sm">
               Actual clock-in (IST)

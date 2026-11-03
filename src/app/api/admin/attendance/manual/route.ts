@@ -115,7 +115,7 @@ export const POST = teamRoute(async (u, req) => {
         "This date has approved leave. Resolve the leave before adding attendance.",
         409,
       );
-    const data = {clockInAt,clockOutAt,...hourlySnapshot(unpaid),approvalStatus:"PENDING"};
+    const data = {missingPunchWaived:b.waiveMissingPunch === true,clockInAt,clockOutAt,...hourlySnapshot(unpaid),approvalStatus:"PENDING"};
     const after = await tx.attendanceRecord.upsert({
       where: { userId_workDate: { userId, workDate } },
       create: { userId, workDate, ...data },

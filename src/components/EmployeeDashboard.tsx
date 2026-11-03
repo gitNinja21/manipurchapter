@@ -2,15 +2,19 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import WeeklySchedule from "@/components/WeeklySchedule";
+import {WEEKLY_SCHEDULE_FROM} from "@/lib/weeklySchedulePolicy";
 import HomeSummary from "@/components/team/HomeSummary";
 import ThemedFaceCapture from "@/components/ThemedFaceCapture";
 import { locateDevice } from "@/lib/deviceLocation";
-import { formatIstTime } from "@/lib/time";
+import { todayWorkDate, formatIstTime } from "@/lib/time";
 
 type TodayRecord = {
   clockInAt: string | null;
   clockOutAt: string | null;
   autoClockOut?: boolean;
+  missingPunch?: string;
+  missingPunchWaived?: boolean;
   workDate: string;
   unpaidBreakMinutes: number;
   policyVersion: number;
@@ -37,6 +41,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
   const [lateness, setLateness] = useState<{lateDays:number;lateMinutes:number;awardEligible:boolean;lateWarning:boolean} | null>(null);
   const [meetings, setMeetings] = useState<{ id: string; kind: string }[]>([]);
   const [schedule, setSchedule] = useState<{arrival: string; latest: string; opening: string; finish: string; fixed: boolean; allowEarly: boolean; durationHours: number; unpaidBreakMinutes: number; policyVersion?: number; breakExpectation?: string} | null>(null);
+  const [weekSubmitted,setWeekSubmitted]=useState(false);
   const [policy, setPolicy] = useState(false);
   const [arrival, setArrival] = useState<string | null>(null);
   const [lateStatus, setLateStatus] = useState<string | null>(null);
@@ -69,6 +74,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       setMeetings(data.meetings ?? []);
       setLateness(data.lateness ?? null);
       setPolicy(!!data.policy);
+      setWeekSubmitted(!!data.weekSubmitted);
       setSchedule(data.schedule ?? null);
       setArrival(data.arrivalState);
       setLateStatus(data.lateRequest?.status ?? null);
@@ -99,7 +105,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
   const hasClockedIn = !!record?.clockInAt;
   const hasClockedOut = !!record?.clockOutAt;
 
-  const pendingGps = pendingGpsRequests.find(r=>r.kind === (hasClockedIn ? "GPS_CLOCK_OUT" : "GPS_CLOCK_IN"));
+  const pendingGps = pendingGpsRequests.find(r=>r.kind === (hasClockedIn ? "GPS_CLOCK_OUT" : "GPS_CLOCK_IN")) ?? pendingGpsRequests[0];
 
   async function startCapture(which: "in" | "out") {
     if (preview) return;
@@ -215,8 +221,9 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
         </p>
       </div>
 
+      {!preview && <WeeklySchedule onSaved={()=>void refresh()}/>}
       <Link className="text-brand underline block" href={preview ? `/admin/team?view=performance&employeeId=${employeeQuery}` : "/employee/team?view=performance"}>My points and award eligibility</Link>
-      {!policy && <p className="text-sm text-foreground/60">{arrival === "OFF" ? "Today is closed or has no scheduled shift. Ask your admin to review the date if you are working." : "Complete your scheduled hours from clock-in, including the one-hour break."}</p>}
+      {!policy && <p className="text-sm text-foreground/60">{!weekSubmitted && todayWorkDate()>=WEEKLY_SCHEDULE_FROM ? "Submit this week’s schedule above to unlock clock-in." : arrival === "OFF" ? "Today is closed or has no scheduled shift. Ask your admin to review the date if you are working." : "Complete your scheduled hours from clock-in, including the one-hour break."}</p>}
       {record && record.policyVersion < 2 && <p className="text-sm text-accent">This record uses an earlier attendance policy. Ask your manager if its schedule needs correction.</p>}
       {policy && (!record || record.policyVersion >= 2) && (
         <section className="admin-panel p-4 space-y-2 text-sm">
@@ -224,10 +231,10 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
           {hourly ? <p>Flexible hourly day: clock in and out at your actual times. Pay includes the one-hour paid break and deducts only the unpaid break entered by admin. No fixed finish, late penalty or overtime conversion.</p> : master ? <>
             <p>{schedule?.arrival}–{schedule?.finish} IST · Fixed finish · 15-minute paid arrival grace.</p>
             <p>{schedule?.durationHours} scheduled hours · {schedule?.breakExpectation}.</p>
-            <p>Clock-in opens at {schedule?.opening}. You must clock out yourself using location and selfie verification. There is no automatic clock-out. Record your actual leaving time; time after 10:45 pm needs admin review.</p>
+            <p>Clock-in opens at {schedule?.opening}. You must clock out yourself using location and selfie verification. From 4 November, a missing clock-out is filled from your saved shift end after the day ends and counts as an incident. Every two missing punches in a calendar month deduct one day of pay. Record your actual leaving time; time after 10:45 pm needs admin review.</p>
             {lateness && <p className={lateness.lateWarning ? "text-accent font-medium" : ""}>{lateness.lateDays} late days this month · {Math.round(lateness.lateMinutes)} late minutes after grace. {lateness.awardEligible ? (lateness.lateWarning ? "Warning: five late days removes Best Employee eligibility." : "Eligible for Best Employee.") : "Not eligible for Best Employee this month. Your points and earned bonus pay are retained."}</p>}
           </> : <p>Complete {schedule?.durationHours} hours from actual clock-in. Required finish: {schedule?.finish}. This record retains its earlier rules.</p>}
-          {!preview && !hourly && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=SHIFT_CHANGE">Request an earlier start / shift change</Link>}
+          {!preview && !hourly && todayWorkDate()<WEEKLY_SCHEDULE_FROM && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=SHIFT_CHANGE">Request an earlier start / shift change</Link>}
           {!hasClockedIn && arrival === "EARLY" && <p>Clock-in opens at {schedule?.opening}.</p>}
           {!hasClockedIn && lateStatus && <p>Today’s late-arrival request: <strong>{lateStatus}</strong>.</p>}
           {!hasClockedIn && !preview && !hourly && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request an excused late arrival</Link>}
@@ -304,10 +311,10 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
           ) : !hasClockedIn ? (
             <button
               onClick={() => startCapture("in")}
-              disabled={preview || arrival === "OFF" || (policy && arrival === "EARLY")}
+              disabled={preview || (!weekSubmitted && todayWorkDate()>=WEEKLY_SCHEDULE_FROM) || arrival === "OFF" || (policy && arrival === "EARLY")}
               className="w-full rounded-lg bg-brand text-white font-medium py-3 hover:bg-brand-dark transition-colors disabled:opacity-50"
             >
-              {pendingGps ? "Try normal Clock In instead" : "Clock In"}
+              {!weekSubmitted && todayWorkDate()>=WEEKLY_SCHEDULE_FROM ? "Submit weekly schedule first" : pendingGps ? "Try normal Clock In instead" : "Clock In"}
             </button>
           ) : !hasClockedOut ? (
             <button
@@ -325,6 +332,8 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
         </div>
       )}
 
+      {!preview && !hasClockedIn && !hasClockedOut && !loading && mode === "idle" && serverTime && todayWorkDate()>=WEEKLY_SCHEDULE_FROM && <section className="admin-panel p-4 space-y-2"><button className="admin-button" disabled={!weekSubmitted} onClick={()=>startCapture("out")}>Forgot clock-in? Clock out now</button><p className="text-sm">Verify your selfie and location. Your saved shift start will be used, and this counts as one missing-punch incident.</p></section>}
+      {record?.missingPunch && record.missingPunch!=="NONE" && <p className="admin-panel p-4 text-sm">The clock-{record.missingPunch.toLowerCase()} time was taken from your saved schedule. {record.missingPunchWaived?"Admin has waived this missing-punch incident.":"This counts as one missing-punch incident. Ask admin for a correction if needed."}</p>}
       {record?.lateClockOutStatus === "PENDING" && <p className="admin-panel p-4 text-sm text-accent">Your clock-out after 10:45 pm is awaiting admin approval. See Team → Requests.</p>}
       {record?.lateClockOutStatus === "REJECTED" && <p className="admin-panel p-4 text-sm text-accent">The time after 10:45 pm was not approved. See Team → Requests.</p>}
       {preview && meetings.length > 0 && (

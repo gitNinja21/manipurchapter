@@ -1,3 +1,5 @@
+import {listWeeklyShifts} from "@/lib/weeklyScheduleServer";
+import {weeklyApplies} from "@/lib/weeklySchedulePolicy";
 import { validateShift, policyAudit } from "@/lib/performanceServer";
 import { prisma } from "@/lib/prisma";
 import { teamRoute, jsonBody, TeamError, adminOnly, notify } from "@/lib/team";
@@ -49,7 +51,8 @@ export const GET = teamRoute(async (u, req) => {
     ...(u.role === "ADMIN" ? {} : {id: u.id}),
   }, select: {id: true, name: true, employeeCode: true, unpaidBreakFrom: true, scheduledUnpaidBreakMinutes: true, scheduleHistoryJson: true, masterScheduleFrom: true, masterScheduleJson: true, weeklyScheduleJson: true, attendancePolicyFrom: true, attendanceStartMinute: true, attendanceLatestMinute: true, attendanceEndMinute: true, attendanceAllowEarly: true}, orderBy: {name: "asc"}});
   const dayRules=await prisma.workDayOverride.findMany({where:{workDate:{gte:from,lte:to}},select:{workDate:true,mode:true}});
-  return { dayRules, shifts, leave, employees, recurring, admin: u.role === "ADMIN" };
+  const weekly=await listWeeklyShifts(prisma,from,to,u.role==="ADMIN"?undefined:u.id);
+  return { dayRules, shifts:[...shifts.filter(s=>!weeklyApplies(s.workDate)),...weekly.filter(s=>!leave.some(l=>l.userId===s.userId&&l.fromDate<=s.workDate&&l.toDate>=s.workDate))].sort((a,b)=>a.workDate.localeCompare(b.workDate)||+a.startsAt-+b.startsAt), leave, employees, recurring, admin: u.role === "ADMIN" };
 });
 export const POST = teamRoute(async (u, req) => {
   adminOnly(u);
@@ -69,6 +72,7 @@ export const POST = teamRoute(async (u, req) => {
     note.length > 500
   )
     throw new TeamError("Enter a valid shift in IST, no longer than 24 hours.");
+  if(weeklyApplies(workDate))throw new TeamError("Employees now submit their own weekly times. Use Attendance Management to correct actual attendance.",409);
   const shift = await prisma.$transaction(async (tx) => {
     const employee = await tx.user.findFirst({
       where: { id: userId, role: "EMPLOYEE", active: true, approved: true },

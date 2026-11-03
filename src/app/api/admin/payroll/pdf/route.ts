@@ -1,3 +1,4 @@
+import {reconcileMissingClockOut} from "@/lib/missingPunchServer";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { validRange } from "@/lib/reporting";
@@ -9,6 +10,7 @@ export async function GET(req:NextRequest) {
  const q=req.nextUrl.searchParams,from=q.get('from')??'',to=q.get('to')??'',userId=q.get('userId')??'';
  if(!userId||!validRange(from,to)||Date.parse(to)-Date.parse(from)>366*86400000)
   return NextResponse.json({error:"Choose an employee and a valid range of up to one year."},{status:400});
+ await reconcileMissingClockOut(userId);
  const [stats]=await computeStatsForRange(from,to,{userId},true);
  if(!stats)return NextResponse.json({error:"Employee not found."},{status:404});
  const bytes=await createPayrollPdf(stats,from,to);

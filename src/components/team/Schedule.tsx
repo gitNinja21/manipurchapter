@@ -1,4 +1,6 @@
 "use client";
+import {weeklyApplies,WEEKLY_SCHEDULE_FROM} from "@/lib/weeklySchedulePolicy";
+import Link from "next/link";
 import { isOpenMonday } from "@/lib/scheduleVersions";
 import { recurringDescription, recurringRule, policyApplies, type PolicySchedule } from "@/lib/workPolicy";
 import { useState } from "react";
@@ -47,7 +49,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
   const action = useAction(reload);
   const modeForDay=(day:string)=>data?.dayRules?.find(d=>d.workDate===day)?.mode;
   const recurringForDay = (day: string) => (data?.recurring ?? []).filter(person =>
-    !modeForDay(day) && policyApplies(person,day) && (new Date(`${day}T12:00:00Z`).getUTCDay() !== 1 || isOpenMonday(person,day)) && !!recurringRule(person, day) &&
+    !weeklyApplies(day) && !modeForDay(day) && policyApplies(person,day) && (new Date(`${day}T12:00:00Z`).getUTCDay() !== 1 || isOpenMonday(person,day)) && !!recurringRule(person, day) &&
     !data?.shifts.some(shift => shift.userId === person.id && shift.workDate === day) &&
     !data?.leave.some(leave => leave.userId === person.id && leave.fromDate <= day && leave.toDate >= day)
   );
@@ -61,7 +63,8 @@ export default function Schedule({ admin }: { admin: boolean }) {
           All times in IST. Approved dated shifts set attendance rules for that day. Clock-outs after 10:45 pm require admin approval.
         </p>
       </div>
-      {!!data?.recurring?.length && <section className="admin-panel p-5 space-y-3">
+      {weeklyApplies(plus(from,6)) && <p className="admin-panel p-4 text-sm">From 4 November, employees submit Tuesday–Sunday times weekly: 9 hours including a 1-hour paid break. Monday off. {!admin && <Link className="underline" href="/employee#weekly-schedule">Set or edit future dates on Today</Link>}</p>}
+      {plus(from,6)<WEEKLY_SCHEDULE_FROM && !!data?.recurring?.length && <section className="admin-panel p-5 space-y-3">
         <h3 className="font-semibold">Daily attendance rules</h3>
         <p className="text-sm">From 26 September, finish times are fixed. Break expectations are listed for each employee; unpaid breaks are proportional. The first 15 minutes of arrival lateness are paid grace.</p>
         {data.recurring.map(person => <div key={person.id} className="text-sm border-t border-border pt-2">
@@ -91,7 +94,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
           {formatWorkDate(from)} – {formatWorkDate(plus(from, 6))}
         </span>
       </div>
-      {admin && (
+      {admin && todayWorkDate()<WEEKLY_SCHEDULE_FROM && (
         <details className="admin-panel p-5">
           <summary className="cursor-pointer font-medium">
             Assign or update a shift
@@ -215,7 +218,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
                       {s.note}
                     </p>
                   )}
-                  {admin && (
+                  {admin && !s.id.startsWith("weekly:") && (
                     <button
                       className="text-xs text-danger underline mt-2"
                       disabled={action.busy}

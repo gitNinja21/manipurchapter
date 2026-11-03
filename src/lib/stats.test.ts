@@ -7,6 +7,9 @@ import { prisma } from "./prisma";
 const originalDayFind=prisma.workDayOverride.findUnique,originalDayList=prisma.workDayOverride.findMany;
 beforeEach(()=>{prisma.workDayOverride.findUnique=(async()=>null) as typeof originalDayFind;prisma.workDayOverride.findMany=(async()=>[]) as typeof originalDayList;});
 afterEach(()=>{prisma.workDayOverride.findUnique=originalDayFind;prisma.workDayOverride.findMany=originalDayList;});
+const originalLeaves = prisma.staffRequest.findMany;
+beforeEach(()=>{prisma.staffRequest.findMany=(async()=>[]) as typeof originalLeaves;});
+afterEach(()=>{prisma.staffRequest.findMany=originalLeaves;});
 import { computeStatsForRange } from "./stats";
 import { todayWorkDate } from "./time";
 
@@ -273,4 +276,19 @@ test("date-wide hourly correction and paid closure replace rather than stack sal
  prisma.workDayOverride.findMany=(async()=>[{workDate:weekday,mode:"PAID_OFF"}]) as typeof prisma.workDayOverride.findMany;
  assert.equal((await computeStatsForRange(weekday,weekday))[0].salaryRs,900);
  assert.equal((await computeStatsForRange("2026-10-21","2026-10-21"))[0].salaryRs,0);
+});
+
+test('weekly missing-punch deductions reconcile by calendar month and admin waivers reverse them',async t=>{
+ const oldUsers=prisma.user.findMany,oldRecords=prisma.attendanceRecord.findMany,oldLeaves=prisma.staffRequest.findMany;
+ t.after(()=>{prisma.user.findMany=oldUsers;prisma.attendanceRecord.findMany=oldRecords;prisma.staffRequest.findMany=oldLeaves;});
+ prisma.user.findMany=(async()=>[{id:'week',name:'Week',employeeCode:'W',hourlyRateRs:50,createdAt:new Date('2026-10-01'),active:true} as User]) as typeof oldUsers;
+ let waived=false;
+ const row=(d:string)=>({id:d,userId:'week',workDate:d,clockInAt:new Date(`${d}T11:00:00+05:30`),clockOutAt:new Date(`${d}T19:00:00+05:30`),scheduledStartAt:new Date(`${d}T10:00:00+05:30`),scheduledEndAt:new Date(`${d}T19:00:00+05:30`),policyVersion:3,shiftDurationMinutes:540,unpaidBreakMinutes:0,paidBreakMinutes:60,approvalStatus:'PENDING',missingPunch:'OUT',missingPunchWaived:waived&&d==='2026-11-04'} as AttendanceRecord);
+ prisma.attendanceRecord.findMany=(async()=>[row('2026-11-04'),row('2026-11-05')]) as typeof oldRecords;
+ prisma.staffRequest.findMany=(async()=>[{userId:'week',fromDate:'2026-11-06',toDate:'2026-11-06',status:'APPROVED'}]) as typeof oldLeaves;
+ let [s]=await computeStatsForRange('2026-11-04','2026-11-07',undefined,true);
+ assert.equal(s.regularPayRs,800);assert.equal(s.missingPunchIncidents,2);assert.equal(s.missingPunchDeductionDays,1);assert.equal(s.missingPunchDeductionRs,450);assert.equal(s.salaryRs,350);
+ assert.equal(s.missedDays,1);assert.equal(s.payrollDays!.find(d=>d.date==='2026-11-06')!.status,'Approved leave');assert.equal(s.payrollDays!.find(d=>d.date==='2026-11-07')!.status,"Didn't show up");
+ [s]=await computeStatsForRange('2026-11-05','2026-11-05');assert.equal(s.missingPunchDeductionDays,1);assert.equal(s.salaryRs,-50);
+ waived=true;[s]=await computeStatsForRange('2026-11-04','2026-11-07');assert.equal(s.missingPunchDeductionDays,0);assert.equal(s.salaryRs,800);
 });

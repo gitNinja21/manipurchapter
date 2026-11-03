@@ -1,3 +1,4 @@
+import {weeklyApplies as employeeWeekApplies,missingPunchDeductions} from "./weeklySchedulePolicy";
 import { masterPay } from "./masterPolicy";
 import { scheduleVersion, isOpenMonday } from "./scheduleVersions";
 import { STATISTICS_START_DATE, statisticsFrom } from "./statisticsStart";
@@ -16,10 +17,14 @@ const OVERTIME_CHUNK_HOURS = 8;
 
 export type PayrollDay = {
   date: string; status: string; clockIn: string | null; clockOut: string | null;
+  missingPunch?: string; missingPunchWaived?: boolean;
   regularHours: number; overtimeHours: number; payRs: number;
   unpaidHours: number; paidBreakMinutes: number | null; lateMinutes: number;
 };
 export type EmployeeStats = {
+  missingPunchIncidents: number;
+  missingPunchDeductionDays: number;
+  missingPunchDeductionRs: number;
   payrollDays?: PayrollDay[];
 
   userId: string;
@@ -94,10 +99,10 @@ export async function computeStatsForRange(
     },
   });
 
-  const leaves = includeDaily ? await prisma.staffRequest.findMany({where: {
+  const leaves = await prisma.staffRequest.findMany({where: {
     kind: "LEAVE", status: {in:["APPROVED","PENDING"]}, fromDate: {lte: effectiveToDate}, toDate: {gte: fromDate},
     userId: {in: employees.map(e=>e.id)},
-  }, select: {userId:true,fromDate:true,toDate:true,status:true}}) : [];
+  }, select: {userId:true,fromDate:true,toDate:true,status:true}});
 
   const recordsByUser = new Map<string, typeof records>();
   for (const original of records) {
@@ -127,8 +132,8 @@ export async function computeStatsForRange(
     // inflate "missed clock-ins" — only non-Monday calendar days count there.
     const weeklyApplies = (d: string) => !!scheduleVersion(emp,d) || (!!emp.masterScheduleJson && !!emp.masterScheduleFrom && d >= emp.masterScheduleFrom) || (!!emp.weeklyScheduleJson && !!emp.attendancePolicyFrom && d >= emp.attendancePolicyFrom);
     const paidOffDay = (d:string) => dayModes.get(d)==="PAID_OFF" || (dayModes.get(d)!=="HOURLY" && isMonday(d) && !isOpenMonday(emp,d));
-    const expectedDay = (d: string) => !paidOffDay(d) && (dayModes.get(d)==="HOURLY" || !weeklyApplies(d) || !!recurringRule(emp, d));
-    const workingCalendarDays = allDays.filter(expectedDay).length;
+    const expectedDay = (d: string) => !paidOffDay(d) && (dayModes.get(d)==="HOURLY" || employeeWeekApplies(d) || !weeklyApplies(d) || !!recurringRule(emp, d));
+
 
     const empRecords = (recordsByUser.get(emp.id) || []).filter(
       (record) =>
@@ -143,13 +148,8 @@ export async function computeStatsForRange(
     const incompleteDays = empRecords.filter(
       (r) => r.clockInAt && !r.clockOutAt,
     ).length;
-    const daysPresentOnWorkingDays = empRecords.filter(
-      (r) => r.clockInAt && expectedDay(r.workDate),
-    ).length;
-    const missedDays = Math.max(
-      workingCalendarDays - daysPresentOnWorkingDays,
-      0,
-    );
+    const missedDays = allDays.filter(d=>expectedDay(d) && !recordsByDate.get(d)?.clockInAt &&
+      (!employeeWeekApplies(d) || (d<today && !leaves.some(l=>l.userId===emp.id && l.status==="APPROVED" && l.fromDate<=d && l.toDate>=d)))).length;
 
     const pendingApprovalDays = 0; // Compatibility field; attendance no longer waits for review.
     const rejectedDays = complete.filter(
@@ -186,10 +186,10 @@ export async function computeStatsForRange(
         const pendingLeave = matchingLeaves.some(l=>l.status==="PENDING");
         const status = off ? (offPaid ? "Paid off day" : "Off day (unpaid)")
           : r?.clockInAt ? (r.approvalStatus===APPROVAL_STATUS.REJECTED ? "Rejected" : !r.clockOutAt ? "Incomplete" : "Worked")
-          : !expectedDay(day) ? "Not scheduled" : leave ? "Approved leave" : pendingLeave ? "Leave pending" : day===today ? "Not clocked in yet" : "Missed shift";
+          : !expectedDay(day) ? "Not scheduled" : leave ? "Approved leave" : pendingLeave && !employeeWeekApplies(day) ? "Leave pending" : day===today ? "Not clocked in yet" : employeeWeekApplies(day) ? "Didn't show up" : "Missed shift";
         const gross = r?.clockInAt && r.clockOutAt ? Math.max(0,+r.clockOutAt-+r.clockInAt) : 0;
         const unpaid = !r || !gross ? 0 : r.policyVersion===3 ? masterPay(r).unpaidMs : Math.min(gross,(r.unpaidBreakMinutes??0)*60000);
-        payrollDays.push({date:day,status,clockIn:r?.clockInAt?.toISOString()??null,clockOut:r?.clockOutAt?.toISOString()??null,
+        payrollDays.push({missingPunch:r?.missingPunch,missingPunchWaived:r?.missingPunchWaived,date:day,status,clockIn:r?.clockInAt?.toISOString()??null,clockOut:r?.clockOutAt?.toISOString()??null,
           regularHours:credit,overtimeHours:eligible?overtimeMs(r!)/3600000:0,payRs:dailyPay,
           unpaidHours:unpaid/3600000,paidBreakMinutes:r?.paidBreakMinutes??null,
           lateMinutes:r?.clockInAt&&!off ? deviations(r).lateMs/60000 : 0});
@@ -248,6 +248,8 @@ export async function computeStatsForRange(
     // Truncate the displayed balance so 7h 59m never appears to have reached 8h.
     const overtimeBalanceHours =
       Math.floor(((accumulatedOvertimeMs % blockMs) / hourMs) * 100) / 100;
+    const missing = missingPunchDeductions((recordsByUser.get(emp.id)||[]).filter(r=>r.workDate>=joinWorkDate&&!paidOffDay(r.workDate)),effectiveFromDate,effectiveToDate);
+    const missingPunchDeductionRs = missing.days*dailyRateRs;
     const bonusPayRs = bonusDays * dailyRateRs;
     const offDaysPayRs = offDays * dailyRateRs;
 
@@ -255,6 +257,9 @@ export async function computeStatsForRange(
 
     return {
       ...(includeDaily ? {payrollDays} : {}),
+      missingPunchIncidents:missing.incidents,
+      missingPunchDeductionDays:missing.days,
+      missingPunchDeductionRs:round2(missingPunchDeductionRs),
       userId: emp.id,
       name: emp.name,
       employeeCode: emp.employeeCode,
@@ -279,7 +284,7 @@ export async function computeStatsForRange(
       overtimeBalanceHours,
       bonusDays,
       bonusPayRs: round2(bonusPayRs),
-      salaryRs: round2(offDaysPayRs + regularPayRs + bonusPayRs),
+      salaryRs: round2(offDaysPayRs + regularPayRs + bonusPayRs - missingPunchDeductionRs),
     };
   });
 }

@@ -1,3 +1,5 @@
+import {weeklyApplies} from "./weeklySchedulePolicy";
+import {employeeWeekShift} from "./weeklyScheduleServer";
 import { workDayMode, paidClosureDates } from "./workDays";
 import { scheduleVersion, isOpenMonday } from "./scheduleVersions";
 import { STATISTICS_START_DATE } from "./statisticsStart";
@@ -34,6 +36,7 @@ export async function effectiveSchedule(db: Db, u: ScheduleUser, date: string) {
     const start=new Date(`${date}T00:00:00+05:30`);
     return {policyVersion:4,start,arrivalStart:start,opens:start,end:new Date(+start+86400000),durationMinutes:1440,paidBreakMinutes:60,breakMinutes:0};
   }
+  if (weeklyApplies(date)) return employeeWeekShift(db,u.id,date);
   const shift = await db.scheduledShift.findUnique({
     where: { userId_workDate: { userId: u.id, workDate: date } },
   });

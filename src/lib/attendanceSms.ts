@@ -1,3 +1,4 @@
+import { WEEKLY_SCHEDULE_FROM } from "./weeklySchedulePolicy";
 import { workDayMode } from "./workDays";
 import { scheduleVersion, isOpenMonday } from "@/lib/scheduleVersions";
 import twilio from "twilio";
@@ -48,25 +49,54 @@ export async function eligibleForArrivalSms(user: User, now: Date) {
     schedule?.end ?? new Date(midnight + user.attendanceEndMinute * 60000));
 }
 
+/** Check yesterday only: never send a backlog of historical absence texts. */
+export function noShowDate(now: Date) {
+  return workDateFor(new Date(+now - 24 * 60 * 60 * 1000));
+}
+
+export function noShowSmsBody(date: string) {
+  return `Manipur Chapter: You are marked "Didn't show up" (no show) for ${date} because both clock-in and clock-out are missing. This day is unpaid. If you attended, contact admin to correct your attendance.`;
+}
+
+export async function eligibleForNoShowSms(user: User, now: Date) {
+  const date = noShowDate(now);
+  if (date < WEEKLY_SCHEDULE_FROM || !user.active || !user.approved ||
+      user.mustChangePassword || user.role !== "EMPLOYEE" || workDateFor(user.createdAt) > date) return false;
+  const mode = await workDayMode(prisma, date);
+  if (mode === "PAID_OFF") return false;
+  const monday = new Date(`${date}T12:00:00+05:30`).getUTCDay() === 1;
+  if (monday && mode !== "HOURLY" && !isOpenMonday(user, date)) return false;
+  const [record, leave, pendingVerification] = await Promise.all([
+    prisma.attendanceRecord.findUnique({ where: { userId_workDate: { userId: user.id, workDate: date } } }),
+    prisma.staffRequest.findFirst({ where: { userId: user.id, kind: "LEAVE", status: "APPROVED",
+      fromDate: { lte: date }, toDate: { gte: date } } }),
+    prisma.staffRequest.findFirst({ where: { userId: user.id, kind: { in: ["GPS_CLOCK_IN", "GPS_CLOCK_OUT"] },
+      status: "PENDING", fromDate: { lte: date }, toDate: { gte: date } } }),
+  ]);
+  // A pending verified attendance request must be reviewed before calling someone absent.
+  return !record?.clockInAt && !record?.clockOutAt && !leave && !pendingVerification;
+}
+
 type SendSms = (options: { to: string; body: string; from?: string; messagingServiceSid?: string }) => Promise<{ sid: string }>;
-export async function dispatchAttendanceSms(now = new Date(), send?: SendSms) {
+export async function dispatchAttendanceSms(now = new Date(), send?: SendSms, kind: "ARRIVAL" | "NO_SHOW" = "ARRIVAL") {
   const config = attendanceSmsConfig();
   if (!config) return;
-  const date = workDateFor(now);
+  const date = kind === "NO_SHOW" ? noShowDate(now) : workDateFor(now);
+  const eligible = kind === "NO_SHOW" ? eligibleForNoShowSms : eligibleForArrivalSms;
   const users = await prisma.user.findMany({ where: { role: "EMPLOYEE", active: true, approved: true, mustChangePassword: false } });
   const client = send ? null : twilio(config.sid, config.token, { autoRetry: false, timeout: 15000 });
   for (const user of users) {
-    if (!await eligibleForArrivalSms(user, now)) continue;
+    if (!await eligible(user, now)) continue;
     let job;
     try {
       // Claim before contacting Twilio. Retries/restarts cannot create another paid send.
-      job = await prisma.attendanceSms.create({ data: { userId: user.id, workDate: date } });
+      job = await prisma.attendanceSms.create({ data: { userId: user.id, workDate: date, kind } });
     } catch (error) {
       if ((error as { code?: string }).code === "P2002") continue;
       throw error;
     }
     const latest = await prisma.user.findUnique({ where: { id: user.id } });
-    if (!latest || !await eligibleForArrivalSms(latest, now)) {
+    if (!latest || !await eligible(latest, now)) {
       await prisma.attendanceSms.update({ where: { id: job.id }, data: { status: "SKIPPED" } });
       continue;
     }
@@ -78,7 +108,7 @@ export async function dispatchAttendanceSms(now = new Date(), send?: SendSms) {
     }
     let result;
     try {
-      result = await (send ?? (options => client!.messages.create(options)))({ to, body: attendanceSmsBody(config.origin), ...config.sender });
+      result = await (send ?? (options => client!.messages.create(options)))({ to, body: kind === "NO_SHOW" ? noShowSmsBody(date) : attendanceSmsBody(config.origin), ...config.sender });
     } catch (error) {
       // A timeout may follow an accepted message. Never automatically resend it.
       const code = (error as { code?: unknown }).code;
@@ -103,7 +133,7 @@ export function startAttendanceSmsWorker() {
   const tick = async () => {
     if (running) return;
     running = true;
-    try { await dispatchAttendanceSms(); }
+    try { await dispatchAttendanceSms(); await dispatchAttendanceSms(new Date(), undefined, "NO_SHOW"); }
     catch { console.warn("Attendance SMS worker failed; claimed messages will not be resent."); }
     finally { running = false; }
   };

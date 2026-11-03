@@ -1,3 +1,4 @@
+import {weeklyApplies} from "@/lib/weeklySchedulePolicy";
 import { approveLocationFallback } from "@/lib/locationFallback";
 import { lateClockOutRule } from "@/lib/attendanceTime";
 import { effectiveSchedule, validateShift, policyAudit, penaltyContext, syncMeetings } from "@/lib/performanceServer";
@@ -73,6 +74,7 @@ export const PATCH = teamRoute(async (u, req) => {
       const after = await tx.attendanceRecord.update({where:{id:record.id},data:{lateClockOutStatus:status}});
       await tx.attendanceAudit.create({data:auditData(record,r.user,u,`LATE_CLOCK_OUT_${status}`,after)});
     }
+    if (status === "APPROVED" && r.kind === "SHIFT_CHANGE" && weeklyApplies(r.fromDate)) throw new TeamError("Weekly schedules now control future shifts. Reject this old request and have the employee update their weekly schedule; use Attendance Management for current/past times.",409);
     if (status === "APPROVED" && r.kind === "SHIFT_CHANGE") {
       if (!r.proposedIn || !r.proposedOut) throw new TeamError("Shift times are missing.");
       await validateShift(tx, r.userId, r.fromDate, r.proposedIn, r.proposedOut, true);

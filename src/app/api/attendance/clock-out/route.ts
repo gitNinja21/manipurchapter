@@ -1,3 +1,7 @@
+import {missingClockInContext,reconcileMissingClockOut} from "@/lib/missingPunchServer";
+import {todayWorkDate} from "@/lib/time";
+import {durationSnapshot} from "@/lib/performance";
+import {TeamError} from "@/lib/team";
 import {enforceSelfieTheme} from "@/lib/selfieThemeServer";
 import {SelfieThemeError} from "@/lib/selfieThemes";
 import { lateClockOutRule } from "@/lib/attendanceTime";
@@ -35,31 +39,20 @@ async function handlePost(req: NextRequest) {
   }
 
   const now = new Date();
+  await reconcileMissingClockOut(user.id);
   const existing = await prisma.attendanceRecord.findFirst({
     where: { userId: user.id, clockInAt: { not: null }, clockOutAt: null },
     orderBy: { workDate: "desc" },
   });
-  if (!existing?.clockInAt) {
-    return NextResponse.json(
-      { error: "You haven't clocked in yet today." },
-      { status: 409 }
-    );
-  }
-  if (existing.clockOutAt) {
-    return NextResponse.json(
-      { error: "You've already clocked out today." },
-      { status: 409 }
-    );
-  }
-
-  if (+now - +existing.clockInAt > 24 * 3600000) {
-    return NextResponse.json({error: "This shift is over 24 hours old. Submit an attendance correction with your actual leaving time."}, {status: 409});
-  }
+  const missingSchedule = !existing ? await missingClockInContext(prisma,user,todayWorkDate(),now) : null;
+  const source = existing ?? {workDate:todayWorkDate(),clockInAt:missingSchedule!.start,clockOutAt:null,
+    extraTimeCutoff:missingSchedule!.end,policyVersion:3,earlyExcused:false};
+  if (+now - +source.clockInAt! > 24 * 3600000) return NextResponse.json({error:"This shift is over 24 hours old. Ask admin for a correction."},{status:409});
   if (body.extraTimeReason !== undefined && (typeof body.extraTimeReason !== "string" || body.extraTimeReason.trim().length > 1000)) {
     return NextResponse.json({error:"The optional reason must be text, up to 1000 characters."},{status:400});
   }
   const extraTimeReason = body.extraTimeReason?.trim() || null;
-  const hasExtraTime = !!existing.extraTimeCutoff && now > existing.extraTimeCutoff;
+  const hasExtraTime = !!source.extraTimeCutoff && now > source.extraTimeCutoff;
 
   // Location gate — a no-op unless RESTAURANT_LAT/RESTAURANT_LNG are set.
   // Checked before the face match so an off-site clock-out gets a clear,
@@ -115,13 +108,22 @@ async function handlePost(req: NextRequest) {
 
   const record = await prisma.$transaction(async (tx) => {
     await enforceSelfieTheme(tx,user.id,"out",photoDataUrl,body.poseReceipt,true);
-    const exception = await tx.staffRequest.findFirst({where: {userId: user.id, kind: "EARLY_DEPARTURE", fromDate: existing.workDate, status: "APPROVED"}});
+    const exception = await tx.staffRequest.findFirst({where: {userId: user.id, kind: "EARLY_DEPARTURE", fromDate: source.workDate, status: "APPROVED"}});
+    let target=existing;
+    if(!target){
+      const schedule=await missingClockInContext(tx,user,source.workDate,now);
+      target=await tx.attendanceRecord.create({data:{userId:user.id,workDate:source.workDate,
+        clockInAt:schedule.start,...durationSnapshot(schedule.start,schedule),missingPunch:"IN",approvalStatus:"PENDING"}});
+      await tx.attendanceAudit.create({data:{recordId:target.id,userId:user.id,employeeName:user.name,employeeCode:user.employeeCode,
+        workDate:source.workDate,actorId:user.id,actorName:user.name,action:"MISSING_CLOCK_IN_INFERRED",beforeJson:"null",
+        afterJson:JSON.stringify({clockInAt:schedule.start,clockOutAt:now,missingPunch:"IN",source:"SAVED_SCHEDULE_AND_VERIFIED_CLOCK_OUT"})}});
+    }
     const changed = await tx.attendanceRecord.updateMany({
-      where: { id: existing.id, clockOutAt: null, updatedAt: existing.updatedAt },
+      where: { id: target.id, clockOutAt: null, updatedAt: target.updatedAt },
       data: {
         clockOutAt: now,
-        ...lateClockOutRule(existing.workDate, now, existing.policyVersion===4),
-        earlyExcused: existing.earlyExcused || !!exception,
+        ...lateClockOutRule(source.workDate, now, source.policyVersion===4),
+        earlyExcused: source.earlyExcused || !!exception,
         clockOutPhoto: photoKey,
         clockOutFaceMatch: faceMatch,
         clockOutFaceDistance: faceDistance,
@@ -131,17 +133,17 @@ async function handlePost(req: NextRequest) {
       },
     });
     if (!changed.count) return null;
-    const result = await tx.attendanceRecord.findUniqueOrThrow({where: {id: existing.id}});
+    const result = await tx.attendanceRecord.findUniqueOrThrow({where: {id: target.id}});
     if (result.lateClockOutStatus === "PENDING") {
-      const request = await tx.staffRequest.create({data:{userId:user.id,kind:"LATE_CLOCK_OUT",fromDate:existing.workDate,toDate:existing.workDate,reason:extraTimeReason || "Clocked out after 10:45 pm IST. Admin approval is required for the time after 10:45 pm.",proposedIn:existing.clockInAt,proposedOut:now,expectedRecordId:result.id,expectedUpdatedAt:result.updatedAt}});
+      const request = await tx.staffRequest.create({data:{userId:user.id,kind:"LATE_CLOCK_OUT",fromDate:source.workDate,toDate:source.workDate,reason:extraTimeReason || "Clocked out after 10:45 pm IST. Admin approval is required for the time after 10:45 pm.",proposedIn:source.clockInAt,proposedOut:now,expectedRecordId:result.id,expectedUpdatedAt:result.updatedAt}});
       const admins = await tx.user.findMany({where:{role:"ADMIN",active:true},select:{id:true,role:true}});
       await notify(tx,admins,"REQUEST",request.id,`${user.name}: clock-out after 10:45 pm needs approval`,"team?view=requests");
     }
     return result;
   }).catch(async error=>{await deletePhotoByKey(photoKey);throw error;});
-  if (!record) return NextResponse.json({error: "This shift changed. Refresh before trying again."}, {status: 409});
+  if (!record) {await deletePhotoByKey(photoKey); return NextResponse.json({error: "This shift changed. Refresh before trying again."}, {status: 409});}
 
   return NextResponse.json({ ok: true, record, faceMatch });
 }
 
-export async function POST(req:NextRequest){try{return await handlePost(req);}catch(e){if(e instanceof SelfieThemeError)return NextResponse.json({error:e.message},{status:e.status});throw e;}}
+export async function POST(req:NextRequest){try{return await handlePost(req);}catch(e){if(e instanceof SelfieThemeError || e instanceof TeamError)return NextResponse.json({error:e.message},{status:e.status});throw e;}}

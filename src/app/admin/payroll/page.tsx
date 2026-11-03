@@ -101,6 +101,9 @@ export default function PayrollPage() {
       "Bonus pay INR",
       "Total salary INR",
       "Rejected days",
+      "Missing punch incidents",
+      "Missing punch deduction days",
+      "Missing punch deduction INR",
     ];
     const rows = visible.map((s) => [
       s.name,
@@ -122,6 +125,9 @@ export default function PayrollPage() {
       s.bonusPayRs,
       s.salaryRs,
       s.rejectedDays,
+      s.missingPunchIncidents,
+      s.missingPunchDeductionDays,
+      s.missingPunchDeductionRs,
     ]);
     const blob = new Blob(
       [
@@ -327,6 +333,7 @@ export default function PayrollPage() {
                                   `Bonus days (${s.bonusDays})`,
                                   money(s.bonusPayRs),
                                 ],
+                                [`Missing punches (${s.missingPunchIncidents} incidents; ${s.missingPunchDeductionDays} day deductions)`, `-${money(s.missingPunchDeductionRs)}`],
                                 ["Total salary", money(s.salaryRs)],
                               ].map(([label, value]) => (
                                 <div
@@ -408,7 +415,7 @@ export default function PayrollPage() {
             months; only bonuses earned within the selected dates appear here.
           </p>
           <p>
-            Salary = regular pay + paid Monday pay + earned bonus pay.
+            Salary = regular pay + paid off-day pay + earned bonus pay - missing-punch deductions. From 4 November 2026, every two unwaived missing-punch incidents in a calendar month deduct one daily rate.
             Historical attendance decisions can change later overtime balances;
             review the audit history when reconciling an earlier export.
           </p>

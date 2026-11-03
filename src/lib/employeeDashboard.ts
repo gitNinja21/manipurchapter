@@ -1,3 +1,6 @@
+import {submittedWeek} from "./weeklyScheduleServer";
+import {reconcileMissingClockOut} from "./missingPunchServer";
+import {weeklyApplies} from "./weeklySchedulePolicy";
 import { workDayMode, paidClosureDates } from "./workDays";
 import { scheduleVersion } from "@/lib/scheduleVersions";
 import { usesMasterPolicy, monthlyLateness } from "./masterPolicy";
@@ -12,6 +15,7 @@ import type { User } from "@prisma/client";
 export async function getAttendanceToday(user: User) {
 
   const workDate = todayWorkDate();
+  await reconcileMissingClockOut(user.id);
   const open = await prisma.attendanceRecord.findFirst({where: {userId: user.id, clockInAt: {not: null}, clockOutAt: null}, orderBy: {workDate: "desc"}});
   const record = open ?? await prisma.attendanceRecord.findUnique({
     where: { userId_workDate: { userId: user.id, workDate } },
@@ -25,7 +29,7 @@ export async function getAttendanceToday(user: User) {
   const meetings = usesMasterPolicy(workDate) ? [] : await prisma.managerMeeting.findMany({where: {userId: user.id, status: "PENDING"}});
   const rule = recurringRule(user, workDate);
   const labels = schedule?.policyVersion===4 ? {arrival:"Any time",latest:"No deadline",opening:"Any time",finish:"Any time",fixed:false,allowEarly:true,policyVersion:4,breakExpectation:"1-hour paid break included; admin enters unpaid break",durationHours:0,unpaidBreakMinutes:record?.unpaidBreakMinutes ?? 0} : schedule ? {
-    arrival: !override && rule && rule.start !== rule.latest ? `${minuteLabel(rule.start)}–${minuteLabel(rule.latest)}` : formatIstTime(schedule.start),
+    arrival: !weeklyApplies(workDate) && !override && rule && rule.start !== rule.latest ? `${minuteLabel(rule.start)}–${minuteLabel(rule.latest)}` : formatIstTime(schedule.start),
     latest: formatIstTime(schedule.start), opening: formatIstTime(schedule.opens),
     finish: record?.scheduledEndAt ? formatIstTime(record.scheduledEndAt) : schedule.policyVersion === 3 ? formatIstTime(schedule.end) : `${schedule.durationMinutes / 60} hours after clock-in`,
     fixed: !!override || rule?.start === rule?.latest, allowEarly: true,
@@ -36,7 +40,8 @@ export async function getAttendanceToday(user: User) {
   const pendingGpsRequests = await prisma.staffRequest.findMany({where:{userId:user.id,status:"PENDING",kind:{in:["GPS_CLOCK_IN","GPS_CLOCK_OUT"]},fromDate:{in:[workDate,...(open ? [open.workDate] : [])]}},select:{id:true,kind:true,proposedIn:true,proposedOut:true,createdAt:true},orderBy:{createdAt:"desc"}});
   const month=workDate.slice(0,7);
   const lateness=monthlyLateness((await prisma.attendanceRecord.findMany({where:{userId:user.id,workDate:{startsWith:month}}})).filter(r=>!closedDates.has(r.workDate)),month);
-  return {pendingGpsRequests,lateness,record, policy: !!schedule, schedule: labels,
-    arrivalState: mode==="PAID_OFF" ? "OFF" : mode==="HOURLY" ? "ON_TIME" : (scheduleVersion(user,workDate) || user.weeklyScheduleJson || user.masterScheduleJson) && !schedule ? "OFF" : schedule ? new Date() < schedule.opens ? "EARLY" : +new Date() > +schedule.start + (schedule.policyVersion === 3 ? 15*60000 : 0) ? "LATE" : "ON_TIME" : null,
+  const weekSubmitted = !weeklyApplies(workDate) || !!await submittedWeek(prisma,user.id,workDate);
+  return {weekSubmitted,pendingGpsRequests,lateness,record, policy: !!schedule, schedule: labels,
+    arrivalState: mode==="PAID_OFF" ? "OFF" : mode==="HOURLY" ? "ON_TIME" : (weeklyApplies(workDate) || scheduleVersion(user,workDate) || user.weeklyScheduleJson || user.masterScheduleJson) && !schedule ? "OFF" : schedule ? new Date() < schedule.opens ? "EARLY" : +new Date() > +schedule.start + (schedule.policyVersion === 3 ? 15*60000 : 0) ? "LATE" : "ON_TIME" : null,
     lateRequest, meetings, serverTime: new Date().toISOString()};
 }

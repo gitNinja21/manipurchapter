@@ -1,3 +1,4 @@
+import {reconcileMissingClockOut} from "@/lib/missingPunchServer";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { computeStatsForRange } from "@/lib/stats";
@@ -25,6 +26,7 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
 
+  await reconcileMissingClockOut();
   const stats = await computeStatsForRange(from, to);
 
   const totals = stats.reduce(

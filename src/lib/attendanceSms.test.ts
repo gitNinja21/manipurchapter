@@ -94,3 +94,67 @@ test("eligibility, daily claim, recheck and uncertain-send handling with no live
   process.env.TWILIO_MESSAGING_SERVICE_SID = `VA${"0".repeat(32)}`; assert.equal(attendanceSmsConfig(), null);
   process.env.TWILIO_MESSAGING_SERVICE_SID = `MG${"0".repeat(32)}`; assert.ok(attendanceSmsConfig());
 });
+
+test("no-show SMS excludes leave/off days/punches, isolates reminder claims and never resends uncertain sends", async t => {
+  const { eligibleForNoShowSms, noShowDate, noShowSmsBody } = await import("./attendanceSms");
+  const now = new Date("2026-11-04T18:31:00Z"); // Nov 5, 00:01 IST
+  assert.equal(noShowDate(now), "2026-11-04");
+  assert.ok(noShowSmsBody("2026-11-04").includes('marked "Didn\'t show up"'));
+  const env = { ...process.env };
+  Object.assign(process.env, { ATTENDANCE_SMS_ENABLED: "true", ATTENDANCE_SMS_BASE_URL: "https://example.test",
+    TWILIO_ACCOUNT_SID: "ACtest", TWILIO_AUTH_TOKEN: "test", TWILIO_SMS_FROM: "+12232176231", TWILIO_MESSAGING_SERVICE_SID: "" });
+  const old = { users: prisma.user.findMany, user: prisma.user.findUnique,
+    record: prisma.attendanceRecord.findUnique, request: prisma.staffRequest.findFirst,
+    create: prisma.attendanceSms.create, update: prisma.attendanceSms.update };
+  t.after(() => {
+    prisma.user.findMany = old.users; prisma.user.findUnique = old.user;
+    prisma.attendanceRecord.findUnique = old.record; prisma.staffRequest.findFirst = old.request;
+    prisma.attendanceSms.create = old.create; prisma.attendanceSms.update = old.update;
+    for (const key of ["ATTENDANCE_SMS_ENABLED", "ATTENDANCE_SMS_BASE_URL", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_SMS_FROM", "TWILIO_MESSAGING_SERVICE_SID"]) {
+      if (env[key] === undefined) delete process.env[key]; else process.env[key] = env[key];
+    }
+  });
+  const user = { id: "absent", active: true, approved: true, role: "EMPLOYEE", mustChangePassword: false,
+    createdAt: new Date("2026-10-01"), phone: "9876543210" } as User;
+  let mode: string | null = null, punch: "IN" | "OUT" | null = null, leave = false, pending = false;
+  prisma.workDayOverride.findUnique = (async () => mode ? { mode } : null) as typeof originalDayFind;
+  prisma.user.findMany = (async () => [user]) as typeof old.users;
+  prisma.user.findUnique = (async () => user) as unknown as typeof old.user;
+  prisma.attendanceRecord.findUnique = (async () => ({
+    clockInAt: punch === "IN" ? now : null, clockOutAt: punch === "OUT" ? now : null,
+  })) as unknown as typeof old.record;
+  prisma.staffRequest.findFirst = (async args => (args?.where?.kind === "LEAVE" ? leave : pending) ? { id: "request" } : null) as typeof old.request;
+  assert.equal(await eligibleForNoShowSms(user, now), true);
+  for (const which of ["IN", "OUT"] as const) { punch = which; assert.equal(await eligibleForNoShowSms(user, now), false); }
+  punch = null; leave = true; assert.equal(await eligibleForNoShowSms(user, now), false);
+  leave = false; pending = true; assert.equal(await eligibleForNoShowSms(user, now), false);
+  pending = false; mode = "PAID_OFF"; assert.equal(await eligibleForNoShowSms(user, now), false);
+  mode = null;
+  const tuesday = new Date("2026-11-10T00:01:00+05:30");
+  assert.equal(await eligibleForNoShowSms(user, tuesday), false);
+  mode = "HOURLY"; assert.equal(await eligibleForNoShowSms(user, tuesday), true); mode = null;
+  assert.equal(await eligibleForNoShowSms(user, new Date("2026-11-04T00:01:00+05:30")), false);
+  assert.equal(await eligibleForNoShowSms({ ...user, createdAt: now }, now), false);
+  const claims = new Set(["absent:2026-11-04:ARRIVAL"]);
+  let sends = 0, status = "", correctOnClaim = false;
+  prisma.attendanceSms.create = (async args => {
+    const key = `${args.data.userId}:${args.data.workDate}:${args.data.kind}`;
+    if (claims.has(key)) throw { code: "P2002" };
+    claims.add(key); if (correctOnClaim) punch = "IN";
+    return { id: key };
+  }) as typeof old.create;
+  prisma.attendanceSms.update = (async args => { status = String(args.data.status); return {}; }) as typeof old.update;
+  const send = async (options: { to: string; body: string }) => {
+    assert.equal(options.to, "+919876543210"); assert.ok(options.body.includes("2026-11-04"));
+    sends++; return { sid: "SMtest" };
+  };
+  await Promise.all([dispatchAttendanceSms(now, send, "NO_SHOW"), dispatchAttendanceSms(now, send, "NO_SHOW")]);
+  assert.equal(sends, 1); assert.equal(status, "ACCEPTED");
+  claims.clear(); correctOnClaim = true;
+  await dispatchAttendanceSms(now, send, "NO_SHOW");
+  assert.equal(sends, 1); assert.equal(status, "SKIPPED");
+  claims.clear(); correctOnClaim = false; punch = null;
+  const fail = async () => { sends++; throw new Error("timeout"); };
+  await dispatchAttendanceSms(now, fail, "NO_SHOW"); await dispatchAttendanceSms(now, fail, "NO_SHOW");
+  assert.equal(sends, 2); assert.equal(status, "SEND_FAILED_OR_UNKNOWN");
+});

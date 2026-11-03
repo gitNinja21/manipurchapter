@@ -1,3 +1,7 @@
+import {weeklyApplies} from "@/lib/weeklySchedulePolicy";
+import {requireSubmittedWeek} from "@/lib/weeklyScheduleServer";
+import {reconcileMissingClockOut} from "@/lib/missingPunchServer";
+import {TeamError} from "@/lib/team";
 import {enforceSelfieTheme} from "@/lib/selfieThemeServer";
 import {SelfieThemeError} from "@/lib/selfieThemes";
 import { workDayMode } from "@/lib/workDays";
@@ -40,9 +44,11 @@ async function handlePost(req: NextRequest) {
 
   const now = new Date();
   const workDate = todayWorkDate();
+  await requireSubmittedWeek(prisma,user.id,workDate);
+  await reconcileMissingClockOut(user.id);
   if(await workDayMode(prisma,workDate)==="PAID_OFF")return NextResponse.json({error:"The restaurant is closed on this date. Paid-off rules apply."},{status:403});
   const schedule = await effectiveSchedule(prisma, user, workDate);
-  if ((scheduleVersion(user,workDate) || user.weeklyScheduleJson || user.masterScheduleJson) && !schedule) return NextResponse.json({error: "You have no scheduled shift today. Ask your admin to assign one."}, {status: 403});
+  if ((weeklyApplies(workDate) || scheduleVersion(user,workDate) || user.weeklyScheduleJson || user.masterScheduleJson) && !schedule) return NextResponse.json({error: "You have no scheduled shift today. Ask your admin to assign one."}, {status: 403});
   if (schedule && now < schedule.opens) return NextResponse.json({error: "Clock-in opens 15 minutes before your scheduled start. For an earlier start, submit a shift-change request and obtain admin approval; same-day requests are allowed."}, {status: 403});
   const leave = await prisma.staffRequest.findFirst({where: {userId: user.id, kind: "LEAVE", status: "APPROVED", fromDate: {lte: workDate}, toDate: {gte: workDate}}});
   if (leave) return NextResponse.json({error: "You have approved leave today. Ask your manager to resolve this before clock-in."}, {status: 409});
@@ -131,6 +137,7 @@ async function handlePost(req: NextRequest) {
     const attempt = await tx.arrivalAttempt.findUnique({where: {userId_workDate: {userId: user.id, workDate}}});
     const clockInAt = attempt?.approvedAt ?? now;
     if(await workDayMode(tx,workDate)==="PAID_OFF")return {dayChanged:true};
+    await requireSubmittedWeek(tx,user.id,workDate);
     const currentSchedule = await effectiveSchedule(tx, user, workDate);
     const approval = await tx.staffRequest.findFirst({where: {userId: user.id, kind: "LATE_ARRIVAL", fromDate: workDate, status: "APPROVED"}});
     const rules = {
@@ -151,4 +158,4 @@ async function handlePost(req: NextRequest) {
   return NextResponse.json({ ok: true, record, faceMatch });
 }
 
-export async function POST(req:NextRequest){try{return await handlePost(req);}catch(e){if(e instanceof SelfieThemeError)return NextResponse.json({error:e.message},{status:e.status});throw e;}}
+export async function POST(req:NextRequest){try{return await handlePost(req);}catch(e){if(e instanceof SelfieThemeError || e instanceof TeamError)return NextResponse.json({error:e.message},{status:e.status});throw e;}}

@@ -1,3 +1,4 @@
+import {weeklyApplies} from "@/lib/weeklySchedulePolicy";
 import { validateShift, effectiveSchedule } from "@/lib/performanceServer";
 import { prisma } from "@/lib/prisma";
 import {
@@ -60,6 +61,7 @@ export const POST = teamRoute(async (u, req) => {
     throw new TeamError(
       "Corrections must be between your join date and today.",
     );
+  if (kind === "SHIFT_CHANGE" && weeklyApplies(fromDate)) throw new TeamError("Use My weekly schedule on the Today page to change future dates. Ask admin for a current or past attendance correction.");
   if (kind === "LEAVE" && fromDate < todayWorkDate())
     throw new TeamError("Leave requests must start today or later.");
   if (kind === "LATE_ARRIVAL" && (!(await effectiveSchedule(prisma, u, fromDate)) || fromDate < todayWorkDate() || Date.parse(fromDate) - Date.parse(todayWorkDate()) > 365 * 86400000))

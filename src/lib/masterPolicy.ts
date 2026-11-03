@@ -3,6 +3,7 @@ export const MASTER_POLICY_FROM = "2026-09-26";
 export const ARRIVAL_GRACE_MS = 15 * 60000;
 export function usesMasterPolicy(date: string) { return date >= MASTER_POLICY_FROM; }
 export type MasterRecord = {
+  missingPunch?: string;
   policyVersion?: number; workDate?: string; clockInAt: Date | string | null; clockOutAt: Date | string | null;
   scheduledStartAt?: Date | string | null; scheduledEndAt?: Date | string | null;
   shiftDurationMinutes?: number; unpaidBreakMinutes?: number; lateExcused?: boolean;
@@ -26,7 +27,7 @@ export function masterPay(r: MasterRecord) {
   if (r.lateClockOutCutoff && ["PENDING","REJECTED"].includes(r.lateClockOutStatus ?? "")) out=Math.min(out,+new Date(r.lateClockOutCutoff));
   if (r.extraTimeCutoff && r.extraTimeStatus === "REJECTED") out=Math.min(out,+new Date(r.extraTimeCutoff));
   const overlap=Math.max(0,Math.min(out,finish)-Math.max(arrival,start));
-  const graceMs=out>arrival && arrival<finish ? Math.min(ARRIVAL_GRACE_MS,Math.max(0,arrival-start)) : 0;
+  const graceMs=(!r.missingPunch || r.missingPunch==="NONE") && out>arrival && arrival<finish ? Math.min(ARRIVAL_GRACE_MS,Math.max(0,arrival-start)) : 0;
   const fraction=unpaidFraction(r);
   const regularGross=Math.min(Math.max(0,finish-start),overlap+graceMs);
   const bonusGross=Math.max(0,out-Math.max(arrival,finish));

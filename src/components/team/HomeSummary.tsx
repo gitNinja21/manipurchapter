@@ -5,6 +5,7 @@ import { formatWorkDate, formatIstDateTime } from "@/lib/time";
 import { ErrorNotice } from "./TeamCommon";
 type Home = {
   today: string;
+  weeklyScheduleRequired?: boolean;
   attendancePolicyFrom: string | null;
   scheduleDescription: string | null;
   month: string;
@@ -42,7 +43,7 @@ export default function HomeSummary({ admin = false, previewEmployeeId }: { admi
                     {data.nextShift.note}
                   </p>
                 </>
-              ) : data.attendancePolicyFrom ? (
+              ) : data.weeklyScheduleRequired ? <p className="text-sm mt-2">No upcoming submitted shift. Set your weekly times on the Today page.</p> : data.attendancePolicyFrom ? (
                 <p className="text-sm text-foreground/60 mt-2">{data.scheduleDescription}. Finish is based on actual clock-in.</p>
               ) : (
                 <p className="text-sm text-foreground/60 mt-2">

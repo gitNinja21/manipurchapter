@@ -12,6 +12,8 @@ export function auditData(
       clockInAt: r.clockInAt,
       clockOutAt: r.clockOutAt,
       autoClockOut: r.autoClockOut,
+      missingPunch:r.missingPunch,
+      missingPunchWaived:r.missingPunchWaived,
       unpaidBreakMinutes: r.unpaidBreakMinutes,
       paidBreakMinutes: r.paidBreakMinutes,
       extraTimeCutoff: r.extraTimeCutoff,

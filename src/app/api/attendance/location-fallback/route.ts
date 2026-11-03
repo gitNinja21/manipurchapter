@@ -1,3 +1,4 @@
+import {reconcileMissingClockOut,missingClockInContext} from "@/lib/missingPunchServer";
 import {enforceSelfieTheme} from "@/lib/selfieThemeServer";
 import { teamRoute, jsonBody, TeamError, notify } from "@/lib/team";
 import { prisma } from "@/lib/prisma";
@@ -16,18 +17,20 @@ export const POST = teamRoute(async (user,req) => {
   if (!isFaceMatch(distance)) throw new TeamError("Selfie does not match. Please retake in good lighting.",422);
   if (typeof body.photoDataUrl !== "string") throw new TeamError("Selfie required.");
   await enforceSelfieTheme(prisma,user.id,action,body.photoDataUrl,body.poseReceipt);
+  await reconcileMissingClockOut(user.id);
   const now = new Date(), kind = action === "in" ? "GPS_CLOCK_IN" : "GPS_CLOCK_OUT";
   const photo = await saveDataUrlPhoto(body.photoDataUrl,user.id,action);
   try {
     const result = await prisma.$transaction(async tx => {
       const open = await tx.attendanceRecord.findFirst({where:{userId:user.id,clockInAt:{not:null},clockOutAt:null},orderBy:{workDate:"desc"}});
-      const date = action === "out" ? open?.workDate : todayWorkDate();
-      if (!date || (action === "out" && (!open?.clockInAt || +now - +open.clockInAt > 86400000))) throw new TeamError("No valid open shift. Ask for an attendance correction.",409);
+      const date = action === "out" ? open?.workDate ?? todayWorkDate() : todayWorkDate();
+      const missingSchedule = action === "out" && !open ? await missingClockInContext(tx,user,date,now) : null;
+      if (!date || (action === "out" && (open?.clockInAt && +now - +open.clockInAt > 86400000))) throw new TeamError("No valid open shift. Ask for an attendance correction.",409);
       if (action === "in") await checkFallbackIn(tx,user,date,now);
       if (await tx.staffRequest.findFirst({where:{userId:user.id,kind,fromDate:date,status:"PENDING"}})) throw new TeamError("A GPS fallback request is already pending. Check Team → Requests.",409);
       const record = await tx.attendanceRecord.findUnique({where:{userId_workDate:{userId:user.id,workDate:date}}});
       await enforceSelfieTheme(tx,user.id,action,body.photoDataUrl,body.poseReceipt,true);
-      const request = await tx.staffRequest.create({data:{userId:user.id,kind,fromDate:date,toDate:date,reason:"Location unavailable. Please verify my physical presence at the restaurant.",proposedIn:action === "in" ? now : open!.clockInAt,proposedOut:action === "out" ? now : null,verificationPhoto:photo,verificationDistance:distance,expectedRecordId:record?.id ?? null,expectedUpdatedAt:record?.updatedAt ?? null}});
+      const request = await tx.staffRequest.create({data:{userId:user.id,kind,fromDate:date,toDate:date,reason:"Location unavailable. Please verify my physical presence at the restaurant.",proposedIn:action === "in" ? now : open?.clockInAt ?? missingSchedule!.start,proposedOut:action === "out" ? now : null,verificationPhoto:photo,verificationDistance:distance,expectedRecordId:record?.id ?? null,expectedUpdatedAt:record?.updatedAt ?? null}});
       if (action === "in" && (await syncMeetings(tx,user.id,date)).length) await tx.arrivalAttempt.upsert({where:{userId_workDate:{userId:user.id,workDate:date}},create:{userId:user.id,workDate:date,arrivedAt:now,photo},update:{}});
       await notify(tx,await tx.user.findMany({where:{role:"ADMIN",active:true},select:{id:true,role:true}}),"REQUEST",request.id,`${user.name}: GPS clock-${action} needs physical verification`,"team?view=requests");
       return {ok:true,requestId:request.id};

@@ -93,6 +93,9 @@ model User {
 }
 
 model AttendanceRecord {
+  missingPunch String @default("NONE") // IN or OUT denotes inferred boundary, not a verified punch
+  missingPunchWaived Boolean @default(false)
+
   id       String @id @default(cuid())
   userId   String
   user     User   @relation(fields: [userId], references: [id])
@@ -205,13 +208,14 @@ model AttendanceSms {
   id String @id @default(cuid())
   userId String
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind String @default("ARRIVAL") // ARRIVAL or NO_SHOW
   workDate String
   status String @default("CLAIMED")
   messageSid String?
   errorCode String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  @@unique([userId, workDate])
+  @@unique([userId, workDate, kind])
 }
 
 model Notification {
@@ -573,4 +577,15 @@ model SelfieThemeException {
   grantedById String
   createdAt DateTime @default(now())
   @@unique([userId, date, action])
+}
+
+model EmployeeWeekSchedule {
+  id String @id @default(cuid())
+  userId String
+  weekStart String
+  daysJson String
+  revision Int @default(1)
+  submittedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([userId, weekStart])
 }
