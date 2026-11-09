@@ -28,7 +28,7 @@ async function main() {
     assert.equal(october.totals.get("a")?.points,9); // 1 base + 1 bonus + 6 referral + 2 reviews - 1 missed-out.
     assert.equal(october.missedClockOutCounts.get("a"),2);
     const [first]=await computeStatsForRange("2026-10-01","2026-10-01");assert.equal(first.bonusDays,0);assert.equal(first.overtimeBalanceHours,1);
-    const [second]=await computeStatsForRange("2026-10-02","2026-10-02");assert.equal(second.bonusDays,1);assert.equal(second.overtimeBalanceHours,0);
+    const [second]=await computeStatsForRange("2026-10-02","2026-10-02");assert.equal(second.bonusDays,1);assert.equal(second.overtimeBalanceHours,1);
     const [september]=await computeStatsForRange("2026-09-01","2026-09-30");assert.equal(september.salaryRs,0);assert.equal(september.overtimeBalanceHours,0);
     assert.equal(await prisma.attendanceRecord.count(),3);assert.equal(await prisma.customerReview.count(),3);assert.equal(await prisma.referralClaim.count(),3);
     console.log("Go-live integration passed: September excluded, October-only bonus thresholds and points, historical records preserved.");

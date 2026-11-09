@@ -1,3 +1,4 @@
+import { BONUS_HOURS_PER_DAY } from "./bonusPolicy";
 import {weeklyApplies} from "./weeklySchedulePolicy";
 import {employeeWeekShift} from "./weeklyScheduleServer";
 import { workDayMode, paidClosureDates } from "./workDays";
@@ -271,7 +272,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
     })),
   );
   entries.push(...customerReviews.map(r => ({id:`review:${r.id}`,userId:r.userId,date:r.workDate,kind:`Customer review · ${r.totalStars}/25 stars`,points:r.points})));
-  // A bonus working day is one point per earned eight-hour block. Use prior
+  // A bonus working day is one point per earned seven-hour block. Use prior
   // approved overtime to preserve the existing carry-forward threshold.
   const bonusHistory = await prisma.attendanceRecord.findMany({where:{...(userId ? {userId} : {}),workDate:{gte:STATISTICS_START_DATE,lt:`${month}-01`},clockOutAt:{not:null}},include:{user:{select:{scheduleHistoryJson:true}}}});
   const extraByUser = new Map<string,number>();
@@ -279,7 +280,7 @@ export async function monthlyPerformance(month: string, userId?: string) {
   for (const r of [...records].sort((a,b)=>a.workDate.localeCompare(b.workDate))) {
     if (!countsForPayroll(r) || !r.clockOutAt || offDay(r.workDate,r.workingMonday)) continue;
     const previous=extraByUser.get(r.userId) ?? 0, next=previous+overtimeMs(r);
-    const days=Math.floor(next/(8*3600000))-Math.floor(previous/(8*3600000));
+    const days=Math.floor(next/(BONUS_HOURS_PER_DAY*3600000))-Math.floor(previous/(BONUS_HOURS_PER_DAY*3600000));
     if (r.policyVersion === 3 && days>0) entries.push({id:`bonus:${r.id}`,userId:r.userId,date:r.workDate,kind:"Bonus working days",points:days});
     extraByUser.set(r.userId,next);
   }

@@ -21,6 +21,7 @@ model User {
   passwordHash  String
   role          String   @default("EMPLOYEE")
   hourlyRateRs  Float    @default(100)
+  standardShiftHours Int @default(9) // Paid hours in a normal shift and one payroll day
   active        Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

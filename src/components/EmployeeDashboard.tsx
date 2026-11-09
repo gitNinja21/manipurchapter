@@ -229,8 +229,9 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
         <section className="admin-panel p-4 space-y-2 text-sm">
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>
           {hourly ? <p>Flexible hourly day: clock in and out at your actual times. Pay includes the one-hour paid break and deducts only the unpaid break entered by admin. No fixed finish, late penalty or overtime conversion.</p> : master ? <>
-            <p>{schedule?.arrival}–{schedule?.finish} IST · Fixed finish · 15-minute paid arrival grace.</p>
+            <p>{schedule?.arrival}–{schedule?.finish} IST · Planned shift · 15-minute paid arrival grace.</p>
             <p>{schedule?.durationHours} scheduled hours · {schedule?.breakExpectation}.</p>
+            <p>Bonus hours start only after you complete your full shift duration. If you arrive late, staying past the planned finish first completes your regular hours. Paid arrival grace does not bring bonus hours forward. Every 7 bonus hours earns one day’s pay.</p>
             <p>Clock-in opens at {schedule?.opening}. You must clock out yourself using location and selfie verification. From 4 November, a missing clock-out is filled from your saved shift end after the day ends and counts as an incident. Every two missing punches in a calendar month deduct one day of pay. Record your actual leaving time; time after 10:45 pm needs admin review.</p>
             {lateness && <p className={lateness.lateWarning ? "text-accent font-medium" : ""}>{lateness.lateDays} late days this month · {Math.round(lateness.lateMinutes)} late minutes after grace. {lateness.awardEligible ? (lateness.lateWarning ? "Warning: five late days removes Best Employee eligibility." : "Eligible for Best Employee.") : "Not eligible for Best Employee this month. Your points and earned bonus pay are retained."}</p>}
           </> : <p>Complete {schedule?.durationHours} hours from actual clock-in. Required finish: {schedule?.finish}. This record retains its earlier rules.</p>}

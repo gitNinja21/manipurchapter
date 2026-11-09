@@ -92,7 +92,7 @@ test("overtime pays whole days, carries across months, and stays separate per em
       approvalStatus,
     } as AttendanceRecord;
   };
-  for (const [hours, days, balance] of [[0, 0, 0], [4, 0, 4], [8, 1, 0], [12, 1, 4], [16, 2, 0]]) {
+  for (const [hours, days, balance] of [[0, 0, 0], [4, 0, 4], [7, 1, 0], [8, 1, 1], [12, 1, 5], [14, 2, 0], [16, 2, 2]]) {
     records = [shift("a", "2026-12-01", hours / 2), shift("a", "2026-12-02", hours / 2), shift("b", "2026-12-01", 1)];
     const [a, b] = await computeStatsForRange("2026-12-01", "2026-12-02");
     assert.equal(a.overtimeHours, hours);
@@ -103,19 +103,19 @@ test("overtime pays whole days, carries across months, and stays separate per em
     assert.equal(b.bonusDays, 0);
     assert.equal(b.overtimeBalanceHours, 1);
   }
-  records = [shift("a", "2026-11-29", 7), shift("a", "2026-12-01", 1),
-    shift("a", "2026-12-02", 8, "PENDING"), shift("a", "2026-12-03", 8, "REJECTED"),
+  records = [shift("a", "2026-11-29", 6), shift("a", "2026-12-01", 1),
+    shift("a", "2026-12-02", 7, "PENDING"), shift("a", "2026-12-03", 8, "REJECTED"),
     shift("a", "2026-11-30", 8)]; // Monday retains existing paid-off-day policy
   let [a] = await computeStatsForRange("2026-12-01", "2026-12-03");
-  assert.equal(a.overtimeHours, 9);
+  assert.equal(a.overtimeHours, 8);
   assert.equal(a.bonusDays, 2);
   assert.equal(a.overtimeBalanceHours, 0);
   [a] = await computeStatsForRange("2026-12-02", "2026-12-03");
-  assert.equal(a.bonusDays, 1); // only the new eight-hour block is paid
-  records = [shift("a", "2026-12-01", 4), shift("a", "2026-12-02", 4 - 1 / 3600)];
+  assert.equal(a.bonusDays, 1); // only the new seven-hour block is paid
+  records = [shift("a", "2026-12-01", 3.5), shift("a", "2026-12-02", 3.5 - 1 / 3600)];
   [a] = await computeStatsForRange("2026-12-01", "2026-12-02");
   assert.equal(a.bonusDays, 0); // one second short must not round up
-  assert.equal(a.overtimeBalanceHours, 7.99);
+  assert.equal(a.overtimeBalanceHours, 6.99);
 });
 
 test("salary previews do not mutate attendance and paid-day equivalents handle zero rates", async (t) => {
@@ -172,7 +172,7 @@ test("duration policy pays clock hours, carries automatic bonus blocks, and pres
     policyVersion:2,shiftDurationMinutes:540,unpaidBreakMinutes:0,
     extraTimeCutoff:new Date(`${date}T19:00:00+05:30`),extraTimeStatus,approvalStatus:"APPROVED",
   } as AttendanceRecord);
-  prisma.attendanceRecord.findMany = (async () => [row("2026-12-29","23:00"),row("2026-12-30","22:59"),row("2027-01-01","19:01")]) as typeof prisma.attendanceRecord.findMany;
+  prisma.attendanceRecord.findMany = (async () => [row("2026-12-29","23:00"),row("2026-12-30","21:59"),row("2027-01-01","19:01")]) as typeof prisma.attendanceRecord.findMany;
   let [s] = await computeStatsForRange("2027-01-01","2027-01-01");
   assert.equal(s.regularPayRs,900);assert.equal(s.bonusDays,1);assert.equal(s.bonusPayRs,900);assert.equal(s.overtimeBalanceHours,0);assert.equal(s.salaryRs,1800);
   prisma.attendanceRecord.findMany = (async () => [row("2027-01-01","23:00","REJECTED")]) as typeof prisma.attendanceRecord.findMany;
@@ -229,9 +229,9 @@ test("October go-live excludes September salary, missed days and all overtime ca
   [result]=await computeStatsForRange("2026-09-01","2026-10-01");
   assert.equal(result.billingFromDate,"2026-10-01");assert.equal(result.daysPresent,1);assert.equal(result.missedDays,0);assert.equal(result.offDays,0);
   [result]=await computeStatsForRange("2026-10-02","2026-10-02");
-  assert.equal(result.bonusDays,1);assert.equal(result.overtimeBalanceHours,0);
+  assert.equal(result.bonusDays,1);assert.equal(result.overtimeBalanceHours,1);
   [result]=await computeStatsForRange("2026-11-01","2026-11-01");
-  assert.equal(result.bonusDays,0);assert.equal(result.overtimeBalanceHours,2); // October remainder still carries.
+  assert.equal(result.bonusDays,0);assert.equal(result.overtimeBalanceHours,3); // October remainder still carries.
   assert.equal(records[0].workDate,"2026-09-30"); // Source data is untouched.
 });
 
@@ -291,4 +291,43 @@ test('weekly missing-punch deductions reconcile by calendar month and admin waiv
  assert.equal(s.missedDays,1);assert.equal(s.payrollDays!.find(d=>d.date==='2026-11-06')!.status,'Approved leave');assert.equal(s.payrollDays!.find(d=>d.date==='2026-11-07')!.status,"Didn't show up");
  [s]=await computeStatsForRange('2026-11-05','2026-11-05');assert.equal(s.missingPunchDeductionDays,1);assert.equal(s.salaryRs,-50);
  waived=true;[s]=await computeStatsForRange('2026-11-04','2026-11-07');assert.equal(s.missingPunchDeductionDays,0);assert.equal(s.salaryRs,800);
+});
+
+test("annualized 16k ten-hour rate revises past pay, off days and monthly deductions without changing punches", async t => {
+ const oldUsers=prisma.user.findMany,oldRecords=prisma.attendanceRecord.findMany;
+ t.after(()=>{prisma.user.findMany=oldUsers;prisma.attendanceRecord.findMany=oldRecords;});
+ const rate=16000*12/365/10;
+ prisma.user.findMany=(async()=>[{id:'jit',name:'Jit',employeeCode:'JIT SINGH',createdAt:new Date('2026-10-10'),active:true,paidWeeklyOff:true,standardShiftHours:10,hourlyRateRs:rate} as User]) as typeof oldUsers;
+ const row=(date:string)=>({userId:'jit',workDate:date,policyVersion:3,clockInAt:new Date(date+'T10:00:00+05:30'),clockOutAt:new Date(date+'T20:00:00+05:30'),scheduledStartAt:new Date(date+'T10:00:00+05:30'),scheduledEndAt:new Date(date+'T20:00:00+05:30'),shiftDurationMinutes:600,paidBreakMinutes:60,unpaidBreakMinutes:0,missingPunch:'OUT',missingPunchWaived:false,approvalStatus:'APPROVED'} as AttendanceRecord);
+ const records=[row('2026-11-04'),row('2026-11-05')];
+ prisma.attendanceRecord.findMany=(async()=>records) as typeof oldRecords;
+ const before=JSON.stringify(records);
+ const [s]=await computeStatsForRange('2026-11-04','2026-11-09',undefined,true);
+ assert.equal(s.hourlyRateRs,rate);assert.equal(s.dailyRateRs,526.03);
+ assert.equal(s.regularPayRs,1052.05);assert.equal(s.offDaysPayRs,526.03);
+ assert.equal(s.missingPunchDeductionRs,526.03);assert.equal(s.salaryRs,1052.05);
+ assert.equal(s.fullDaysWorked,2);assert.equal(s.overtimeHours,0);
+ assert.equal(s.payrollDays?.find(d=>d.date==='2026-11-04')?.regularHours,10);
+ assert.equal(JSON.stringify(records),before);
+ // A nine-hour attendance in a corrected ten-hour shift pays only nine actual hours.
+ records.splice(0,records.length,{...row('2026-10-13'),missingPunch:'NONE',clockOutAt:new Date('2026-10-13T19:00:00+05:30'),scheduledEndAt:new Date('2026-10-13T20:00:00+05:30'),shiftDurationMinutes:600});
+ const [past]=await computeStatsForRange('2026-10-13','2026-10-13');
+ assert.equal(past.regularPayRs,473.42);assert.equal(past.fullDaysWorked,0);
+});
+
+test("corrected ten-hour history earns one Jit salary day at seven extra hours", async t => {
+ const oldUsers=prisma.user.findMany,oldRecords=prisma.attendanceRecord.findMany;
+ t.after(()=>{prisma.user.findMany=oldUsers;prisma.attendanceRecord.findMany=oldRecords;});
+ const rate=16000*12/365/10;
+ prisma.user.findMany=(async()=>[{id:'jit',name:'Jit',employeeCode:'JIT SINGH',createdAt:new Date('2026-10-10'),active:true,paidWeeklyOff:true,standardShiftHours:10,hourlyRateRs:rate} as User]) as typeof oldUsers;
+ const records=['13','14','15','16','17','18','20'].map(day=>{
+  const date='2026-10-'+day;
+  return {id:date,userId:'jit',workDate:date,clockInAt:new Date(date+'T10:00:00+05:30'),clockOutAt:new Date(date+'T21:00:00+05:30'),scheduledStartAt:new Date(date+'T10:00:00+05:30'),scheduledEndAt:new Date(date+'T20:00:00+05:30'),policyVersion:3,shiftDurationMinutes:600,unpaidBreakMinutes:0,paidBreakMinutes:60,approvalStatus:'APPROVED'} as AttendanceRecord;
+ });
+ prisma.attendanceRecord.findMany=(async()=>records) as typeof oldRecords;
+ const [s]=await computeStatsForRange('2026-10-13','2026-10-20',undefined,true);
+ assert.equal(s.regularPayRs,3682.19);assert.equal(s.overtimeHours,7);
+ assert.equal(s.bonusDays,1);assert.equal(s.bonusPayRs,526.03);assert.equal(s.overtimeBalanceHours,0);
+ assert.equal(s.payrollDays?.find(d=>d.date==='2026-10-13')?.regularHours,10);
+ assert.equal(s.payrollDays?.find(d=>d.date==='2026-10-13')?.overtimeHours,1);
 });

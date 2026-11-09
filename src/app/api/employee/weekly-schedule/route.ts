@@ -12,15 +12,16 @@ export const GET=teamRoute(async(u,req)=>{
  const today=todayWorkDate(),week=req.nextUrl.searchParams.get('week')||weekStart(today);
  if(!validWeek(week,today))throw new TeamError('Choose this week or next week.');
  const saved=await prisma.employeeWeekSchedule.findUnique({where:{userId_weekStart:{userId:u.id,weekStart:week}}});
+ const shiftHours=u.standardShiftHours??9;
  const defaults:WeekTimes={};
- for(const d of weekDates(week)) {const start=Math.min(14*60+59,recurringRule(u,d)?.start??10*60);defaults[d]={start:format(start),end:format(start+540)};}
- return {week,today,effectiveFrom:WEEKLY_SCHEDULE_FROM,days:saved?JSON.parse(saved.daysJson):defaults,submitted:!!saved,revision:saved?.revision??0,smsConfigured:!!announcementSmsConfig()};
+ for(const d of weekDates(week)) {const start=Math.min(24*60-1-shiftHours*60,recurringRule(u,d)?.start??10*60);defaults[d]={start:format(start),end:format(start+shiftHours*60)};}
+ return {week,today,shiftHours,effectiveFrom:WEEKLY_SCHEDULE_FROM,days:saved?JSON.parse(saved.daysJson):defaults,submitted:!!saved,revision:saved?.revision??0,smsConfigured:!!announcementSmsConfig()};
 });
 export const POST=teamRoute(async(u,req)=>{
  if(u.role!=='EMPLOYEE'||!u.active)throw new TeamError('Active employee account required.',403);
  const b=await jsonBody(req),today=todayWorkDate(),week=String(b.week);
  if(!validWeek(week,today))throw new TeamError('Choose this week or next week.');
- let days:WeekTimes;try{days=parseWeekTimes(b.days,week);}catch(e){throw new TeamError((e as Error).message);}
+ let days:WeekTimes;try{days=parseWeekTimes(b.days,week,u.standardShiftHours??9);}catch(e){throw new TeamError((e as Error).message);}
  const result=await prisma.$transaction(async tx=>{
   const old=await tx.employeeWeekSchedule.findUnique({where:{userId_weekStart:{userId:u.id,weekStart:week}}});
   if((old?.revision??0)!==b.revision)throw new TeamError('Schedule changed. Reload before saving.',409);
@@ -36,7 +37,7 @@ export const POST=teamRoute(async(u,req)=>{
   await policyAudit(tx,u,u.id,saved.id,'EMPLOYEE_WEEK_SCHEDULE',old,saved);
   const admins=await tx.user.findMany({where:{role:'ADMIN',active:true},select:{id:true,role:true}});
   await notify(tx,admins,'WEEK_SCHEDULE',`${saved.id}:${saved.revision}`,`${u.name} ${old?'edited':'submitted'} weekly schedule`,'team?view=requests');
-  const announcement=await tx.announcement.create({data:{authorId:u.id,title:`${u.name}: weekly schedule ${old?'edited':'submitted'}`,body:`${u.employeeCode} | Week ${week} | IST\n${changes.join('\n')}\n9h including 1h paid break. Monday off.`,audience:'SELECTED'}});
+  const announcement=await tx.announcement.create({data:{authorId:u.id,title:`${u.name}: weekly schedule ${old?'edited':'submitted'}`,body:`${u.employeeCode} | Week ${week} | IST\n${changes.join('\n')}\n${u.standardShiftHours??9}h including 1h paid break. Monday off.`,audience:'SELECTED'}});
   await queueAnnouncementSms(tx,announcement.id,[]); // Existing configured admin phone contacts only.
   return saved;
  });

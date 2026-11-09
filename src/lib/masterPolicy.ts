@@ -18,7 +18,7 @@ export function masterLateMs(r: MasterRecord) {
   return r.clockInAt && r.scheduledStartAt && !r.lateExcused
     ? Math.max(0,+new Date(r.clockInAt)-+new Date(r.scheduledStartAt)-ARRIVAL_GRACE_MS) : 0;
 }
-/** Grace covers only arrival lateness inside the scheduled interval, never bonus time. */
+/** Bonus requires the full actual shift duration; paid grace never creates bonus. */
 export function masterPay(r: MasterRecord) {
   if (!r.clockInAt || !r.clockOutAt) return {regularMs:0,bonusMs:0,graceMs:0,unpaidMs:0};
   const arrival=+new Date(r.clockInAt), start=r.scheduledStartAt ? +new Date(r.scheduledStartAt) : arrival;
@@ -26,13 +26,17 @@ export function masterPay(r: MasterRecord) {
   let out=+new Date(r.clockOutAt);
   if (r.lateClockOutCutoff && ["PENDING","REJECTED"].includes(r.lateClockOutStatus ?? "")) out=Math.min(out,+new Date(r.lateClockOutCutoff));
   if (r.extraTimeCutoff && r.extraTimeStatus === "REJECTED") out=Math.min(out,+new Date(r.extraTimeCutoff));
-  const overlap=Math.max(0,Math.min(out,finish)-Math.max(arrival,start));
-  const graceMs=(!r.missingPunch || r.missingPunch==="NONE") && out>arrival && arrival<finish ? Math.min(ARRIVAL_GRACE_MS,Math.max(0,arrival-start)) : 0;
+  // Early arrival does not earn extra time before the scheduled start.
+  // After a late arrival, work beyond the planned finish first fills regular hours.
+  const elapsed=Math.max(0,out-Math.max(arrival,start));
+  const targetGross=Math.max(0,(r.shiftDurationMinutes ?? (finish-start)/60000)*60000);
+  const graceMs=(!r.missingPunch || r.missingPunch==="NONE") && out>arrival && arrival<finish
+    ? Math.min(ARRIVAL_GRACE_MS,Math.max(0,arrival-start)) : 0;
   const fraction=unpaidFraction(r);
-  const regularGross=Math.min(Math.max(0,finish-start),overlap+graceMs);
-  const bonusGross=Math.max(0,out-Math.max(arrival,finish));
+  const regularGross=Math.min(targetGross,elapsed+graceMs);
+  const bonusGross=Math.max(0,elapsed-targetGross);
   return {regularMs:regularGross*(1-fraction),bonusMs:bonusGross*(1-fraction),graceMs,
-    unpaidMs:(overlap+bonusGross)*fraction};
+    unpaidMs:elapsed*fraction};
 }
 export function monthlyLateness(records: (MasterRecord & {workDate:string;approvalStatus?:string})[],month:string) {
   const days=new Map<string,number>();

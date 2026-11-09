@@ -10,10 +10,10 @@ export async function employeeWeekShift(db:Prisma.TransactionClient,userId:strin
  const week=await submittedWeek(db,userId,date);if(!week)return null;
  const times=(JSON.parse(week.daysJson) as WeekTimes)[date];if(!times)return null;
  const start=new Date(`${date}T${times.start}:00+05:30`),end=new Date(`${date}T${times.end}:00+05:30`);
- return {policyVersion:3,start,end,arrivalStart:start,opens:new Date(+start-15*60000),durationMinutes:540,paidBreakMinutes:60,breakMinutes:0};
+ return {policyVersion:3,start,end,arrivalStart:start,opens:new Date(+start-15*60000),durationMinutes:(+end-+start)/60000,paidBreakMinutes:60,breakMinutes:0};
 }
 export async function listWeeklyShifts(db:Prisma.TransactionClient,from:string,to:string,userId?:string){
  const weeks=await db.employeeWeekSchedule.findMany({where:{...(userId?{userId}:{}),weekStart:{gte:weekStart(from),lte:weekStart(to)}}});
  const users=await db.user.findMany({where:{id:{in:weeks.map(w=>w.userId)}},select:{id:true,name:true}}),names=new Map(users.map(u=>[u.id,u.name]));
- return weeks.flatMap(w=>Object.entries(JSON.parse(w.daysJson) as WeekTimes).filter(([d])=>weeklyApplies(d)&&d>=from&&d<=to).map(([d,t])=>({id:`weekly:${w.id}:${d}`,userId:w.userId,workDate:d,startsAt:new Date(`${d}T${t.start}:00+05:30`),endsAt:new Date(`${d}T${t.end}:00+05:30`),updatedAt:w.updatedAt,note:'Employee weekly schedule | 9 hours including 1-hour paid break',user:{name:names.get(w.userId)??'Employee'}})));
+ return weeks.flatMap(w=>Object.entries(JSON.parse(w.daysJson) as WeekTimes).filter(([d])=>weeklyApplies(d)&&d>=from&&d<=to).map(([d,t])=>({id:`weekly:${w.id}:${d}`,userId:w.userId,workDate:d,startsAt:new Date(`${d}T${t.start}:00+05:30`),endsAt:new Date(`${d}T${t.end}:00+05:30`),updatedAt:w.updatedAt,note:'Employee weekly schedule | Includes 1-hour paid break',user:{name:names.get(w.userId)??'Employee'}})));
 }

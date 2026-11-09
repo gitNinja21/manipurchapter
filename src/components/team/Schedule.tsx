@@ -63,7 +63,7 @@ export default function Schedule({ admin }: { admin: boolean }) {
           All times in IST. Approved dated shifts set attendance rules for that day. Clock-outs after 10:45 pm require admin approval.
         </p>
       </div>
-      {weeklyApplies(plus(from,6)) && <p className="admin-panel p-4 text-sm">From 4 November, employees submit Tuesday–Sunday times weekly: 9 hours including a 1-hour paid break. Monday off. {!admin && <Link className="underline" href="/employee#weekly-schedule">Set or edit future dates on Today</Link>}</p>}
+      {weeklyApplies(plus(from,6)) && <p className="admin-panel p-4 text-sm">From 4 November, employees submit Tuesday–Sunday times weekly, using their assigned shift length including a 1-hour paid break. Monday off. {!admin && <Link className="underline" href="/employee#weekly-schedule">Set or edit future dates on Today</Link>}</p>}
       {plus(from,6)<WEEKLY_SCHEDULE_FROM && !!data?.recurring?.length && <section className="admin-panel p-5 space-y-3">
         <h3 className="font-semibold">Daily attendance rules</h3>
         <p className="text-sm">From 26 September, finish times are fixed. Break expectations are listed for each employee; unpaid breaks are proportional. The first 15 minutes of arrival lateness are paid grace.</p>

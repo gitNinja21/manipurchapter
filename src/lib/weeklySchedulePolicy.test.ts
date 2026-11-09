@@ -22,3 +22,9 @@ test('inferred end preserves actual arrival: 11am to 7pm is eight hours, no adde
  assert.equal(masterPay({...base,missingPunch:'OUT'}).regularMs/3600000,8);
  assert.equal(masterPay({...base,missingPunch:'NONE'}).regularMs/3600000,8.25);
 });
+test('ten-hour employees must include the paid break inside ten total hours',()=>{
+ const days=Object.fromEntries(weekDates('2026-11-09').map(d=>[d,{start:'10:00',end:'20:00'}]));
+ assert.deepEqual(parseWeekTimes(days,'2026-11-09',10),days);
+ assert.throws(()=>parseWeekTimes(days,'2026-11-09',9),/9 hours/);
+ assert.throws(()=>parseWeekTimes({...days,'2026-11-10':{start:'10:00',end:'19:00'}},'2026-11-09',10),/10 hours/);
+});

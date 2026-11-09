@@ -1,3 +1,4 @@
+import { BONUS_HOURS_PER_DAY } from "./bonusPolicy";
 import {weeklyApplies as employeeWeekApplies,missingPunchDeductions} from "./weeklySchedulePolicy";
 import { masterPay } from "./masterPolicy";
 import { scheduleVersion, isOpenMonday } from "./scheduleVersions";
@@ -11,9 +12,8 @@ import { APPROVAL_STATUS, countsForPayroll } from "./attendanceApproval";
 // --- Payroll rules ---
 // Version 2 uses actual clocked time including paid breaks, capped at the
 // shift's regular target. Version 0/1 records retain historical calculations.
-// Every eight eligible bonus hours earns one nine-hour day; remainders carry.
-const FULL_DAY_HOURS = 9;
-const OVERTIME_CHUNK_HOURS = 8;
+// Every seven eligible bonus hours earns one employee-standard paid day; remainders carry.
+
 
 export type PayrollDay = {
   date: string; status: string; clockIn: string | null; clockOut: string | null;
@@ -31,13 +31,13 @@ export type EmployeeStats = {
   name: string;
   employeeCode: string;
   hourlyRateRs: number;
-  dailyRateRs: number; // hourlyRateRs * FULL_DAY_HOURS — what one complete day (or paid off-day) is worth
+  dailyRateRs: number; // hourlyRateRs * standardShiftHours — what one complete day (or paid off-day) is worth
   active: boolean;
   billingFromDate: string | null; // null when employment does not overlap the selected range
   daysPresent: number; // has a clock-in
   daysComplete: number; // has both clock-in and clock-out (regardless of approval)
   paidWorkDays: number; // eligible regular-day equivalents, including prorated shifts
-  fullDaysWorked: number; // eligible days with 9 regular salary-credit hours
+  fullDaysWorked: number; // eligible days completing the employee’s standard paid hours
   incompleteDays: number; // clocked in, forgot to clock out (no hours counted)
   missedDays: number; // calendar days in range (up to today) with no record at all
   pendingApprovalDays: number; // retained for API compatibility; always zero
@@ -48,7 +48,7 @@ export type EmployeeStats = {
   regularPayRs: number; // scheduled salary credit or pro-rated work, with deductions included
   overtimeHours: number; // hours worked beyond 9/day on working days, accumulated over the range
   overtimeBalanceHours: number; // unconverted hours as of the report end
-  bonusDays: number; // whole 8-hour blocks earned within the selected range
+  bonusDays: number; // whole 7-hour blocks earned within the selected range
   bonusPayRs: number;
   salaryRs: number; // offDaysPayRs + regularPayRs + bonusPayRs
 };
@@ -164,7 +164,8 @@ export async function computeStatsForRange(
         0,
       );
 
-    const dailyRateRs = emp.hourlyRateRs * FULL_DAY_HOURS;
+    const fullDayHours = emp.standardShiftHours ?? 9;
+    const dailyRateRs = emp.hourlyRateRs * fullDayHours;
 
     let offDays = 0;
     let regularPayRs = 0;
@@ -180,7 +181,7 @@ export async function computeStatsForRange(
       const offPaid = off && (!weeklyApplies(day) || emp.paidWeeklyOff !== false);
       const eligible = !!r && countsForPayroll(r) && !!r.clockInAt && !!r.clockOutAt && !off;
       const credit = eligible ? salaryCredit(r!) : 0;
-      const dailyPay = offPaid ? dailyRateRs : credit >= 9 && ![3,4].includes(r?.policyVersion ?? 0) ? dailyRateRs : credit * emp.hourlyRateRs;
+      const dailyPay = offPaid ? dailyRateRs : credit >= fullDayHours && ![3,4].includes(r?.policyVersion ?? 0) ? dailyRateRs : credit * emp.hourlyRateRs;
         const matchingLeaves = leaves.filter(l=>l.userId===emp.id && l.fromDate<=day && l.toDate>=day);
         const leave = matchingLeaves.some(l=>l.status==="APPROVED");
         const pendingLeave = matchingLeaves.some(l=>l.status==="PENDING");
@@ -209,8 +210,8 @@ export async function computeStatsForRange(
 
       if (creditedHours <= 0) continue; // absent or excluded — no pay for this working day
 
-      paidWorkDays += Math.min(creditedHours / FULL_DAY_HOURS, 1);
-      if (creditedHours >= FULL_DAY_HOURS) {
+      paidWorkDays += Math.min(creditedHours / fullDayHours, 1);
+      if (creditedHours >= fullDayHours) {
         fullDaysWorked += 1;
         regularPayRs += record && [3,4].includes(record.policyVersion) ? creditedHours * emp.hourlyRateRs : dailyRateRs;
       } else {
@@ -223,7 +224,7 @@ export async function computeStatsForRange(
     // Subtract previously earned blocks to attribute each bonus to the period
     // in which its threshold was reached, retaining the earlier remainder.
     const hourMs = 60 * 60 * 1000;
-    const blockMs = OVERTIME_CHUNK_HOURS * hourMs;
+    const blockMs = BONUS_HOURS_PER_DAY * hourMs;
     let priorOvertimeMs = 0;
     let periodOvertimeMs = 0;
     for (const record of recordsByUser.get(emp.id) || []) {
@@ -245,7 +246,7 @@ export async function computeStatsForRange(
       Math.floor(accumulatedOvertimeMs / blockMs) -
       Math.floor(priorOvertimeMs / blockMs);
     const overtimeHours = periodOvertimeMs / hourMs;
-    // Truncate the displayed balance so 7h 59m never appears to have reached 8h.
+    // Truncate the displayed balance so 6h 59m never appears to have reached 7h.
     const overtimeBalanceHours =
       Math.floor(((accumulatedOvertimeMs % blockMs) / hourMs) * 100) / 100;
     const missing = missingPunchDeductions((recordsByUser.get(emp.id)||[]).filter(r=>r.workDate>=joinWorkDate&&!paidOffDay(r.workDate)),effectiveFromDate,effectiveToDate);

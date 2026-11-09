@@ -292,7 +292,7 @@ export default function PayrollPage() {
                     <td className="px-5 py-4">
                       <span className="font-medium">{s.bonusDays} earned</span>
                       <span className="block text-xs text-foreground/60 mt-1">
-                        {durationLabel(s.overtimeBalanceHours*3600000)} / 8h toward next
+                        {durationLabel(s.overtimeBalanceHours*3600000)} / 7h toward next
                       </span>
                       <progress
                         className="w-28 h-1.5 accent-brand"
@@ -403,7 +403,7 @@ export default function PayrollPage() {
         </summary>
         <div className="mt-3 space-y-2 text-foreground/70">
           <p>
-            From 1 October 2026, regular pay follows the fixed master schedule, including paid arrival grace of up to 15 minutes and paid one-hour breaks. Unpaid breaks are proportional: 20% for Hingnam, Lachit and Pankaj; 16⅔% for Gokul. Full longer shifts pay ten hours. Pre-launch records are retained for audit but excluded from statistics. Eight eligible bonus hours earn one nine-hour bonus day; unused bonus hours carry forward. Late-day counts reset monthly and never cause an extra salary penalty.
+            From 1 October 2026, regular pay follows the fixed master schedule, including paid arrival grace of up to 15 minutes and paid one-hour breaks. Unpaid breaks are proportional: 20% for Hingnam, Lachit and Pankaj; 16⅔% for Gokul. Full longer shifts pay ten hours. Pre-launch records are retained for audit but excluded from statistics. Bonus starts only after the full shift duration is completed; a late arrival cannot earn bonus merely by passing the scheduled finish. Paid arrival grace does not count toward the bonus threshold. Seven eligible bonus hours earn one bonus day at the employee’s standard daily rate; unused bonus hours carry forward. Late-day counts reset monthly and never cause an extra salary penalty.
           </p>
           <p>
             Billing starts at account creation in IST. Regular staff have paid Mondays; part-time staff are paid for their assigned shifts. Completed working-day shifts count automatically toward
@@ -411,7 +411,7 @@ export default function PayrollPage() {
           </p>
           <p>
             Approved clock hours beyond the required shift (normally 9; Friday part-time 7) accumulate per employee. Every
-            completed 8 hours earns one bonus day. Unused hours carry across
+            completed 7 hours earns one bonus day. Unused hours carry across
             months; only bonuses earned within the selected dates appear here.
           </p>
           <p>

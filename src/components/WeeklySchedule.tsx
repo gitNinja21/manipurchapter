@@ -3,16 +3,16 @@ import {useEffect,useState,useCallback} from 'react';
 import {weekStart} from '@/lib/reporting';
 import {todayWorkDate} from '@/lib/time';
 import {parseWeekTimes,type WeekTimes} from '@/lib/weeklySchedulePolicy';
-type Data={week:string;today:string;effectiveFrom:string;days:WeekTimes;submitted:boolean;revision:number;smsConfigured:boolean};
+type Data={shiftHours:number;week:string;today:string;effectiveFrom:string;days:WeekTimes;submitted:boolean;revision:number;smsConfigured:boolean};
 export default function WeeklySchedule({onSaved}:{onSaved:()=>void}){
  const [week,setWeek]=useState(weekStart(todayWorkDate())),[data,setData]=useState<Data|null>(null),[days,setDays]=useState<WeekTimes>({}),[error,setError]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
  const load=useCallback(async()=>{setData(null);setError('');try{const r=await fetch(`/api/employee/weekly-schedule?week=${week}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error);setData(d);setDays(d.days);}catch(e){setError((e as Error).message);}},[week]);
  useEffect(()=>{void load();},[load]);
  const current=weekStart(todayWorkDate()),next=new Date(Date.parse(current)+7*86400000).toISOString().slice(0,10);
- let validation='';if(data)try{parseWeekTimes(days,week);}catch(e){validation=(e as Error).message;}
+ let validation='';if(data)try{parseWeekTimes(days,week,data.shiftHours);}catch(e){validation=(e as Error).message;}
  return <section id="weekly-schedule" className="admin-panel p-4 space-y-3">
   <h2 className="font-semibold">My weekly schedule</h2>
-  <p className="text-sm">Submit before your first clock-in each week. Tuesday–Sunday: 9 hours total, including a 1-hour paid break. Monday off. Times are IST.</p>
+  <p className="text-sm">Submit before your first clock-in each week. Tuesday–Sunday: {data?.shiftHours??9} hours total, including a 1-hour paid break. Monday off. Times are IST.</p>
   <label className="block text-sm">Week<select className="input mt-1" value={week} disabled={busy} onChange={e=>{setWeek(e.target.value);setMessage('');}}><option value={current}>This week · {current}</option><option value={next}>Next week · {next}</option></select></label>
   {data&&<><p className="text-sm font-medium">{data.submitted?'Submitted. Only future dates can be changed.':'Required: confirm your times before clocking in.'}</p>
   <div className="grid grid-cols-3 gap-2 text-xs text-foreground/60"><span>Day</span><span>Start</span><span>Finish</span></div>

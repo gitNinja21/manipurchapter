@@ -26,10 +26,10 @@ test("paid one-hour breaks have zero deduction; Gokul uses one sixth",()=>{
   const gokul={...r("10:00","22:00",720,120),scheduledEndAt:at("22:00")};near(salaryCredit(gokul),10);
   near(salaryCredit({...gokul,clockOutAt:at("16:00")}),5);
 });
-test("overtime is only real work after fixed finish; late approval cutoff remains respected",()=>{
-  near(overtimeMs(r("10:15","23:00"))/3600000,0.4);
+test("overtime requires actual shift duration; late approval cutoff remains respected",()=>{
+  near(overtimeMs(r("10:15","23:00"))/3600000,0.2);
   near(overtimeMs({...r("10:00","23:00"),lateClockOutCutoff:at("22:45"),lateClockOutStatus:"PENDING"})/3600000,0.2);
-  near(salaryCredit(r("22:40","23:00")),0); // no grace for an arrival after the shift
+  near(salaryCredit(r("22:40","23:00")),20/60*0.8); // late work remains regular, with no grace or bonus
 });
 test("monthly warnings start at three days, award exclusion at five, with monthly reset",()=>{
   const rows=[1,2,3,4,5].map(n=>({...r("10:30"),workDate:`2026-10-0${n}`}));
@@ -64,4 +64,34 @@ test("all fourteen master schedules exclude Monday and keep exact shift duration
   assert.equal(recurringRule(user,"2026-09-25")?.unpaidBreak,150);
   assert.equal(recurringRule(user,"2026-09-26")?.unpaidBreak,120);
   assert.equal(recurringRule(user,"2026-09-28"),null);
+});
+
+test("late nine- and ten-hour shifts complete regular duration before earning bonus",()=>{
+ for(const hours of [9,10]) {
+  const record={...r('11:00','20:00',hours*60,0),scheduledEndAt:at(hours===9?'19:00':'20:00')};
+  const out=(hour:number)=>({...record,clockOutAt:at(String(hour).padStart(2,'0')+':00')});
+  near(overtimeMs(out(10+hours)),0); // scheduled finish: still one actual hour short
+  near(overtimeMs(out(11+hours)),0); // actual shift completed
+  near(salaryCredit(out(11+hours)),hours);
+  near(overtimeMs(out(12+hours))/3600000,1);
+  near(salaryCredit(out(12+hours)),hours);
+ }
+});
+test("paid arrival grace does not advance bonus eligibility or double-count make-up hours",()=>{
+ const base={...r('10:15','19:00',540,0),scheduledEndAt:at('19:00')};
+ near(salaryCredit(base),9);near(overtimeMs(base),0);
+ near(salaryCredit({...base,clockOutAt:at('19:15')}),9);
+ near(overtimeMs({...base,clockOutAt:at('19:15')}),0);
+ near(overtimeMs({...base,clockOutAt:at('19:30')})/3600000,0.25);
+ near(overtimeMs({...base,clockInAt:at('09:45'),clockOutAt:at('19:00')}),0);
+});
+test("proportional unpaid breaks, approval caps and missing punches cannot manufacture bonus",()=>{
+ const late=r('11:00','23:00');
+ near(salaryCredit(late),9.8);near(overtimeMs(late),0);
+ near(salaryCredit({...late,clockOutAt:at('23:30')}),10);near(overtimeMs({...late,clockOutAt:at('23:30')}),0);
+ near(overtimeMs({...late,clockOutAt:at('23:45')})/3600000,0.2);
+ near(overtimeMs({...late,clockOutAt:at('23:45'),lateClockOutCutoff:at('22:45'),lateClockOutStatus:'PENDING'}),0);
+ near(overtimeMs({...late,clockOutAt:at('23:45'),extraTimeCutoff:at('22:30'),extraTimeStatus:'REJECTED'}),0);
+ const missing={...r('11:00','19:00',540,0),scheduledEndAt:at('19:00'),missingPunch:'OUT'};
+ near(salaryCredit(missing),8);near(overtimeMs(missing),0);
 });
