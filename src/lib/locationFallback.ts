@@ -1,3 +1,4 @@
+import {assertBeforeAdminCutoff} from "./adminClockOut";
 import {weeklyApplies} from "@/lib/weeklySchedulePolicy";
 import {missingClockInContext} from "./missingPunchServer";
 import {requireSubmittedWeek} from "./weeklyScheduleServer";
@@ -12,6 +13,7 @@ import { auditData } from "./attendanceAudit";
 
 export async function checkFallbackIn(tx: Prisma.TransactionClient, user: User, date: string, at: Date) {
   await requireSubmittedWeek(tx,user.id,date);
+  await assertBeforeAdminCutoff(tx,date,at);
   if(await workDayMode(tx,date)==="PAID_OFF")throw new TeamError("The restaurant is closed on this date.",409);
   const schedule = await effectiveSchedule(tx,user,date);
   if ((weeklyApplies(date) || scheduleVersion(user,date) || user.weeklyScheduleJson || user.masterScheduleJson) && !schedule) throw new TeamError("Ask your manager to assign your shift first.",409);
@@ -26,7 +28,7 @@ export async function approveLocationFallback(tx: Prisma.TransactionClient, requ
   if (!user.active || !user.approved || user.mustChangePassword) throw new TeamError("Employee is not eligible.",409);
   if (!request.verificationPhoto || request.verificationDistance === null) throw new TeamError("Verified selfie is missing.",409);
   const before = await tx.attendanceRecord.findUnique({where:{userId_workDate:{userId:user.id,workDate:request.fromDate}}});
-  const onlyInferredIn = request.kind==="GPS_CLOCK_IN" && before?.missingPunch==="IN" && !before.missingPunchWaived && request.expectedRecordId===null && !before.clockInPhoto && before.policyVersion===3 && !!before.clockOutAt && !!request.proposedIn && request.proposedIn<before.clockOutAt;
+  const onlyInferredIn = request.kind==="GPS_CLOCK_IN" && before?.missingPunch==="IN" && !before.missingPunchWaived && request.expectedRecordId===null && !before.clockInPhoto && [3,5].includes(before.policyVersion) && !!before.clockOutAt && !!request.proposedIn && request.proposedIn<before.clockOutAt;
   const onlyInferredOut = request.kind==="GPS_CLOCK_OUT" && before?.missingPunch==="OUT" && !before.missingPunchWaived && before.id===request.expectedRecordId && before.clockInAt?.getTime()===request.proposedIn?.getTime() && !before.clockOutPhoto && before.policyVersion!==4;
   if (!onlyInferredOut && !onlyInferredIn && ((before?.id ?? null) !== request.expectedRecordId || (before?.updatedAt?.getTime() ?? null) !== (request.expectedUpdatedAt?.getTime() ?? null))) throw new TeamError("Attendance changed. Reject this request and review the current attendance.",409);
   let after;
@@ -42,6 +44,7 @@ export async function approveLocationFallback(tx: Prisma.TransactionClient, requ
     after = await tx.attendanceRecord.upsert({where:{userId_workDate:{userId:user.id,workDate:request.fromDate}},create:{userId:user.id,workDate:request.fromDate,...values},update:values});
   } else {
     const at = request.proposedOut!;
+    await assertBeforeAdminCutoff(tx,request.fromDate,at);
     let base=before;
     if(!base){
       const schedule=await missingClockInContext(tx,user,request.fromDate,at);

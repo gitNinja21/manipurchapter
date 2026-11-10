@@ -1,3 +1,4 @@
+import {assertBeforeAdminCutoff} from "@/lib/adminClockOut";
 import {weeklyApplies} from "@/lib/weeklySchedulePolicy";
 import {requireSubmittedWeek} from "@/lib/weeklyScheduleServer";
 import {reconcileMissingClockOut} from "@/lib/missingPunchServer";
@@ -46,6 +47,7 @@ async function handlePost(req: NextRequest) {
   const workDate = todayWorkDate();
   await requireSubmittedWeek(prisma,user.id,workDate);
   await reconcileMissingClockOut(user.id);
+  await assertBeforeAdminCutoff(prisma,workDate,now);
   if(await workDayMode(prisma,workDate)==="PAID_OFF")return NextResponse.json({error:"The restaurant is closed on this date. Paid-off rules apply."},{status:403});
   const schedule = await effectiveSchedule(prisma, user, workDate);
   if ((weeklyApplies(workDate) || scheduleVersion(user,workDate) || user.weeklyScheduleJson || user.masterScheduleJson) && !schedule) return NextResponse.json({error: "You have no scheduled shift today. Ask your admin to assign one."}, {status: 403});
@@ -138,6 +140,7 @@ async function handlePost(req: NextRequest) {
     const clockInAt = attempt?.approvedAt ?? now;
     if(await workDayMode(tx,workDate)==="PAID_OFF")return {dayChanged:true};
     await requireSubmittedWeek(tx,user.id,workDate);
+    await assertBeforeAdminCutoff(tx,workDate,now);
     const currentSchedule = await effectiveSchedule(tx, user, workDate);
     const approval = await tx.staffRequest.findFirst({where: {userId: user.id, kind: "LATE_ARRIVAL", fromDate: workDate, status: "APPROVED"}});
     const rules = {

@@ -42,6 +42,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
   const [meetings, setMeetings] = useState<{ id: string; kind: string }[]>([]);
   const [schedule, setSchedule] = useState<{arrival: string; latest: string; opening: string; finish: string; fixed: boolean; allowEarly: boolean; durationHours: number; unpaidBreakMinutes: number; policyVersion?: number; breakExpectation?: string} | null>(null);
   const [weekSubmitted,setWeekSubmitted]=useState(false);
+  const [flexibleNineHours,setFlexibleNineHours]=useState(false);
   const [policy, setPolicy] = useState(false);
   const [arrival, setArrival] = useState<string | null>(null);
   const [lateStatus, setLateStatus] = useState<string | null>(null);
@@ -75,6 +76,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
       setLateness(data.lateness ?? null);
       setPolicy(!!data.policy);
       setWeekSubmitted(!!data.weekSubmitted);
+      setFlexibleNineHours(!!data.flexibleNineHours);
       setSchedule(data.schedule ?? null);
       setArrival(data.arrivalState);
       setLateStatus(data.lateRequest?.status ?? null);
@@ -221,14 +223,14 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
         </p>
       </div>
 
-      {!preview && <WeeklySchedule onSaved={()=>void refresh()}/>}
+      {!preview && !flexibleNineHours && <WeeklySchedule onSaved={()=>void refresh()}/>}
       <Link className="text-brand underline block" href={preview ? `/admin/team?view=performance&employeeId=${employeeQuery}` : "/employee/team?view=performance"}>My points and award eligibility</Link>
       {!policy && <p className="text-sm text-foreground/60">{!weekSubmitted && todayWorkDate()>=WEEKLY_SCHEDULE_FROM ? "Submit this week’s schedule above to unlock clock-in." : arrival === "OFF" ? "Today is closed or has no scheduled shift. Ask your admin to review the date if you are working." : "Complete your scheduled hours from clock-in, including the one-hour break."}</p>}
       {record && record.policyVersion < 2 && <p className="text-sm text-accent">This record uses an earlier attendance policy. Ask your manager if its schedule needs correction.</p>}
       {policy && (!record || record.policyVersion >= 2) && (
         <section className="admin-panel p-4 space-y-2 text-sm">
           <h2 className="font-semibold">Your daily attendance rules · IST</h2>
-          {hourly ? <p>Flexible hourly day: clock in and out at your actual times. Pay includes the one-hour paid break and deducts only the unpaid break entered by admin. No fixed finish, late penalty or overtime conversion.</p> : master ? <>
+          {flexibleNineHours ? <p>Flexible attendance: no weekly schedule needed. Clock in and out at your actual times. Up to 9 hours inside 9:30 am–10:30 pm are regular paid time; excess time inside that window is unpaid. Time worked before 9:30 am and after 10:30 pm earns bonus. Time after 10:45 pm still needs admin review.</p> : hourly ? <p>Flexible hourly day: clock in and out at your actual times. Pay includes the one-hour paid break and deducts only the unpaid break entered by admin. No fixed finish, late penalty or overtime conversion.</p> : master ? <>
             <p>{schedule?.arrival}–{schedule?.finish} IST · Planned shift · 15-minute paid arrival grace.</p>
             <p>{schedule?.durationHours} scheduled hours · {schedule?.breakExpectation}.</p>
             <p>Bonus hours start only after you complete your full shift duration. If you arrive late, staying past the planned finish first completes your regular hours. Paid arrival grace does not bring bonus hours forward. Every 7 bonus hours earns one day’s pay.</p>
@@ -238,7 +240,7 @@ export default function EmployeeDashboard({ previewEmployeeId }: { previewEmploy
           {!preview && !hourly && todayWorkDate()<WEEKLY_SCHEDULE_FROM && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=SHIFT_CHANGE">Request an earlier start / shift change</Link>}
           {!hasClockedIn && arrival === "EARLY" && <p>Clock-in opens at {schedule?.opening}.</p>}
           {!hasClockedIn && lateStatus && <p>Today’s late-arrival request: <strong>{lateStatus}</strong>.</p>}
-          {!hasClockedIn && !preview && !hourly && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request an excused late arrival</Link>}
+          {!hasClockedIn && !preview && !hourly && !flexibleNineHours && <Link className="text-brand underline block" href="/employee/team?view=requests&kind=LATE_ARRIVAL">Request an excused late arrival</Link>}
           {!master && !hasClockedIn && arrival === "LATE" && lateStatus !== "APPROVED" && <p className="text-accent">Clock in when you arrive. More than 15 minutes late is an incident; after three consecutive incidents, manager clearance is required. After that meeting, further late arrivals receive negative points.</p>}
         </section>
       )}

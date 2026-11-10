@@ -4,6 +4,7 @@ import {weeklyApplies,type WeekTimes} from './weeklySchedulePolicy';
 import {TeamError} from './team';
 export async function submittedWeek(db:Prisma.TransactionClient,userId:string,date:string){return db.employeeWeekSchedule.findUnique({where:{userId_weekStart:{userId,weekStart:weekStart(date)}}});}
 export async function requireSubmittedWeek(db:Prisma.TransactionClient,userId:string,date:string){
+ if((await db.user.findUnique({where:{id:userId},select:{flexibleNineHours:true}}))?.flexibleNineHours)return;
  if(weeklyApplies(date)&&!await submittedWeek(db,userId,date))throw new TeamError('Submit your weekly schedule on the Today page before clocking in.',409);
 }
 export async function employeeWeekShift(db:Prisma.TransactionClient,userId:string,date:string){

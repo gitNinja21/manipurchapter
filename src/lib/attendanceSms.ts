@@ -31,6 +31,7 @@ export function arrivalSmsDue(now: Date, start: Date | null, end: Date | null) {
 
 export async function eligibleForArrivalSms(user: User, now: Date) {
   const date = workDateFor(now);
+  if(user.flexibleNineHours)return false; // No scheduled arrival deadline.
   if(await workDayMode(prisma,date))return false;
   if (!user.active || !user.approved || user.mustChangePassword || user.role !== "EMPLOYEE" || workDateFor(user.createdAt) > date) return false;
   const [schedule, override, record, arrival, request] = await Promise.all([

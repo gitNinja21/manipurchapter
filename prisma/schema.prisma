@@ -21,6 +21,7 @@ model User {
   passwordHash  String
   role          String   @default("EMPLOYEE")
   hourlyRateRs  Float    @default(100)
+  flexibleNineHours Boolean @default(false) // 9h regular cap; bonus outside 09:30–22:30 IST
   standardShiftHours Int @default(9) // Paid hours in a normal shift and one payroll day
   active        Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -589,4 +590,14 @@ model EmployeeWeekSchedule {
   submittedAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   @@unique([userId, weekStart])
+}
+
+
+model AdminClockOutDay {
+  workDate String @id
+  enabled Boolean @default(false)
+  cutoffAt DateTime
+  revision Int @default(1)
+  updatedById String
+  updatedAt DateTime @updatedAt
 }

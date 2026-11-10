@@ -6,7 +6,7 @@ import {parseWeekTimes,type WeekTimes} from '@/lib/weeklySchedulePolicy';
 type Data={shiftHours:number;week:string;today:string;effectiveFrom:string;days:WeekTimes;submitted:boolean;revision:number;smsConfigured:boolean};
 export default function WeeklySchedule({onSaved}:{onSaved:()=>void}){
  const [week,setWeek]=useState(weekStart(todayWorkDate())),[data,setData]=useState<Data|null>(null),[days,setDays]=useState<WeekTimes>({}),[error,setError]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
- const load=useCallback(async()=>{setData(null);setError('');try{const r=await fetch(`/api/employee/weekly-schedule?week=${week}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error);setData(d);setDays(d.days);}catch(e){setError((e as Error).message);}},[week]);
+ const load=useCallback(async()=>{setData(null);setError('');try{const r=await fetch(`/api/employee/weekly-schedule?week=${week}`,{cache:'no-store'});const d=await r.json();if(!r.ok)throw Error(d.error);if(d.exempt){setData(null);setDays({});return;}setData(d);setDays(d.days);}catch(e){setError((e as Error).message);}},[week]);
  useEffect(()=>{void load();},[load]);
  const current=weekStart(todayWorkDate()),next=new Date(Date.parse(current)+7*86400000).toISOString().slice(0,10);
  let validation='';if(data)try{parseWeekTimes(days,week,data.shiftHours);}catch(e){validation=(e as Error).message;}

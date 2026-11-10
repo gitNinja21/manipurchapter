@@ -225,7 +225,7 @@ export default function AdminAttendancePage() {
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
                       {formatIstTime(outAt)}
-                      {r.autoClockOut ? <span className="text-xs text-foreground/60">Automatic · 10:45 pm</span> : <FaceMatchBadge match={r.clockOutFaceMatch} />}
+                      {r.autoClockOut ? <span className="text-xs text-foreground/60">Automatic clock-out</span> : <FaceMatchBadge match={r.clockOutFaceMatch} />}
                     </td>
                     <td className="px-4 py-4 tabular-nums">
                       <p className="font-medium">{durationLabel(clockedMs(r))} clocked</p>

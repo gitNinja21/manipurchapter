@@ -1,3 +1,4 @@
+import {assertBeforeAdminCutoff} from "@/lib/adminClockOut";
 import {reconcileMissingClockOut,missingClockInContext} from "@/lib/missingPunchServer";
 import {enforceSelfieTheme} from "@/lib/selfieThemeServer";
 import { teamRoute, jsonBody, TeamError, notify } from "@/lib/team";
@@ -26,6 +27,7 @@ export const POST = teamRoute(async (user,req) => {
       const date = action === "out" ? open?.workDate ?? todayWorkDate() : todayWorkDate();
       const missingSchedule = action === "out" && !open ? await missingClockInContext(tx,user,date,now) : null;
       if (!date || (action === "out" && (open?.clockInAt && +now - +open.clockInAt > 86400000))) throw new TeamError("No valid open shift. Ask for an attendance correction.",409);
+      await assertBeforeAdminCutoff(tx,date,now);
       if (action === "in") await checkFallbackIn(tx,user,date,now);
       if (await tx.staffRequest.findFirst({where:{userId:user.id,kind,fromDate:date,status:"PENDING"}})) throw new TeamError("A GPS fallback request is already pending. Check Team → Requests.",409);
       const record = await tx.attendanceRecord.findUnique({where:{userId_workDate:{userId:user.id,workDate:date}}});

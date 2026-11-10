@@ -1,3 +1,4 @@
+import {flexibleNineSnapshot} from "@/lib/flexibleNineHours";
 import { hourlySnapshot } from "@/lib/hourlyPay";
 import { prisma } from "@/lib/prisma";
 import {
@@ -23,7 +24,8 @@ export const GET = teamRoute(async (u, req) => {
     where: { userId_workDate: { userId, workDate } },
   });
   const day=await prisma.workDayOverride.findUnique({where:{workDate}});
-  return { record, day };
+  const employee=await prisma.user.findUnique({where:{id:userId},select:{flexibleNineHours:true}});
+  return { record, day, flexibleNineHours:employee?.flexibleNineHours??false };
 });
 
 export const POST = teamRoute(async (u, req) => {
@@ -65,6 +67,7 @@ export const POST = teamRoute(async (u, req) => {
     const employee = await tx.user.findUnique({ where: { id: userId } });
     if (!employee || employee.role !== "EMPLOYEE" || !employee.approved)
       throw new TeamError("Choose an approved employee.");
+    if(employee.flexibleNineHours && unpaid!==0)throw new TeamError("Unpaid time for this employee is calculated automatically above the nine-hour regular cap. Enter zero here.");
     if (workDate < workDateFor(employee.createdAt))
       throw new TeamError(
         "Attendance cannot start before this employee joined.",
@@ -115,7 +118,7 @@ export const POST = teamRoute(async (u, req) => {
         "This date has approved leave. Resolve the leave before adding attendance.",
         409,
       );
-    const data = {missingPunchWaived:b.waiveMissingPunch === true,clockInAt,clockOutAt,...hourlySnapshot(unpaid),approvalStatus:"PENDING"};
+    const data = {missingPunchWaived:b.waiveMissingPunch === true,clockInAt,clockOutAt,...(employee.flexibleNineHours?flexibleNineSnapshot(workDate):hourlySnapshot(unpaid)),approvalStatus:"PENDING"};
     const after = await tx.attendanceRecord.upsert({
       where: { userId_workDate: { userId, workDate } },
       create: { userId, workDate, ...data },

@@ -11,6 +11,7 @@ function setup(current = record) {
   let result: AttendanceRecord | undefined;
   const audits: unknown[] = [], late: unknown[] = [];
   const db = {
+    adminClockOutDay:{findUnique:async()=>null},
     user:{findUniqueOrThrow:async()=>user,findMany:async()=>[]},
     attendanceRecord:{findUnique:async()=>current,update:async({data}:{data:Partial<AttendanceRecord>})=>(result={...current,...data})},
     staffRequest:{findFirst:async()=>null,create:async({data}:{data:unknown})=>{late.push(data);return {id:"late"};}},

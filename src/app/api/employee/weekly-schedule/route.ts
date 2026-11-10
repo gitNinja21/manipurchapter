@@ -8,6 +8,7 @@ import {queueAnnouncementSms,announcementSmsConfig} from '@/lib/announcementSms'
 import {policyAudit} from '@/lib/performanceServer';
 const format=(m:number)=>`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
 export const GET=teamRoute(async(u,req)=>{
+ if(u.flexibleNineHours)return {exempt:true};
  if(u.role!=='EMPLOYEE')throw new TeamError('Employee account required.',403);
  const today=todayWorkDate(),week=req.nextUrl.searchParams.get('week')||weekStart(today);
  if(!validWeek(week,today))throw new TeamError('Choose this week or next week.');
@@ -18,6 +19,7 @@ export const GET=teamRoute(async(u,req)=>{
  return {week,today,shiftHours,effectiveFrom:WEEKLY_SCHEDULE_FROM,days:saved?JSON.parse(saved.daysJson):defaults,submitted:!!saved,revision:saved?.revision??0,smsConfigured:!!announcementSmsConfig()};
 });
 export const POST=teamRoute(async(u,req)=>{
+ if(u.flexibleNineHours)throw new TeamError('You have flexible attendance; no weekly schedule is required.');
  if(u.role!=='EMPLOYEE'||!u.active)throw new TeamError('Active employee account required.',403);
  const b=await jsonBody(req),today=todayWorkDate(),week=String(b.week);
  if(!validWeek(week,today))throw new TeamError('Choose this week or next week.');

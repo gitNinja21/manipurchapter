@@ -33,7 +33,7 @@ export const POST=teamRoute(async(u,req)=>{
   if(mode==="HOURLY") {
    const records=await tx.attendanceRecord.findMany({where:{workDate:date},include:{user:true}});
    for(const r of records) {
-    if(r.policyVersion===4)continue;
+    if(r.policyVersion===4 || r.user.flexibleNineHours)continue;
     const changed=await tx.attendanceRecord.update({where:{id:r.id},data:hourlySnapshot()});
     await tx.attendanceAudit.create({data:auditData(r,r.user,u,"DATE_HOURLY_PAY",changed)});
    }

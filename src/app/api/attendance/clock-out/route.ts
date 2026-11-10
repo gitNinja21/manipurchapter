@@ -1,3 +1,4 @@
+import {assertBeforeAdminCutoff} from "@/lib/adminClockOut";
 import {missingClockInContext,reconcileMissingClockOut} from "@/lib/missingPunchServer";
 import {todayWorkDate} from "@/lib/time";
 import {durationSnapshot} from "@/lib/performance";
@@ -107,6 +108,7 @@ async function handlePost(req: NextRequest) {
   }
 
   const record = await prisma.$transaction(async (tx) => {
+    await assertBeforeAdminCutoff(tx,source.workDate,now);
     await enforceSelfieTheme(tx,user.id,"out",photoDataUrl,body.poseReceipt,true);
     const exception = await tx.staffRequest.findFirst({where: {userId: user.id, kind: "EARLY_DEPARTURE", fromDate: source.workDate, status: "APPROVED"}});
     let target=existing;

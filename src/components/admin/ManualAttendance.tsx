@@ -33,6 +33,7 @@ export default function ManualAttendance({ onSaved, dateRevision = 0 }: { onSave
     [end, setEnd] = useState(""),
     [reason, setReason] = useState("");
   const [waiveMissingPunch,setWaiveMissingPunch]=useState(true);
+  const [flexibleNineHours,setFlexibleNineHours]=useState(false);
   const [unpaidHours,setUnpaidHours]=useState("0");
   const [day,setDay]=useState<{mode:string;revision:number}|null>(null);
   const [message, setMessage] = useState("");
@@ -97,10 +98,11 @@ export default function ManualAttendance({ onSaved, dateRevision = 0 }: { onSave
           void action.run(async () => {
             setLoaded(false);
             setMessage("");
-            const d = await api<{ record: RecordTimes | null;day:{mode:string;revision:number}|null }>(
+            const d = await api<{ flexibleNineHours:boolean;record: RecordTimes | null;day:{mode:string;revision:number}|null }>(
               `/api/admin/attendance/manual?${new URLSearchParams({ userId, workDate: date })}`,
             );
             setRecord(d.record);
+            setFlexibleNineHours(d.flexibleNineHours);
             setWaiveMissingPunch(true);
             setStart(localTime(d.record?.clockInAt ?? null));
             setEnd(localTime(d.record?.clockOutAt ?? null));
@@ -133,7 +135,7 @@ export default function ManualAttendance({ onSaved, dateRevision = 0 }: { onSave
               });
               setLoaded(false);
               setMessage(
-                "Attendance saved. Completed hours minus unpaid breaks count at the hourly rate. An open shift can be clocked out normally by the employee.",
+                flexibleNineHours ? "Attendance saved. Nine-hour regular cap and bonus outside 9:30 am–10:30 pm apply." : "Attendance saved. Completed hours minus unpaid breaks count at the hourly rate. An open shift can be clocked out normally by the employee.",
               );
               onSaved();
             });
@@ -185,10 +187,10 @@ export default function ManualAttendance({ onSaved, dateRevision = 0 }: { onSave
             />
           </label>
           <p className="text-sm">Paid break: 1 hour included within the clocked time. No extra hour is added.</p>
-          <label className="block text-sm">Unpaid break (hours)<input className="input mt-1" type="number" min="0" max="24" step="any" required value={unpaidHours} onChange={e=>setUnpaidHours(e.target.value)} /></label>
+          {!flexibleNineHours && <label className="block text-sm">Unpaid break (hours)<input className="input mt-1" type="number" min="0" max="24" step="any" required value={unpaidHours} onChange={e=>setUnpaidHours(e.target.value)} /></label>}
           {paidOff && <p role="alert" className="text-red-700">This is a paid off day. For Monday attendance, open that Monday first, then reload.</p>}
           <p className="text-sm text-foreground/60">
-            Saving updates payroll using actual clocked hours minus your unpaid break. There is no shift cap, late deduction or overtime conversion.
+            {flexibleNineHours ? "Pay is capped at nine regular hours inside 9:30 am–10:30 pm. Extra time inside is unpaid; time outside earns bonus. Unpaid time is calculated automatically." : "Saving updates payroll using actual clocked hours minus your unpaid break. There is no shift cap, late deduction or overtime conversion."}
           </p>
           <button className="admin-button" disabled={action.busy || paidOff}>
             Save actual attendance times

@@ -1,3 +1,4 @@
+import {flexibleNinePay} from "./flexibleNineHours";
 import { BONUS_HOURS_PER_DAY } from "./bonusPolicy";
 import {weeklyApplies as employeeWeekApplies,missingPunchDeductions} from "./weeklySchedulePolicy";
 import { masterPay } from "./masterPolicy";
@@ -181,7 +182,7 @@ export async function computeStatsForRange(
       const offPaid = off && (!weeklyApplies(day) || emp.paidWeeklyOff !== false);
       const eligible = !!r && countsForPayroll(r) && !!r.clockInAt && !!r.clockOutAt && !off;
       const credit = eligible ? salaryCredit(r!) : 0;
-      const dailyPay = offPaid ? dailyRateRs : credit >= fullDayHours && ![3,4].includes(r?.policyVersion ?? 0) ? dailyRateRs : credit * emp.hourlyRateRs;
+      const dailyPay = offPaid ? dailyRateRs : credit >= fullDayHours && ![3,4,5].includes(r?.policyVersion ?? 0) ? dailyRateRs : credit * emp.hourlyRateRs;
         const matchingLeaves = leaves.filter(l=>l.userId===emp.id && l.fromDate<=day && l.toDate>=day);
         const leave = matchingLeaves.some(l=>l.status==="APPROVED");
         const pendingLeave = matchingLeaves.some(l=>l.status==="PENDING");
@@ -189,7 +190,7 @@ export async function computeStatsForRange(
           : r?.clockInAt ? (r.approvalStatus===APPROVAL_STATUS.REJECTED ? "Rejected" : !r.clockOutAt ? "Incomplete" : "Worked")
           : !expectedDay(day) ? "Not scheduled" : leave ? "Approved leave" : pendingLeave && !employeeWeekApplies(day) ? "Leave pending" : day===today ? "Not clocked in yet" : employeeWeekApplies(day) ? "Didn't show up" : "Missed shift";
         const gross = r?.clockInAt && r.clockOutAt ? Math.max(0,+r.clockOutAt-+r.clockInAt) : 0;
-        const unpaid = !r || !gross ? 0 : r.policyVersion===3 ? masterPay(r).unpaidMs : Math.min(gross,(r.unpaidBreakMinutes??0)*60000);
+        const unpaid = !r || !gross ? 0 : r.policyVersion===5 ? flexibleNinePay(r).unpaidMs : r.policyVersion===3 ? masterPay(r).unpaidMs : Math.min(gross,(r.unpaidBreakMinutes??0)*60000);
         payrollDays.push({missingPunch:r?.missingPunch,missingPunchWaived:r?.missingPunchWaived,date:day,status,clockIn:r?.clockInAt?.toISOString()??null,clockOut:r?.clockOutAt?.toISOString()??null,
           regularHours:credit,overtimeHours:eligible?overtimeMs(r!)/3600000:0,payRs:dailyPay,
           unpaidHours:unpaid/3600000,paidBreakMinutes:r?.paidBreakMinutes??null,
@@ -213,7 +214,7 @@ export async function computeStatsForRange(
       paidWorkDays += Math.min(creditedHours / fullDayHours, 1);
       if (creditedHours >= fullDayHours) {
         fullDaysWorked += 1;
-        regularPayRs += record && [3,4].includes(record.policyVersion) ? creditedHours * emp.hourlyRateRs : dailyRateRs;
+        regularPayRs += record && [3,4,5].includes(record.policyVersion) ? creditedHours * emp.hourlyRateRs : dailyRateRs;
       } else {
         // Short day: pro-rated for actual hours worked, not a full day's pay.
         regularPayRs += creditedHours * emp.hourlyRateRs;

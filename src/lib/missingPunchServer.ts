@@ -1,8 +1,10 @@
+import {applyAdminClockOuts,assertBeforeAdminCutoff} from "./adminClockOut";
 import {prisma} from './prisma';
 import {todayWorkDate} from './time';
 import {WEEKLY_SCHEDULE_FROM} from './weeklySchedulePolicy';
 /** Reconcile only past IST dates. Real clock-out remains available all shift day. */
 export async function reconcileMissingClockOut(userId?:string,today=todayWorkDate()){
+ await applyAdminClockOuts(userId);
  const open=await prisma.attendanceRecord.findMany({where:{...(userId?{userId}:{}),workDate:{gte:WEEKLY_SCHEDULE_FROM,lt:today},clockInAt:{not:null},clockOutAt:null,scheduledEndAt:{not:null,lte:new Date(`${today}T00:00:00+05:30`)}}});
  for(const r of open){
   await prisma.$transaction(async tx=>{
@@ -28,6 +30,7 @@ export async function missingClockInContext(db:import('@prisma/client').Prisma.T
  const {TeamError}=await import('./team');
  if(date<WEEKLY_SCHEDULE_FROM)throw new TeamError('No clock-in found. Ask admin for an attendance correction.',409);
  await requireSubmittedWeek(db,user.id,date);
+ await assertBeforeAdminCutoff(db,date,at);
  if(await db.attendanceRecord.findFirst({where:{userId:user.id,OR:[{workDate:date},{clockInAt:{not:null},clockOutAt:null}]}}))throw new TeamError('Attendance already exists. Refresh or ask admin for a correction.',409);
  if(await db.staffRequest.findFirst({where:{userId:user.id,kind:'LEAVE',status:'APPROVED',fromDate:{lte:date},toDate:{gte:date}}}))throw new TeamError('You have approved leave on this date. Ask admin to review it.',409);
  const schedule=await effectiveSchedule(db,user,date);
