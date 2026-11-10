@@ -331,3 +331,24 @@ test("corrected ten-hour history earns one Jit salary day at seven extra hours",
  assert.equal(s.payrollDays?.find(d=>d.date==='2026-10-13')?.regularHours,10);
  assert.equal(s.payrollDays?.find(d=>d.date==='2026-10-13')?.overtimeHours,1);
 });
+
+test("Gokul corrected rate revises historical regular, off-day, bonus and missing-punch amounts",async t=>{
+ const oldUsers=prisma.user.findMany,oldRecords=prisma.attendanceRecord.findMany;
+ t.after(()=>{prisma.user.findMany=oldUsers;prisma.attendanceRecord.findMany=oldRecords;});
+ let rate=69;
+ prisma.user.findMany=(async()=>[{id:"gokul",name:"Gokul",employeeCode:"KONG GOKUL",createdAt:new Date("2026-10-01"),active:true,paidWeeklyOff:true,standardShiftHours:9,hourlyRateRs:rate,flexibleNineHours:true} as User]) as typeof oldUsers;
+ const records=["03","04","05","06","07","08","10"].map(day=>{
+  const date="2026-11-"+day;
+  return {id:date,userId:"gokul",workDate:date,policyVersion:5,clockInAt:new Date(date+"T08:30:00+05:30"),clockOutAt:new Date(date+"T22:30:00+05:30"),approvalStatus:"APPROVED",missingPunch:["04","05"].includes(day)?"OUT":"NONE",missingPunchWaived:false} as AttendanceRecord;
+ });
+ prisma.attendanceRecord.findMany=(async()=>records) as typeof oldRecords;
+ const [old]=await computeStatsForRange("2026-11-03","2026-11-10");
+ assert.equal(old.dailyRateRs,621);
+ rate=657.5/9;
+ const [corrected]=await computeStatsForRange("2026-11-03","2026-11-10",undefined,true);
+ assert.equal(corrected.dailyRateRs,657.5);assert.equal(corrected.regularPayRs,4602.5);
+ assert.equal(corrected.offDaysPayRs,657.5);assert.equal(corrected.bonusDays,1);
+ assert.equal(corrected.bonusPayRs,657.5);assert.equal(corrected.missingPunchDeductionRs,657.5);
+ assert.equal(corrected.salaryRs,5260);assert.equal(corrected.overtimeHours,old.overtimeHours);
+ assert.equal(corrected.payrollDays?.find(d=>d.date==="2026-11-03")?.payRs,657.5);
+});
