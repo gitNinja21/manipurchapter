@@ -1,3 +1,4 @@
+import { BONUS_HOURS_PER_DAY } from "./bonusPolicy";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { EmployeeStats, PayrollDay } from "./stats";
 
@@ -47,7 +48,7 @@ export async function createPayrollPdf(s:EmployeeStats, from:string, to:string, 
  text(40,192,`${hours(s.totalHours)} counted time`,11,true);text(305,192,`${hours(s.overtimeBalanceHours)} carried forward`,11,true,ink,250);
  text(40,173,`${hours(s.overtimeHours)} eligible extra time in period`,9,false,muted);
  text(305,173,`${s.bonusDays} bonus days earned in period`,9,false,muted);
- text(40,150,'Every 8 eligible extra hours earns one bonus day; unused hours carry forward.',9,false,muted);
+ text(40,150,`Every ${BONUS_HOURS_PER_DAY} eligible extra hours earns one bonus day; unused hours carry forward.`,9,false,muted);
  text(40,131,'From 4 Nov: each 2 missing punches per calendar month deduct 1 daily rate.',9,false,muted);
  text(40,112,`Billing from: ${s.billingFromDate?date(s.billingFromDate):'No employment overlap in this period'}`,9,false,muted);
  text(40,93,'Calculated earnings only. This statement does not confirm that payment was made.',9,false,muted);
