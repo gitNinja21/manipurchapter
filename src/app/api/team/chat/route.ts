@@ -98,6 +98,10 @@ export const POST = teamRoute(async (u, req) => {
       "team?view=chat",
       msg.createdAt,
     );
+    if (u.role === "EMPLOYEE" && u.active && process.env.APP_ASSISTANT_ENABLED !== "false") {
+      const limited=await tx.assistantTurn.count({where:{userId:u.id,source:{in:["CHAT","DIRECT"]},createdAt:{gte:new Date(Date.now()-3600000)}}})>=30;
+      await tx.assistantTurn.create({data:{userId:u.id,sourceKey:`chat:${msg.id}`,source:"CHAT",body,...(limited?{status:"FAILED",reply:"Assistant message limit reached. Please use Requests or ask admin for help."}:{})}});
+    }
     return msg;
   });
   await sendChatPush(message.id, u.id, u.role).catch(() => console.warn("Chat push unavailable; message saved."));

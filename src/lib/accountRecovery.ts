@@ -1,3 +1,4 @@
+import {captureAssistantNotification} from "./assistantInbox";
 import {createHash,createHmac,randomBytes} from "node:crypto";
 import bcrypt from "bcryptjs";
 import twilio from "twilio";
@@ -82,7 +83,8 @@ export async function resetRecovery(token:string|undefined,password:unknown,now=
     if(!consumed.count)throw new RecoveryError("Recovery already used or expired.",409);
     await tx.user.update({where:{id:user.id},data:{passwordHash,authVersion:{increment:1}}});
     await tx.accountRecovery.updateMany({where:{userId:user.id,consumedAt:null},data:{consumedAt:now}});
-    await tx.notification.create({data:{userId:user.id,kind:"PASSWORD_RESET",entityKey:row.id,title:"Your password was reset through SMS recovery. Contact your admin if this was not you.",href:"/account"}});
+    const notification=await tx.notification.create({data:{userId:user.id,kind:"PASSWORD_RESET",entityKey:row.id,title:"Your password was reset through SMS recovery. Contact your admin if this was not you.",href:"/account"}});
+    await captureAssistantNotification(tx,notification,user.role);
     return {ok:true};
   });
 }

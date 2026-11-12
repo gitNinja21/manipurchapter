@@ -10,6 +10,7 @@ datasource db {
 // SQLite has no native enum support in Prisma, so roles are plain strings.
 // Valid values are "ADMIN" | "EMPLOYEE" (see src/lib/roles.ts).
 model User {
+  assistantTurns AssistantTurn[]
   announcementRecipients AnnouncementRecipient[]
   announcementSms AnnouncementSms[]
   attendanceSms AttendanceSms[]
@@ -600,4 +601,25 @@ model AdminClockOutDay {
   revision Int @default(1)
   updatedById String
   updatedAt DateTime @updatedAt
+}
+
+// Private assistant inbox. AI may draft requests, never approve or edit attendance.
+model AssistantTurn {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceHref String?
+  sourceKey String @unique
+  source String
+  body String
+  status String @default("QUEUED")
+  reply String?
+  draftJson String?
+  requestId String?
+  escalated Boolean @default(false)
+  resolvedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
 }

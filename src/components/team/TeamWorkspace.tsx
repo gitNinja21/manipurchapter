@@ -1,5 +1,6 @@
 "use client";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import Assistant from "./Assistant";
 import Chat from "./Chat";
 import Birthdays from "./Birthdays";
 import Schedule from "./Schedule";
@@ -22,6 +23,7 @@ export default function TeamWorkspace({ admin }: { admin: boolean }) {
       <nav className="flex flex-wrap gap-2" aria-label="Team sections">
         {[
           ["chat", "Chat"],
+          ["assistant", "Assistant"],
           ["birthdays", "Birthdays"],
           ["schedule", "Schedule"],
           ["requests", "Requests"],
@@ -38,7 +40,7 @@ export default function TeamWorkspace({ admin }: { admin: boolean }) {
           </button>
         ))}
       </nav>
-      {view === "attendance" && admin ? (<AttendanceTracking />) : view === "performance" ? (<Performance admin={admin}/>) : view === "birthdays" ? (
+      {view === "assistant" ? (<Assistant admin={admin}/>) : view === "attendance" && admin ? (<AttendanceTracking />) : view === "performance" ? (<Performance admin={admin}/>) : view === "birthdays" ? (
         <Birthdays />
       ) : view === "schedule" ? (
         <Schedule admin={admin} />

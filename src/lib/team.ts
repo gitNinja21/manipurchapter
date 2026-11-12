@@ -1,3 +1,4 @@
+import {captureAssistantNotification} from "./assistantInbox";
 import {SelfieThemeError} from "./selfieThemes";
 import { NextRequest, NextResponse } from "next/server";
 import type { User, Prisma } from "@prisma/client";
@@ -72,8 +73,8 @@ export async function notify(
   path: string,
   createdAt?: Date,
 ) {
-  for (const u of users)
-    await tx.notification.upsert({
+  for (const u of users) {
+    const notification = await tx.notification.upsert({
       where: { userId_kind_entityKey: { userId: u.id, kind, entityKey } },
       create: {
         userId: u.id,
@@ -85,4 +86,6 @@ export async function notify(
       },
       update: {},
     });
+    await captureAssistantNotification(tx, notification, u.role);
+  }
 }

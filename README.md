@@ -415,3 +415,17 @@ The six account IDs are deliberately exact. Verify all ten people are shown in
 Daily attendance rules on the live database after deployment; if an account has
 been recreated, its ID must be mapped before applying a rule. The development
 sample database does not contain these live employee accounts.
+
+## In-app employee assistant
+
+Team space → Assistant is a private inbox for employee questions and new Team Chat messages. New website notifications are captured once per recipient with a link to the original action screen. Assistant-generated notifications are excluded to prevent feedback loops. Admin sees their own notification inbox plus employee messages explicitly escalated for help; other private conversations are not listed for admin.
+
+Chat understanding uses the existing server-side `OPENAI_API_KEY`, with optional `APP_ASSISTANT_MODEL` (default `gpt-4.1-mini`). Set `APP_ASSISTANT_ENABLED=false` to stop new chat/notification capture and the production queue worker. Run the included Prisma migration before starting the updated app; the existing Railway start command already runs migrations. The worker runs every 15 seconds in the production Next server. Direct private questions are processed when sent. Existing historical chat/notifications are not backfilled.
+
+The model sees the employee's message, limited recent own request statuses/conversation, and own rate/shift flags. It does not receive other employees' records, credentials, phone numbers or photos. API requests use `store:false`. Notification triage is deterministic and does not send notification contents to the model. No SMS/call is dispatched by the assistant.
+
+Supported drafts: leave, late arrival, early departure and attendance correction. Missing details produce a question. The employee must review and confirm a draft; confirmation uses the same validation, overlap checks and admin notification as the regular request form. Request creation and draft linking are transactional and repeat confirmation returns the existing request. Admin approvals and payroll/attendance writes stay in the existing request/management screens. Payroll questions explain rules or escalate; the bot does not compute or promise exact salary totals.
+
+Admin can reply to an escalation and resolve it. Notification items link to the original screen and can be marked handled; this does not mark the underlying request approved. Failures leave requests and attendance unchanged and provide the standard Requests fallback. Stalled processing becomes retryable after two minutes. Chat/direct processing is limited to 30 new messages per employee per hour, with a one-minute retry cooldown.
+
+Checks: `npm test`, `node --import tsx scripts/test-assistant.ts`, and `npm run build`. The assistant integration check uses a fresh temporary database and mocked provider; it never sends live employee messages or calls OpenAI.
