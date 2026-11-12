@@ -5,6 +5,7 @@ import { ErrorNotice } from "./TeamCommon";
 import { formatIstDateTime } from "@/lib/time";
 import { reactionEmoji } from "@/lib/teamValidation";
 type Message = {
+  assistant: null | {id:string;status:string;hasDraft:boolean;submitted:boolean;reply:string|null;own:boolean};
   id: string;
   authorId: string | null;
   authorName: string;
@@ -20,6 +21,8 @@ type ChatData = {
   userId: string;
   admin: boolean;
   muteChat: boolean;
+  assistantEnabled:boolean;
+  assistantConfigured:boolean;
 };
 export default function Chat() {
   const { data, error, loading, reload } = useTeamData<ChatData>(
@@ -96,6 +99,11 @@ export default function Chat() {
           {data?.muteChat ? "Unmute chat alerts" : "Mute chat alerts"}
         </button>
       </div>
+      <p className="text-sm text-foreground/70">
+        Employee messages are checked for requests. Private assistant replies appear below your own messages.
+        {data?.admin ? " Admin can see processing status; approvals remain in Requests. Admin chat messages do not run commands." : " Review a draft in Assistant before submitting it for admin approval."}
+      </p>
+      {data&&!data.assistantConfigured&&<p role="status" className="text-sm text-danger">{data.assistantEnabled?"Assistant is not configured. Admin needs to check the API key. Messages are still saved; use Requests for now.":"Assistant processing is disabled. Messages are still saved; use Requests."}</p>}
       <ErrorNotice error={error || action.error || olderError} />
       <div className="admin-panel overflow-hidden">
         <div
@@ -140,6 +148,13 @@ export default function Chat() {
               <p className="text-sm whitespace-pre-wrap break-words mt-2">
                 {m.body}
               </p>
+              {!m.deletedAt && m.assistant && <div className="mt-3 p-3 border rounded-lg bg-white/60 text-sm space-y-2" aria-live="polite">
+                <p className="font-medium">Assistant · {m.assistant.submitted?"Request submitted for admin review":m.assistant.status==="QUEUED"?"Queued":m.assistant.status==="PROCESSING"?"Reading message…":m.assistant.status==="FAILED"?"Could not process — retry needed":m.assistant.status==="DISMISSED"?"Dismissed":m.assistant.hasDraft?"Draft ready — waiting for employee confirmation":"Reply ready"}</p>
+                {m.assistant.own && m.assistant.reply && <p className="whitespace-pre-wrap">{m.assistant.reply}</p>}
+                {m.assistant.own && <a className="underline text-brand" href="/employee/team?view=assistant">{m.assistant.hasDraft?"Review and submit request":"Open private assistant / retry"}</a>}
+                {!m.assistant.own && m.assistant.hasDraft && <p className="text-xs">The employee must confirm the draft before it appears in Requests.</p>}
+                {!m.assistant.own && m.assistant.submitted && <a className="underline text-brand" href="/admin/team?view=requests">Review requests</a>}
+              </div>}
               {!m.deletedAt && (
                 <div className="flex flex-wrap items-center gap-2 mt-3">
                   {reactionEmoji.map((emoji) => {

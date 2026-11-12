@@ -1,3 +1,6 @@
+import {after} from "next/server";
+import {processAssistantTurn,assistantConfigured} from "@/lib/assistantServer";
+import {queueAssistantChat,assistantChatStatuses} from "@/lib/assistantChat";
 import { sendChatPush } from "@/lib/push";
 import { prisma } from "@/lib/prisma";
 import {
@@ -35,12 +38,14 @@ export const GET = teamRoute(async (u, req) => {
       reactions: { select: { emoji: true, userId: true } },
     },
   });
+  const assistantStatuses=await assistantChatStatuses(prisma,u,rows.slice(0,50).filter(r=>!r.deletedAt).map(r=>r.id));
   const hasMore = rows.length > 50;
   const messages = rows
     .slice(0, 50)
     .reverse()
     .map((r) => ({
       ...r,
+      assistant: r.deletedAt ? null : assistantStatuses.get(r.id) ?? null,
       body: r.deletedAt ? "Message removed" : r.body,
       reactions: r.deletedAt ? [] : r.reactions,
       replyTo: r.replyTo
@@ -56,6 +61,8 @@ export const GET = teamRoute(async (u, req) => {
     userId: u.id,
     admin: u.role === "ADMIN",
     muteChat: u.muteChat,
+    assistantEnabled: process.env.APP_ASSISTANT_ENABLED !== "false",
+    assistantConfigured: assistantConfigured(),
   };
 });
 export const POST = teamRoute(async (u, req) => {
@@ -69,7 +76,7 @@ export const POST = teamRoute(async (u, req) => {
     }))
   )
     throw new TeamError("The message you are replying to is unavailable.");
-  const message = await prisma.$transaction(async (tx) => {
+  const saved = await prisma.$transaction(async (tx) => {
     if (
       (await tx.teamMessage.count({
         where: {
@@ -98,12 +105,13 @@ export const POST = teamRoute(async (u, req) => {
       "team?view=chat",
       msg.createdAt,
     );
-    if (u.role === "EMPLOYEE" && u.active && process.env.APP_ASSISTANT_ENABLED !== "false") {
-      const limited=await tx.assistantTurn.count({where:{userId:u.id,source:{in:["CHAT","DIRECT"]},createdAt:{gte:new Date(Date.now()-3600000)}}})>=30;
-      await tx.assistantTurn.create({data:{userId:u.id,sourceKey:`chat:${msg.id}`,source:"CHAT",body,...(limited?{status:"FAILED",reply:"Assistant message limit reached. Please use Requests or ask admin for help."}:{})}});
-    }
-    return msg;
+    const assistant=await queueAssistantChat(tx,u,msg);
+    return {message:msg,assistantId:assistant?.id};
   });
+  const {message,assistantId}=saved;
+  // Next keeps this task alive after the response, in development and production.
+  // The queue worker remains a restart fallback; atomic claims prevent double processing.
+  if(assistantId)after(async()=>{try{await processAssistantTurn(assistantId);}catch{console.warn("Assistant chat dispatch unavailable; queued for retry.");}});
   await sendChatPush(message.id, u.id, u.role).catch(() => console.warn("Chat push unavailable; message saved."));
   return { message };
 });
