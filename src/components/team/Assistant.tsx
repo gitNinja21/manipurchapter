@@ -13,7 +13,7 @@ export default function Assistant({admin}:{admin:boolean}){
  const act=(name:string,id:string)=>action.run(()=>api("/api/team/assistant","POST",{action:name,id}));
  return <div className="space-y-4">
   <h2 className="text-xl font-semibold">{admin?"Assistant inbox":"My assistant"}</h2>
-  <p className="text-sm text-foreground/70">{admin?"Notifications and employee messages needing help appear here. Open the linked item to act, or reply to escalated questions. Leave and attendance approvals remain in Requests.":"Ask about attendance, leave or your pay. The assistant can prepare a request; you review and submit it for admin approval. It cannot approve requests or change your salary."}</p>
+  <p className="text-sm text-foreground/70">{admin?"Notifications and employee messages needing help appear here. Open the linked item to act, or reply to escalated questions. Leave and attendance approvals remain in Requests.":"Ask about attendance, leave or your pay. The assistant submits complete requests automatically for admin approval and asks for missing details. It cannot approve requests or change your salary."}</p>
   <a className="underline" href={`/${admin?"admin":"employee"}/team?view=requests`}>Open Requests</a>
   {!admin&&<>
    <p className="text-xs text-foreground/60">Notifications and your Team Chat messages also appear here. Chat messages receive private assistance. Messages and limited information from your own account are processed by OpenAI. Admin can read messages escalated for help. Do not include passwords or OTPs.</p>
@@ -37,11 +37,11 @@ export default function Assistant({admin}:{admin:boolean}){
     {t.source==="NOTIFICATION"&&t.status==="READY"&&<button className="admin-button" disabled={action.busy} onClick={()=>void act("handled",t.id)}>Mark handled in assistant</button>}
     {t.escalated&&<p className="text-sm">{t.resolvedAt?"Admin has replied.":"Sent to admin for help."}</p>}
     {!admin&&draft&&t.status==="READY"&&<div className="border rounded-lg p-4 space-y-2">
-     <h3 className="font-semibold">Review request — not submitted</h3>
+     <h3 className="font-semibold">Request being prepared — not submitted yet</h3>
      <p>{draft.kind.replaceAll("_"," ")}: {draft.fromDate}{draft.toDate!==draft.fromDate?` to ${draft.toDate}`:""}</p>
      {draft.proposedIn&&<p>Clock in: {formatIstDateTime(new Date(draft.proposedIn))}<br/>Clock out: {formatIstDateTime(new Date(draft.proposedOut!))}</p>}
      <p>Reason: {draft.reason}</p>
-     <p className="text-sm">If anything is wrong, dismiss this draft and send the correct details above.</p>
+     <p className="text-sm">The assistant will submit this request for admin review. Contact admin if anything is wrong.</p>
      <button className="admin-button" disabled={action.busy} onClick={()=>void act("confirm",t.id)}>Submit for admin approval</button>
     </div>}
     {!admin&&<div className="flex gap-2 flex-wrap">

@@ -39,12 +39,14 @@ export const GET = teamRoute(async (u, req) => {
     },
   });
   const assistantStatuses=await assistantChatStatuses(prisma,u,rows.slice(0,50).filter(r=>!r.deletedAt).map(r=>r.id));
+  const eligibleAuthors=new Set((await prisma.user.findMany({where:{...memberWhere,role:"EMPLOYEE",id:{in:rows.flatMap(r=>r.authorId?[r.authorId]:[])}},select:{id:true}})).map(u=>u.id));
   const hasMore = rows.length > 50;
   const messages = rows
     .slice(0, 50)
     .reverse()
     .map((r) => ({
       ...r,
+      assistantEligible: !r.deletedAt && !!r.authorId && eligibleAuthors.has(r.authorId),
       assistant: r.deletedAt ? null : assistantStatuses.get(r.id) ?? null,
       body: r.deletedAt ? "Message removed" : r.body,
       reactions: r.deletedAt ? [] : r.reactions,

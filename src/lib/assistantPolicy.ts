@@ -13,7 +13,7 @@ export function parseAssistantResult(value:unknown):AssistantResult {
     for(const t of [d.proposedIn,d.proposedOut]) if(t!==null && (typeof t!=="string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\+05:30$/.test(t) || !Number.isFinite(Date.parse(t)))) throw new Error("Invalid IST time");
     if(d.kind==="CORRECTION" && (!d.proposedIn || !d.proposedOut || Date.parse(d.proposedOut)<=Date.parse(d.proposedIn))) throw new Error("Correction needs both times");
     // Copy only permitted fields; model-supplied user IDs/status/approval flags are never used.
-    return {reply:"Please check the draft below. Nothing has been submitted yet. Submit it only if the dates, times and reason are correct.",escalate:false,draft:{kind:d.kind,fromDate:d.fromDate,toDate:d.toDate,reason:d.reason,proposedIn:d.kind==="CORRECTION"?d.proposedIn:null,proposedOut:d.kind==="CORRECTION"?d.proposedOut:null}};
+    return {reply:"Preparing your request for admin approval. Nothing has been submitted yet.",escalate:false,draft:{kind:d.kind,fromDate:d.fromDate,toDate:d.toDate,reason:d.reason,proposedIn:d.kind==="CORRECTION"?d.proposedIn:null,proposedOut:d.kind==="CORRECTION"?d.proposedOut:null}};
   }
   return {reply:v.reply,escalate:v.escalate,draft:null};
 }

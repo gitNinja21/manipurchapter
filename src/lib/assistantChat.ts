@@ -12,3 +12,22 @@ export async function assistantChatStatuses(tx:Prisma.TransactionClient,viewer:{
  const turns=await tx.assistantTurn.findMany({where:{source:"CHAT",sourceKey:{in:messageIds.map(id=>`chat:${id}`)},...(viewer.role==="ADMIN"?{}:{userId:viewer.id})},select:{id:true,userId:true,sourceKey:true,status:true,reply:true,draftJson:true,requestId:true}});
  return new Map(turns.map(t=>[t.sourceKey.slice(5),{id:t.id,status:t.status,hasDraft:!!t.draftJson,submitted:!!t.requestId,reply:t.userId===viewer.id?t.reply:null,own:t.userId===viewer.id}]));
 }
+
+// Discover saved messages, not just queued turns. Small batches and the existing
+// per-employee hourly allowance bound provider usage during historical catch-up.
+export async function catchUpAssistantChats(tx:Prisma.TransactionClient){
+ if(process.env.APP_ASSISTANT_ENABLED==="false" || !process.env.OPENAI_API_KEY?.trim())return 0;
+ const cutoff=new Date(Date.now()-3600000);
+ const messages=await tx.$queryRaw<{id:string;authorId:string;body:string}[]>`
+  SELECT m.id, m.authorId, m.body FROM TeamMessage m JOIN User u ON u.id=m.authorId
+  WHERE m.deletedAt IS NULL AND u.role='EMPLOYEE' AND u.active=1 AND u.approved=1 AND u.mustChangePassword=0
+  AND NOT EXISTS (SELECT 1 FROM AssistantTurn a WHERE a.sourceKey='chat:' || m.id)
+  AND (SELECT COUNT(*) FROM AssistantTurn recent WHERE recent.userId=u.id AND recent.source IN ('CHAT','DIRECT') AND recent.createdAt>=${cutoff})<30
+  ORDER BY m.createdAt DESC, m.id DESC LIMIT 5`;
+ let count=0;
+ for(const msg of messages){
+  const user=await tx.user.findUnique({where:{id:msg.authorId}});
+  if(user && await queueAssistantChat(tx,user,msg))count++;
+ }
+ return count;
+}

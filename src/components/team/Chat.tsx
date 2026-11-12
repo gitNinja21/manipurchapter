@@ -5,6 +5,7 @@ import { ErrorNotice } from "./TeamCommon";
 import { formatIstDateTime } from "@/lib/time";
 import { reactionEmoji } from "@/lib/teamValidation";
 type Message = {
+  assistantEligible:boolean;
   assistant: null | {id:string;status:string;hasDraft:boolean;submitted:boolean;reply:string|null;own:boolean};
   id: string;
   authorId: string | null;
@@ -101,7 +102,7 @@ export default function Chat() {
       </div>
       <p className="text-sm text-foreground/70">
         Employee messages are checked for requests. Private assistant replies appear below your own messages.
-        {data?.admin ? " Admin can see processing status; approvals remain in Requests. Admin chat messages do not run commands." : " Review a draft in Assistant before submitting it for admin approval."}
+        {data?.admin ? " Admin can see processing status; approvals remain in Requests. Admin chat messages do not run commands." : " Complete requests are submitted automatically for admin approval. The assistant asks for any missing details."}
       </p>
       {data&&!data.assistantConfigured&&<p role="status" className="text-sm text-danger">{data.assistantEnabled?"Assistant is not configured. Admin needs to check the API key. Messages are still saved; use Requests for now.":"Assistant processing is disabled. Messages are still saved; use Requests."}</p>}
       <ErrorNotice error={error || action.error || olderError} />
@@ -148,11 +149,15 @@ export default function Chat() {
               <p className="text-sm whitespace-pre-wrap break-words mt-2">
                 {m.body}
               </p>
+              {!m.deletedAt && m.assistantEligible && (data?.admin || m.authorId===data?.userId) && (!m.assistant || ["FAILED","QUEUED"].includes(m.assistant.status)) && <button
+                className="admin-button mt-3 text-sm" disabled={action.busy||!data?.assistantConfigured}
+                onClick={()=>void action.run(()=>api("/api/team/assistant","POST",{action:"processChat",messageId:m.id}))}
+              >{m.assistant?.status==="FAILED"?"Retry assistant":m.assistant?.status==="QUEUED"?"Process now":"Ask assistant to process"}</button>}
               {!m.deletedAt && m.assistant && <div className="mt-3 p-3 border rounded-lg bg-white/60 text-sm space-y-2" aria-live="polite">
-                <p className="font-medium">Assistant · {m.assistant.submitted?"Request submitted for admin review":m.assistant.status==="QUEUED"?"Queued":m.assistant.status==="PROCESSING"?"Reading message…":m.assistant.status==="FAILED"?"Could not process — retry needed":m.assistant.status==="DISMISSED"?"Dismissed":m.assistant.hasDraft?"Draft ready — waiting for employee confirmation":"Reply ready"}</p>
+                <p className="font-medium">Assistant · {m.assistant.submitted?"Request submitted for admin review":m.assistant.status==="QUEUED"?"Queued":m.assistant.status==="PROCESSING"?"Reading message…":m.assistant.status==="FAILED"?"Could not process — retry needed":m.assistant.status==="DISMISSED"?"Dismissed":m.assistant.hasDraft?"Preparing request for admin approval":"Reply ready"}</p>
                 {m.assistant.own && m.assistant.reply && <p className="whitespace-pre-wrap">{m.assistant.reply}</p>}
-                {m.assistant.own && <a className="underline text-brand" href="/employee/team?view=assistant">{m.assistant.hasDraft?"Review and submit request":"Open private assistant / retry"}</a>}
-                {!m.assistant.own && m.assistant.hasDraft && <p className="text-xs">The employee must confirm the draft before it appears in Requests.</p>}
+                {m.assistant.own && <a className="underline text-brand" href="/employee/team?view=assistant">{m.assistant.hasDraft?"View request details":"Open private assistant / retry"}</a>}
+                {!m.assistant.own && m.assistant.hasDraft && <p className="text-xs">The assistant is preparing this request. It will appear in Requests for admin approval.</p>}
                 {!m.assistant.own && m.assistant.submitted && <a className="underline text-brand" href="/admin/team?view=requests">Review requests</a>}
               </div>}
               {!m.deletedAt && (

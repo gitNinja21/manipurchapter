@@ -1,3 +1,5 @@
+import {after} from "next/server";
+import {queueAssistantChat} from "@/lib/assistantChat";
 import {prisma} from "@/lib/prisma";
 import {teamRoute,jsonBody,textField,TeamError,notify,memberWhere} from "@/lib/team";
 import {assistantConfigured,processAssistantTurn} from "@/lib/assistantServer";
@@ -15,6 +17,22 @@ export const GET=teamRoute(async(u,req)=>{
 export const POST=teamRoute(async(u,req)=>{
   if(!u.active)throw new TeamError("Account inactive",403);
   const b=await jsonBody(req), action=String(b.action);
+  if(action==="processChat") {
+    if(!assistantConfigured())throw new TeamError("Assistant is disabled or its API key is missing. Check Railway configuration.",503);
+    const msg=await prisma.teamMessage.findFirst({where:{id:String(b.messageId),deletedAt:null},include:{author:true}});
+    if(!msg?.author || (u.role!=="ADMIN" && msg.authorId!==u.id))throw new TeamError("Message not found",404);
+    const turn=await prisma.$transaction(async tx=>{
+      const item=await queueAssistantChat(tx,msg.author!,msg);
+      if(!item)throw new TeamError("Only active, approved employee messages can be processed.",400);
+      if(item.status==="FAILED") {
+        if(item.updatedAt.getTime()>Date.now()-60000)throw new TeamError("Wait one minute before retrying this message.",429);
+        return tx.assistantTurn.update({where:{id:item.id},data:{status:"QUEUED"}});
+      }
+      return item;
+    });
+    after(async()=>{try{await processAssistantTurn(turn.id);}catch{console.warn("Assistant dispatch unavailable; queued for retry.");}});
+    return {ok:true,status:turn.status};
+  }
   if(action==="handled") {
     const changed=await prisma.assistantTurn.updateMany({where:{id:String(b.id),userId:u.id,source:"NOTIFICATION",status:"READY"},data:{status:"DISMISSED"}});
     if(!changed.count)throw new TeamError("Notification not found or already handled",404);
