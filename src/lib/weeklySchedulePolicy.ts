@@ -22,11 +22,8 @@ export function parseWeekTimes(value:unknown,week:string,shiftHours=9):WeekTimes
 }
 export function validWeek(week:string,today:string){return validDate(week)&&weekStart(week)===week && [weekStart(today),new Date(Date.parse(weekStart(today))+7*86400000).toISOString().slice(0,10)].includes(week);}
 export function missingPunchDeductions(incidents:{workDate:string;missingPunch?:string;missingPunchWaived?:boolean}[],from:string,to:string) {
- const months=new Map<string,number>();let count=0,days=0;
- for(const r of [...incidents].sort((a,b)=>a.workDate.localeCompare(b.workDate))){
-  if(!weeklyApplies(r.workDate)||r.workDate>to||!r.missingPunch||r.missingPunch==='NONE'||r.missingPunchWaived)continue;
-  const month=r.workDate.slice(0,7),n=(months.get(month)??0)+1;months.set(month,n);
-  if(r.workDate>=from){count++;if(n%2===0)days++;}
- }
- return {incidents:count,days};
+ // Keep incident reporting, but missing punches no longer deduct salary.
+ // Applies to all recalculated reports, including historical periods.
+ const count=incidents.filter(r=>weeklyApplies(r.workDate)&&r.workDate>=from&&r.workDate<=to&&r.missingPunch&&r.missingPunch!=="NONE"&&!r.missingPunchWaived).length;
+ return {incidents:count,days:0};
 }

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import ExtraPaidDays from "@/components/ExtraPaidDays";
 import EmployeeDashboard from "@/components/EmployeeDashboard";
 
 type Employee = { id: string; name: string; employeeCode: string; active: boolean; approved: boolean; mustChangePassword: boolean };
@@ -27,6 +28,7 @@ export default function EmployeeView({ employees, employee }: { employees: Emplo
         </div>
       </section>
       <EmployeeDashboard key={employee.id} previewEmployeeId={employee.id} />
+      <ExtraPaidDays key={`extra-${employee.id}`} employeeId={employee.id} />
     </div>
   );
 }

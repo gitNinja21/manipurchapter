@@ -99,11 +99,11 @@ export default function PayrollPage() {
       "Regular pay INR",
       "Off-day pay INR",
       "Bonus pay INR",
+      "Extra paid days",
+      "Extra paid days pay INR",
       "Total salary INR",
       "Rejected days",
       "Missing punch incidents",
-      "Missing punch deduction days",
-      "Missing punch deduction INR",
     ];
     const rows = visible.map((s) => [
       s.name,
@@ -123,11 +123,11 @@ export default function PayrollPage() {
       s.regularPayRs,
       s.offDaysPayRs,
       s.bonusPayRs,
+      s.extraPaidDays,
+      s.extraPaidDaysPayRs,
       s.salaryRs,
       s.rejectedDays,
       s.missingPunchIncidents,
-      s.missingPunchDeductionDays,
-      s.missingPunchDeductionRs,
     ]);
     const blob = new Blob(
       [
@@ -333,7 +333,8 @@ export default function PayrollPage() {
                                   `Bonus days (${s.bonusDays})`,
                                   money(s.bonusPayRs),
                                 ],
-                                [`Missing punches (${s.missingPunchIncidents} incidents; ${s.missingPunchDeductionDays} day deductions)`, `-${money(s.missingPunchDeductionRs)}`],
+                                ["Missing-punch incidents (no salary penalty)", String(s.missingPunchIncidents)],
+                                [`Extra paid days (${s.extraPaidDays})`, money(s.extraPaidDaysPayRs)],
                                 ["Total salary", money(s.salaryRs)],
                               ].map(([label, value]) => (
                                 <div
@@ -415,7 +416,7 @@ export default function PayrollPage() {
             months; only bonuses earned within the selected dates appear here.
           </p>
           <p>
-            Salary = regular pay + paid off-day pay + earned bonus pay - missing-punch deductions. From 4 November 2026, every two unwaived missing-punch incidents in a calendar month deduct one daily rate.
+            Salary = regular pay + paid off-day pay + earned bonus pay + admin-added extra paid days. Missing-punch incidents are tracked without a salary penalty.
             Historical attendance decisions can change later overtime balances;
             review the audit history when reconciling an earlier export.
           </p>

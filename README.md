@@ -429,3 +429,11 @@ Supported drafts: leave, late arrival, early departure and attendance correction
 Admin can reply to an escalation and resolve it. Notification items link to the original screen and can be marked handled; this does not mark the underlying request approved. Failures leave requests and attendance unchanged and provide the standard Requests fallback. Stalled processing becomes retryable after two minutes. Chat/direct processing is limited to 30 new messages per employee per hour, with a one-minute retry cooldown.
 
 Checks: `npm test`, `node --import tsx scripts/test-assistant.ts`, and `npm run build`. The assistant integration check uses a fresh temporary database and mocked provider; it never sends live employee messages or calls OpenAI.
+
+## Admin extra paid days
+
+Employees → Edit → Extra paid days lets admin set a total of 0–31 extra paid days for a payroll month. The employee can view their own saved allowance on their dashboard; only an active admin can write it. Each day pays the employee's current hourly rate × standard shift hours (9 or 10 as configured). This is a separate salary allowance and does not manufacture attendance or overtime bonuses.
+
+The credit date must fall in the selected month, on/after payroll start and no later than today. Reports include the allowance only when they include that date, so separate date ranges do not duplicate the monthly allowance. Repeated saves replace the total; zero removes its pay effect. Writes are audited and revision checks prevent stale admin edits. Updated pay is included in payroll totals, CSV and PDF. The new ExtraPaidDay migration runs through the existing deployment start command.
+
+Run `node --import tsx scripts/test-extra-paid-days.ts` for isolated database coverage of permissions, repeated saves, revision conflicts, date-range payroll, removal and PDF generation.

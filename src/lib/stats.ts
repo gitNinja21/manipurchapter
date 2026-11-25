@@ -51,7 +51,9 @@ export type EmployeeStats = {
   overtimeBalanceHours: number; // unconverted hours as of the report end
   bonusDays: number; // whole 7-hour blocks earned within the selected range
   bonusPayRs: number;
-  salaryRs: number; // offDaysPayRs + regularPayRs + bonusPayRs
+  extraPaidDays: number;
+  extraPaidDaysPayRs: number;
+  salaryRs: number; // offDaysPayRs + regularPayRs + bonusPayRs + extraPaidDaysPayRs
 };
 
 function daysInRange(fromDate: string, toDate: string): string[] {
@@ -91,6 +93,7 @@ export async function computeStatsForRange(
   const employees = await prisma.user.findMany({
     where: { role: "EMPLOYEE", ...(preview ? { id: preview.userId } : {}) },
     orderBy: { name: "asc" },
+    include: {extraPaidDays:{where:{creditDate:{gte:fromDate,lte:effectiveToDate}}}},
   });
 
   const records = await prisma.attendanceRecord.findMany({
@@ -251,7 +254,9 @@ export async function computeStatsForRange(
     const overtimeBalanceHours =
       Math.floor(((accumulatedOvertimeMs % blockMs) / hourMs) * 100) / 100;
     const missing = missingPunchDeductions((recordsByUser.get(emp.id)||[]).filter(r=>r.workDate>=joinWorkDate&&!paidOffDay(r.workDate)),effectiveFromDate,effectiveToDate);
-    const missingPunchDeductionRs = missing.days*dailyRateRs;
+    const missingPunchDeductionRs = 0; // Retained in the response for compatibility; penalty removed.
+    const extraPaidDays=(emp.extraPaidDays??[]).filter(r=>r.creditDate>=effectiveFromDate&&r.creditDate<=effectiveToDate).reduce((n,r)=>n+r.days,0);
+    const extraPaidDaysPayRs=extraPaidDays*dailyRateRs;
     const bonusPayRs = bonusDays * dailyRateRs;
     const offDaysPayRs = offDays * dailyRateRs;
 
@@ -286,7 +291,9 @@ export async function computeStatsForRange(
       overtimeBalanceHours,
       bonusDays,
       bonusPayRs: round2(bonusPayRs),
-      salaryRs: round2(offDaysPayRs + regularPayRs + bonusPayRs - missingPunchDeductionRs),
+      extraPaidDays,
+      extraPaidDaysPayRs:round2(extraPaidDaysPayRs),
+      salaryRs: round2(offDaysPayRs + regularPayRs + bonusPayRs + extraPaidDaysPayRs),
     };
   });
 }

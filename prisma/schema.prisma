@@ -10,6 +10,7 @@ datasource db {
 // SQLite has no native enum support in Prisma, so roles are plain strings.
 // Valid values are "ADMIN" | "EMPLOYEE" (see src/lib/roles.ts).
 model User {
+  extraPaidDays ExtraPaidDay[]
   assistantTurns AssistantTurn[]
   announcementRecipients AnnouncementRecipient[]
   announcementSms AnnouncementSms[]
@@ -622,4 +623,20 @@ model AssistantTurn {
   updatedAt DateTime @updatedAt
   @@index([userId, createdAt])
   @@index([status, createdAt])
+}
+
+// One replaceable total per employee/month; creditDate makes date-range reports additive.
+model ExtraPaidDay {
+ id String @id @default(cuid())
+ userId String
+ user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+ month String
+ creditDate String
+ days Int @default(0)
+ revision Int @default(1)
+ updatedById String
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+ @@unique([userId,month])
+ @@index([creditDate])
 }

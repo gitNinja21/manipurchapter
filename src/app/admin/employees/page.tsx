@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import ExtraPaidDays from "@/components/ExtraPaidDays";
 import EmployeeShiftEditor from "@/components/EmployeeShiftEditor";
 
 type Employee = {
@@ -614,6 +615,7 @@ function EmployeeRow({
               </button>
             </div>
 
+            <ExtraPaidDays employeeId={employee.id} editable />
             <EmployeeShiftEditor employeeId={employee.id} />
 
             <div className="mt-6 pt-4 border-t border-border max-w-xl">

@@ -278,7 +278,7 @@ test("date-wide hourly correction and paid closure replace rather than stack sal
  assert.equal((await computeStatsForRange("2026-10-21","2026-10-21"))[0].salaryRs,0);
 });
 
-test('weekly missing-punch deductions reconcile by calendar month and admin waivers reverse them',async t=>{
+test('missing punches never deduct pay in historical, partial or waived reports',async t=>{
  const oldUsers=prisma.user.findMany,oldRecords=prisma.attendanceRecord.findMany,oldLeaves=prisma.staffRequest.findMany;
  t.after(()=>{prisma.user.findMany=oldUsers;prisma.attendanceRecord.findMany=oldRecords;prisma.staffRequest.findMany=oldLeaves;});
  prisma.user.findMany=(async()=>[{id:'week',name:'Week',employeeCode:'W',hourlyRateRs:50,createdAt:new Date('2026-10-01'),active:true} as User]) as typeof oldUsers;
@@ -287,9 +287,9 @@ test('weekly missing-punch deductions reconcile by calendar month and admin waiv
  prisma.attendanceRecord.findMany=(async()=>[row('2026-11-04'),row('2026-11-05')]) as typeof oldRecords;
  prisma.staffRequest.findMany=(async()=>[{userId:'week',fromDate:'2026-11-06',toDate:'2026-11-06',status:'APPROVED'}]) as typeof oldLeaves;
  let [s]=await computeStatsForRange('2026-11-04','2026-11-07',undefined,true);
- assert.equal(s.regularPayRs,800);assert.equal(s.missingPunchIncidents,2);assert.equal(s.missingPunchDeductionDays,1);assert.equal(s.missingPunchDeductionRs,450);assert.equal(s.salaryRs,350);
+ assert.equal(s.regularPayRs,800);assert.equal(s.missingPunchIncidents,2);assert.equal(s.missingPunchDeductionDays,0);assert.equal(s.missingPunchDeductionRs,0);assert.equal(s.salaryRs,800);
  assert.equal(s.missedDays,1);assert.equal(s.payrollDays!.find(d=>d.date==='2026-11-06')!.status,'Approved leave');assert.equal(s.payrollDays!.find(d=>d.date==='2026-11-07')!.status,"Didn't show up");
- [s]=await computeStatsForRange('2026-11-05','2026-11-05');assert.equal(s.missingPunchDeductionDays,1);assert.equal(s.salaryRs,-50);
+ [s]=await computeStatsForRange('2026-11-05','2026-11-05');assert.equal(s.missingPunchDeductionDays,0);assert.equal(s.salaryRs,400);
  waived=true;[s]=await computeStatsForRange('2026-11-04','2026-11-07');assert.equal(s.missingPunchDeductionDays,0);assert.equal(s.salaryRs,800);
 });
 
@@ -305,7 +305,7 @@ test("annualized 16k ten-hour rate revises past pay, off days and monthly deduct
  const [s]=await computeStatsForRange('2026-11-04','2026-11-09',undefined,true);
  assert.equal(s.hourlyRateRs,rate);assert.equal(s.dailyRateRs,526.03);
  assert.equal(s.regularPayRs,1052.05);assert.equal(s.offDaysPayRs,526.03);
- assert.equal(s.missingPunchDeductionRs,526.03);assert.equal(s.salaryRs,1052.05);
+ assert.equal(s.missingPunchDeductionRs,0);assert.equal(s.salaryRs,1578.08);
  assert.equal(s.fullDaysWorked,2);assert.equal(s.overtimeHours,0);
  assert.equal(s.payrollDays?.find(d=>d.date==='2026-11-04')?.regularHours,10);
  assert.equal(JSON.stringify(records),before);
@@ -348,8 +348,8 @@ test("Gokul corrected rate revises historical regular, off-day, bonus and missin
  const [corrected]=await computeStatsForRange("2026-11-03","2026-11-10",undefined,true);
  assert.equal(corrected.dailyRateRs,657.5);assert.equal(corrected.regularPayRs,4602.5);
  assert.equal(corrected.offDaysPayRs,657.5);assert.equal(corrected.bonusDays,1);
- assert.equal(corrected.bonusPayRs,657.5);assert.equal(corrected.missingPunchDeductionRs,657.5);
- assert.equal(corrected.salaryRs,5260);assert.equal(corrected.overtimeHours,old.overtimeHours);
+ assert.equal(corrected.bonusPayRs,657.5);assert.equal(corrected.missingPunchDeductionRs,0);
+ assert.equal(corrected.salaryRs,5917.5);assert.equal(corrected.overtimeHours,old.overtimeHours);
  assert.equal(corrected.payrollDays?.find(d=>d.date==="2026-11-03")?.payRs,657.5);
 });
 
@@ -369,8 +369,8 @@ test("Hingnam corrected rate revises historical regular, off-day, bonus and miss
  const [corrected]=await computeStatsForRange("2026-11-03","2026-11-10",undefined,true);
  assert.equal(corrected.dailyRateRs,394.5);assert.equal(corrected.regularPayRs,2761.5);
  assert.equal(corrected.offDaysPayRs,394.5);assert.equal(corrected.bonusDays,1);
- assert.equal(corrected.bonusPayRs,394.5);assert.equal(corrected.missingPunchDeductionRs,394.5);
- assert.equal(corrected.salaryRs,3156);assert.equal(corrected.overtimeHours,old.overtimeHours);
+ assert.equal(corrected.bonusPayRs,394.5);assert.equal(corrected.missingPunchDeductionRs,0);
+ assert.equal(corrected.salaryRs,3550.5);assert.equal(corrected.overtimeHours,old.overtimeHours);
  assert.equal(corrected.payrollDays?.find(d=>d.date==="2026-11-03")?.payRs,394.5);
 });
 
@@ -390,7 +390,7 @@ test("Chetan, Nijuli and Sushma corrected rates recalculate past regular, off-da
   const s=stats.find(s=>s.userId===p.id)!;
   assert.equal(s.dailyRateRs,p.daily);assert.equal(s.regularPayRs,round(7*p.daily));
   assert.equal(s.offDaysPayRs,p.daily);assert.equal(s.bonusDays,1);assert.equal(s.bonusPayRs,p.daily);
-  assert.equal(s.missingPunchDeductionRs,p.daily);assert.equal(s.salaryRs,round(8*p.daily));
+  assert.equal(s.missingPunchDeductionRs,0);assert.equal(s.salaryRs,round(9*p.daily));
   assert.equal(s.overtimeHours,7);assert.equal(s.overtimeBalanceHours,0);
   assert.ok(Math.abs(s.payrollDays!.find(d=>d.date==="2026-11-03")!.payRs-p.daily)<1e-8);
  }

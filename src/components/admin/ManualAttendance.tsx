@@ -146,7 +146,7 @@ export default function ManualAttendance({ onSaved, dateRevision = 0 }: { onSave
               ? "Editing an existing attendance record"
               : "No attendance record found — this will create one"}
           </p>
-          {record?.missingPunch && record.missingPunch!=="NONE" && <label className="block text-sm"><input type="checkbox" checked={waiveMissingPunch} onChange={e=>setWaiveMissingPunch(e.target.checked)}/> Waive this missing-clock-{record.missingPunch.toLowerCase()} incident and recalculate monthly deductions. Uncheck to retain the incident.</label>}
+          {record?.missingPunch && record.missingPunch!=="NONE" && <label className="block text-sm"><input type="checkbox" checked={waiveMissingPunch} onChange={e=>setWaiveMissingPunch(e.target.checked)}/> Waive this missing-clock-{record.missingPunch.toLowerCase()} incident for attendance reporting (no salary penalty applies). Uncheck to retain the incident.</label>}
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="text-sm">
               Actual clock-in (IST)
